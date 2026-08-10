@@ -1,0 +1,587 @@
+import { Monitor, Smartphone, Phone, Sparkles, Instagram, Youtube, Facebook, Video, Heart, ExternalLink, MapPin, Clock, Navigation, MessageCircle, CalendarCheck, CreditCard } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { SalonData, getPublicStaffData } from '../types';
+
+export default function PreviewPane({ data, step, activeStaffId }: { data: SalonData, step: number, activeStaffId?: string }) {
+  const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
+  const teamSectionRef = useRef<HTMLDivElement>(null);
+  const gallerySectionRef = useRef<HTMLDivElement>(null);
+  const socialSectionRef = useRef<HTMLDivElement>(null);
+  const locationSectionRef = useRef<HTMLDivElement>(null);
+  const contactSectionRef = useRef<HTMLDivElement>(null);
+
+  const templateId = data.templateId || 'hair';
+
+  // Template styles configuration
+  const templateConfig = {
+    barber: {
+      navBg: 'bg-zinc-900 text-zinc-100 border-zinc-800',
+      heroBg: 'bg-zinc-950 text-zinc-100',
+      primaryBtn: 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold',
+      accentColor: '#f59e0b',
+      accentText: 'text-amber-500',
+      badgeBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      fontFamily: 'font-mono',
+      cardBg: 'bg-zinc-900 border-zinc-800 text-zinc-100',
+      subText: 'text-zinc-400',
+      headingFont: 'font-sans uppercase tracking-wider',
+    },
+    hair: {
+      navBg: 'bg-white text-gray-900 border-gray-100',
+      heroBg: 'bg-gray-900 text-white',
+      primaryBtn: 'bg-[#ac0053] hover:bg-[#ba005b] text-white',
+      accentColor: '#ac0053',
+      accentText: 'text-[#ac0053]',
+      badgeBg: 'bg-[#ffd9e1]/50 text-[#ac0053]',
+      fontFamily: 'font-sans',
+      cardBg: 'bg-white border-gray-100 text-gray-900',
+      subText: 'text-gray-500',
+      headingFont: 'font-serif',
+    },
+    wellness: {
+      navBg: 'bg-emerald-950/90 text-emerald-50 border-emerald-900/50',
+      heroBg: 'bg-emerald-900 text-emerald-50',
+      primaryBtn: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+      accentColor: '#059669',
+      accentText: 'text-emerald-600',
+      badgeBg: 'bg-emerald-100 text-emerald-800',
+      fontFamily: 'font-sans',
+      cardBg: 'bg-emerald-50/30 border-emerald-100 text-emerald-950',
+      subText: 'text-emerald-700/80',
+      headingFont: 'font-serif',
+    }
+  }[templateId];
+
+  // Auto-scroll/focus to the relevant section when step or data/activeStaffId changes (Section-Aware Live Preview)
+  useEffect(() => {
+    if (step === 4 && teamSectionRef.current) {
+      setTimeout(() => {
+        if (activeStaffId) {
+          const el = document.getElementById(`preview-staff-${activeStaffId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+          }
+        }
+        teamSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else if (step === 5 && gallerySectionRef.current) {
+      setTimeout(() => {
+        gallerySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else if (step === 6 && socialSectionRef.current) {
+      setTimeout(() => {
+        socialSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else if (step === 7 && locationSectionRef.current) {
+      setTimeout(() => {
+        locationSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else if (step === 8 && contactSectionRef.current) {
+      setTimeout(() => {
+        contactSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [step, activeStaffId, data.team, data.socialVideos, data.address, data.openingHours, data.contactOptions, data.bookingRules]);
+
+  // Determine dynamic section title based on services/salon context
+  const getTeamTitle = () => {
+    const serviceNames = data.services.map(s => (s.name + ' ' + s.category).toLowerCase()).join(' ');
+    const salonLower = data.salonName.toLowerCase();
+    
+    if (serviceNames.includes('barber') || serviceNames.includes('fade') || serviceNames.includes('beard') || salonLower.includes('barber')) {
+      return 'Meet Our Barbers';
+    }
+    if (serviceNames.includes('hair') || serviceNames.includes('color') || serviceNames.includes('stylist') || salonLower.includes('hair') || salonLower.includes('salon')) {
+      return 'Meet Our Stylists';
+    }
+    if (serviceNames.includes('facial') || serviceNames.includes('spa') || serviceNames.includes('massage') || serviceNames.includes('skin')) {
+      return 'Our Experts';
+    }
+    return 'Meet Our Experts & Stylists';
+  };
+
+  return (
+    <div className="w-full h-full bg-[#f3f3f4] flex flex-col border-l border-gray-200 relative">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#ac0053] to-[#ffb1c4] z-20"></div>
+      
+      <div className="flex items-center justify-between p-4 md:p-6 shrink-0 z-10">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Live Website Preview</span>
+          {step === 4 && (
+            <span className="bg-[#ffd9e1] text-[#ac0053] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5" /> Team Section
+            </span>
+          )}
+          {step === 5 && (
+            <span className="bg-[#ffd9e1] text-[#ac0053] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5" /> Photos & Gallery
+            </span>
+          )}
+          {step === 6 && (
+            <span className="bg-[#ffd9e1] text-[#ac0053] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5" /> Social Connectivity
+            </span>
+          )}
+        </div>
+        <div className="flex bg-gray-200/50 p-1 rounded-lg">
+          <button 
+            onClick={() => setMode('desktop')}
+            className={`px-3 py-1.5 rounded flex items-center gap-2 text-sm font-medium transition-colors ${mode === 'desktop' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <Monitor className="w-4 h-4" /> Desktop
+          </button>
+          <button 
+            onClick={() => setMode('mobile')}
+            className={`px-3 py-1.5 rounded flex items-center gap-2 text-sm font-medium transition-colors ${mode === 'mobile' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <Smartphone className="w-4 h-4" /> Mobile
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden p-4 md:p-6 pt-0 flex justify-center items-start">
+        <div className={`
+          bg-white shadow-xl border border-gray-200 flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full
+          ${mode === 'desktop' ? 'w-full max-w-[900px] rounded-xl' : 'w-[375px] max-h-[812px] rounded-[2rem] border-[8px] border-gray-100'}
+        `}>
+          {/* Browser/Phone Header */}
+          {mode === 'desktop' ? (
+            <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-2 shrink-0">
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-400"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
+              </div>
+              <div className="mx-auto bg-white px-4 py-1 rounded text-[10px] text-gray-500 border border-gray-200 font-mono tracking-wide">
+                {data.salonName.toLowerCase().replace(/\s+/g, '') || 'yoursalon'}.nexora.site
+              </div>
+            </div>
+          ) : (
+            <div className="h-6 w-full flex justify-center items-start bg-white shrink-0">
+              <div className="w-24 h-4 bg-gray-100 rounded-b-xl"></div>
+            </div>
+          )}
+
+          {/* Preview Content Area */}
+          <div className="flex-1 overflow-y-auto bg-white custom-scrollbar pb-16">
+            {/* Nav */}
+            <div className={`px-6 py-4 flex items-center justify-between border-b sticky top-0 backdrop-blur-md z-30 transition-colors ${templateConfig.navBg}`}>
+              <div className="flex items-center gap-2">
+                {data.logoUrl ? (
+                  <img src={data.logoUrl} alt="Logo" className="h-7 w-auto object-contain max-w-[120px]" />
+                ) : (
+                  <Sparkles className="w-5 h-5" style={{ color: templateConfig.accentColor }} />
+                )}
+                <span className="font-bold text-lg">{data.salonName || 'Your Salon'}</span>
+              </div>
+              {mode === 'desktop' && (
+                <div className={`flex gap-6 text-xs font-medium opacity-90`}>
+                  <span className="font-bold">Home</span>
+                  <span>Services</span>
+                  <span className={step === 4 ? 'underline decoration-2 underline-offset-4 font-bold' : ''}>Team</span>
+                  <span className={step === 5 ? 'underline decoration-2 underline-offset-4 font-bold' : ''}>Gallery</span>
+                </div>
+              )}
+            </div>
+
+            {/* Hero */}
+            <div className={`px-6 py-12 text-center relative overflow-hidden min-h-[260px] flex items-center justify-center ${templateConfig.heroBg}`}>
+              {data.heroImageUrl && (
+                <img
+                  src={data.heroImageUrl}
+                  alt="Hero Banner"
+                  className={`absolute inset-0 w-full h-full object-cover opacity-40 ${
+                    data.heroPosition === 'Top' ? 'object-top' : data.heroPosition === 'Bottom' ? 'object-bottom' : 'object-center'
+                  }`}
+                />
+              )}
+              <div className="relative z-10 max-w-xl mx-auto text-white">
+                <h1 className={`text-2xl md:text-3xl font-bold mb-2 ${templateConfig.headingFont}`}>{data.tagline || 'Elevating your natural beauty'}</h1>
+                <p className="text-xs text-gray-200 mb-6 max-w-md mx-auto leading-relaxed">{data.about || 'A brief description of your services and ambiance.'}</p>
+                <button className={`px-6 py-2.5 rounded-lg font-bold text-xs shadow-md transition-all ${templateConfig.primaryBtn}`}>Book Appointment</button>
+              </div>
+            </div>
+
+            {/* Content based on step */}
+            {step === 2 && (
+               <div className="px-6 py-12 flex flex-col items-center text-center max-w-xl mx-auto">
+                 <div className="w-32 h-32 bg-gray-100 rounded-full mb-6 overflow-hidden border-4 border-white shadow-xl">
+                    <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop" className="w-full h-full object-cover" alt="Founder" />
+                 </div>
+                 <h2 className="text-xs font-bold uppercase tracking-widest text-[#ac0053] mb-2">Meet the Founder</h2>
+                 <h3 className="text-2xl font-serif font-bold text-gray-900 mb-1">{data.ownerName || 'Owner Name'}</h3>
+                 <p className="text-xs font-semibold text-gray-500 tracking-wide">{data.ownerRole || 'Role'}</p>
+               </div>
+            )}
+
+            {(step === 3 || step === 4) && (
+              <div className="px-6 py-12 max-w-2xl mx-auto border-b border-gray-100">
+                <h3 className="text-2xl font-bold text-center mb-8 font-serif">Our Services</h3>
+                <div className={`grid gap-4 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {data.services.map(s => (
+                    <div key={s.id} className="p-5 rounded-xl border border-gray-100 shadow-2xs bg-white hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-1">
+                        <h4 className="font-bold text-gray-900 text-sm">{s.name}</h4>
+                        <span className="font-bold text-[#ac0053] text-sm">₹{s.price.toLocaleString('en-IN')}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-4">{s.description}</p>
+                      <button className="w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-900 rounded-lg font-semibold text-xs transition-colors border border-gray-200">
+                        Book • {s.duration} min
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Step 4: Focus on Team Section */}
+            {step === 4 && (
+              <div id="team-preview-section" ref={teamSectionRef} className="px-6 py-12 bg-gray-50/80 scroll-mt-12 border-t-2 border-[#ac0053]/20">
+                <div className="max-w-3xl mx-auto">
+                  <div className="text-center mb-10">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#ac0053]">Expert Professionals</span>
+                    <h3 className="text-2xl md:text-3xl font-bold font-serif text-gray-900 mt-1">{getTeamTitle()}</h3>
+                    <p className="text-xs text-gray-500 mt-1">Book your tailored experience with our talented specialists.</p>
+                  </div>
+
+                  <div className={`grid gap-6 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {data.team.map(member => {
+                      const pub = getPublicStaffData(member);
+                      const isActive = activeStaffId === pub.id;
+                      return (
+                        <div 
+                          key={pub.id} 
+                          id={`preview-staff-${pub.id}`}
+                          className={`bg-white rounded-xl border p-5 transition-all ${
+                            isActive 
+                              ? 'border-[#ac0053] ring-2 ring-[#ac0053]/30 shadow-md bg-[#ffd9e1]/10' 
+                              : 'border-gray-200/80 shadow-xs hover:shadow-md'
+                          } flex flex-col gap-4`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <img 
+                              src={pub.imageUrl} 
+                              alt={pub.name} 
+                              className="w-16 h-16 rounded-full object-cover border-2 border-[#ffd9e1] shrink-0 shadow-xs" 
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-bold text-gray-900 text-base leading-tight">{pub.name}</h4>
+                              <p className="text-xs font-bold text-[#ac0053] uppercase tracking-wider mt-0.5">{pub.role}</p>
+                              
+                              {pub.phone && (
+                                <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-1">
+                                  <Phone className="w-3 h-3 text-gray-400" /> {pub.phone}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Specialties / Skills Bullets / Chips */}
+                          {pub.specialties && pub.specialties.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {pub.specialties.map((spec, i) => (
+                                <span key={i} className="bg-[#ffd9e1]/30 text-[#80003c] border border-[#ffd9e1] text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                                  {spec}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {pub.bio && (
+                            <p className="text-xs text-gray-600 leading-relaxed font-sans line-clamp-3 bg-gray-50 p-2.5 rounded-lg border border-gray-100 italic">
+                              "{pub.bio}"
+                            </p>
+                          )}
+
+                          <button className="w-full py-2 bg-[#1a1c1c] hover:bg-black text-white text-xs font-semibold rounded-lg transition-colors mt-auto">
+                            Book with {pub.name.split(' ')[0]}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Gallery Section */}
+            <div ref={gallerySectionRef} className="px-6 py-12 bg-white scroll-mt-12 border-t-2 border-[#ac0053]/20">
+              <div className="max-w-3xl mx-auto">
+                <div className="text-center mb-8">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#ac0053]">Visual Gallery</span>
+                  <h3 className="text-2xl font-serif font-bold text-gray-900 mt-1">Our Space & Work</h3>
+                  <p className="text-xs text-gray-500 mt-1">Explore our salon interior, styling details, and client transformations.</p>
+                </div>
+
+                {data.gallery && data.gallery.length > 0 ? (
+                  <div className={`grid gap-3 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    {data.gallery.map((item) => (
+                      <div key={item.id} className="group relative aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-2xs bg-gray-100">
+                        <img
+                          src={item.url}
+                          alt={item.alt || 'Gallery photo'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5 flex flex-col justify-end">
+                          <span className="text-[10px] font-bold text-white bg-[#ac0053] px-2 py-0.5 rounded-md inline-block w-fit">
+                            {item.category || 'General'}
+                          </span>
+                          {item.alt && (
+                            <p className="text-[10px] text-gray-200 line-clamp-1 mt-0.5">{item.alt}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 border-2 border-dashed border-gray-200 rounded-xl text-center text-gray-400 text-xs">
+                    No gallery photos added yet. Upload images in Step 06.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Social Connectivity Section */}
+            <div ref={socialSectionRef} className="px-6 py-12 bg-gray-50 scroll-mt-12 border-t-2 border-[#ac0053]/20">
+              <div className="max-w-3xl mx-auto">
+                <div className="text-center mb-8">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#ac0053] flex items-center justify-center gap-1">
+                    <Video className="w-3 h-3" /> Social Feed & Work
+                  </span>
+                  <h3 className="text-2xl font-serif font-bold text-gray-900 mt-1">See Our Latest Looks</h3>
+                  <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                    Follow us on Instagram and YouTube for daily inspiration, reels, and behind-the-scenes transformations.
+                  </p>
+                </div>
+
+                {/* Social Profiles Chips */}
+                {data.socialProfiles && (data.socialProfiles.instagram || data.socialProfiles.facebook || data.socialProfiles.youtube || data.socialProfiles.tiktok) && (
+                  <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                    {data.socialProfiles.instagram && (
+                      <a href={data.socialProfiles.instagram} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-800 hover:border-[#ac0053] hover:text-[#ac0053] shadow-2xs transition-colors">
+                        <Instagram className="w-3.5 h-3.5 text-pink-600" /> Instagram
+                      </a>
+                    )}
+                    {data.socialProfiles.facebook && (
+                      <a href={data.socialProfiles.facebook} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-800 hover:border-blue-600 hover:text-blue-600 shadow-2xs transition-colors">
+                        <Facebook className="w-3.5 h-3.5 text-blue-600" /> Facebook
+                      </a>
+                    )}
+                    {data.socialProfiles.youtube && (
+                      <a href={data.socialProfiles.youtube} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-800 hover:border-red-600 hover:text-red-600 shadow-2xs transition-colors">
+                        <Youtube className="w-3.5 h-3.5 text-red-600" /> YouTube
+                      </a>
+                    )}
+                    {data.socialProfiles.tiktok && (
+                      <a href={data.socialProfiles.tiktok} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-800 hover:border-black shadow-2xs transition-colors">
+                        <Video className="w-3.5 h-3.5 text-black" /> TikTok
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Social Videos Grid */}
+                {data.socialVideos && data.socialVideos.length > 0 ? (
+                  <div className={`grid gap-4 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    {data.socialVideos.map((video) => (
+                      <div key={video.id} className="relative aspect-[9/16] rounded-xl overflow-hidden group border border-gray-200 shadow-xs bg-gray-900 cursor-pointer">
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90"></div>
+                        
+                        {/* Platform Icon Badge */}
+                        <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-xs rounded-full p-1.5 text-white">
+                          {video.platform === 'youtube' ? (
+                            <Youtube className="w-3.5 h-3.5 text-red-500" />
+                          ) : video.platform === 'facebook' ? (
+                            <Facebook className="w-3.5 h-3.5 text-blue-500" />
+                          ) : (
+                            <Instagram className="w-3.5 h-3.5 text-pink-500" />
+                          )}
+                        </div>
+
+                        {/* Title & Stats Overlay */}
+                        <div className="absolute bottom-3 left-3 right-3 text-white">
+                          <p className="text-xs font-bold line-clamp-2 leading-snug">{video.title}</p>
+                          <div className="flex items-center justify-between mt-1.5 text-[10px] text-gray-300">
+                            {video.likesCount && (
+                              <span className="flex items-center gap-1 font-semibold">
+                                <Heart className="w-3 h-3 text-pink-500 fill-pink-500" /> {video.likesCount}
+                              </span>
+                            )}
+                            {video.dateAdded && (
+                              <span className="text-gray-400">{video.dateAdded}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 border-2 border-dashed border-gray-200 rounded-xl text-center text-gray-400 text-xs">
+                    No social videos connected yet. Add Reels or Shorts in Step 07.
+                  </div>
+                )}
+
+                {data.socialProfiles?.instagram && (
+                  <div className="mt-8 text-center">
+                    <a
+                      href={data.socialProfiles.instagram}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#ac0053] text-xs font-bold hover:underline inline-flex items-center gap-1"
+                    >
+                      View all on Instagram <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Location & Opening Hours Section ("Find Us") */}
+            <div 
+              ref={locationSectionRef}
+              id="location-section" 
+              className={`pt-12 mt-12 border-t border-gray-100 transition-all ${step === 7 ? 'ring-2 ring-[#ac0053]/40 p-4 rounded-2xl bg-[#ffd9e1]/10' : ''}`}
+            >
+              <div className="text-center mb-8">
+                <div className="w-12 h-12 bg-[#ac0053]/10 text-[#ac0053] rounded-full mx-auto flex items-center justify-center mb-3">
+                  <MapPin className="w-6 h-6" />
+                </div>
+                <span className="text-xs font-bold text-[#ac0053] uppercase tracking-wider">Visit Us</span>
+                <h3 className="text-2xl font-bold text-gray-900 mt-1">Our Location & Opening Hours</h3>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-8 items-start">
+                {/* Address Block */}
+                <div className="space-y-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                  <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-[#ac0053]" /> Address
+                  </h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    {data.address?.fullAddress || 'Shop 14, Linking Road, Bandra West, Mumbai, Maharashtra 400050'}
+                  </p>
+                  
+                  {/* Map visual card */}
+                  <div className="relative w-full h-40 rounded-xl overflow-hidden border border-gray-200 group">
+                    <img
+                      src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=600&auto=format&fit=crop"
+                      alt="Map location"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                      <div className="w-8 h-8 bg-[#ac0053] rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button className="w-full py-2.5 bg-gray-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs">
+                    <Navigation className="w-3.5 h-3.5" /> Get Directions
+                  </button>
+                </div>
+
+                {/* Hours Block */}
+                <div className="space-y-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                  <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#ac0053]" /> Opening Hours
+                  </h4>
+                  <div className="space-y-2 text-xs text-gray-600">
+                    {data.openingHours ? (
+                      Object.entries(data.openingHours).map(([day, schedule]) => (
+                        <div key={day} className="flex justify-between items-center border-b border-gray-200/60 pb-2 capitalize">
+                          <span className="font-medium text-gray-900">{day}</span>
+                          {schedule.open ? (
+                            <span className="font-semibold text-gray-700">{schedule.startTime} – {schedule.endTime}</span>
+                          ) : (
+                            <span className="font-bold text-[#ac0053]">Closed</span>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <>
+                        <div className="flex justify-between border-b border-gray-200/60 pb-2"><span className="font-medium text-gray-900">Monday – Saturday</span><span>10:00 AM – 08:00 PM</span></div>
+                        <div className="flex justify-between border-b border-gray-200/60 pb-2"><span className="font-medium text-gray-900">Sunday</span><span className="text-[#ac0053] font-bold">Closed</span></div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Contact & Booking Section ("Contact & Book") */}
+            <div 
+              ref={contactSectionRef}
+              id="contact-booking-section"
+              className={`pt-12 mt-12 border-t border-gray-100 transition-all ${step === 8 ? 'ring-2 ring-[#ac0053]/40 p-4 rounded-2xl bg-[#ffd9e1]/10' : ''}`}
+            >
+              <div className="text-center mb-8">
+                <div className="w-12 h-12 bg-[#ac0053]/10 text-[#ac0053] rounded-full mx-auto flex items-center justify-center mb-3">
+                  <CalendarCheck className="w-6 h-6" />
+                </div>
+                <span className="text-xs font-bold text-[#ac0053] uppercase tracking-wider">Contact & Book</span>
+                <h3 className="text-2xl font-bold text-gray-900 mt-1">Book Your Appointment</h3>
+              </div>
+
+              <div className="max-w-xl mx-auto space-y-6">
+                {/* Contact Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(!data.contactOptions || data.contactOptions.callNow) && (
+                    <button className="w-full py-3 bg-white border border-gray-200 hover:border-[#ac0053] text-gray-900 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all">
+                      <Phone className="w-4 h-4 text-[#ac0053]" /> Call Now
+                    </button>
+                  )}
+                  {(!data.contactOptions || data.contactOptions.whatsapp) && (
+                    <button className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all">
+                      <MessageCircle className="w-4 h-4" /> WhatsApp
+                    </button>
+                  )}
+                  {(!data.contactOptions || data.contactOptions.bookNow) && (
+                    <button className="w-full py-3 bg-[#ac0053] hover:bg-[#ba005b] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all">
+                      <CalendarCheck className="w-4 h-4" /> Book Online
+                    </button>
+                  )}
+                </div>
+
+                {/* 25% Deposit Banner Box in Preview */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-gray-900 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-[#ac0053]" /> Online Booking Deposit
+                    </span>
+                    <span className="bg-[#ffd9e1] text-[#ac0053] font-bold px-2 py-0.5 rounded-full text-[10px]">
+                      25% Deposit
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Pay 25% in advance to lock your time slot. Remaining amount is payable at salon after service.
+                  </p>
+
+                  <div className="bg-gray-50 p-3 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Example (Signature Haircut):</span>
+                      <span className="font-semibold text-gray-800">₹500</span>
+                    </div>
+                    <div className="flex justify-between text-[#ac0053] font-bold">
+                      <span>Advance (25%):</span>
+                      <span>-₹125</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1.5">
+                      <span>Pay at Salon:</span>
+                      <span className="text-[#ac0053]">₹375</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
