@@ -27,8 +27,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
 
 const STORAGE_KEY = 'nexora_onboarding_state';
+const DASHBOARD_TAB_KEY = 'nexora_dashboard_tab';
 const TOTAL_STEPS = 16;
 const MAX_STEP_INDEX = 15; // 0-based: 0..15 => 1..16
+
+// Dashboard tab mapping for screens 17-22
+type DashboardTab = 'overview' | 'website' | 'bookings' | 'payments' | 'share' | 'settings';
+const DASHBOARD_TABS: DashboardTab[] = ['overview', 'website', 'bookings', 'payments', 'share', 'settings'];
 
 export default function App() {
   const [step, setStep] = useState<number>(() => {
@@ -61,7 +66,27 @@ export default function App() {
     return initialData;
   });
 
-  const [activeModule, setActiveModule] = useState<'wizard' | 'staff-management'>('wizard');
+  const [activeModule, setActiveModule] = useState<'wizard' | 'staff-management' | 'dashboard'>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.activeModule === 'staff-management' || parsed.activeModule === 'dashboard') return parsed.activeModule;
+      }
+      const dashboardTab = localStorage.getItem(DASHBOARD_TAB_KEY);
+      if (dashboardTab && data.publishState === 'published') return 'dashboard';
+    } catch {}
+    return 'wizard';
+  });
+
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab>(() => {
+    try {
+      const saved = localStorage.getItem(DASHBOARD_TAB_KEY) as DashboardTab | null;
+      if (saved && DASHBOARD_TABS.includes(saved)) return saved;
+    } catch {}
+    return 'overview';
+  });
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const [showResumeBanner, setShowResumeBanner] = useState<boolean>(() => {
@@ -79,6 +104,13 @@ export default function App() {
 
   const isInitialMount = useRef(true);
 
+  // Persist dashboard tab
+  useEffect(() => {
+    try {
+      localStorage.setItem(DASHBOARD_TAB_KEY, dashboardTab);
+    } catch {}
+  }, [dashboardTab]);
+
   // Auto save state to localStorage whenever step or data changes
   useEffect(() => {
     if (isInitialMount.current) {
@@ -95,6 +127,8 @@ export default function App() {
           JSON.stringify({
             step,
             data: { ...data, lastCompletedStep },
+            activeModule,
+            dashboardTab,
             lastSaved: new Date().toISOString(),
             onboarding_progress: `Step ${step + 1} of ${TOTAL_STEPS}`,
             lastCompletedStep,
@@ -112,11 +146,10 @@ export default function App() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [step, data]);
+  }, [step, data, activeModule, dashboardTab]);
 
   const nextStep = () => setStep(s => {
     const next = Math.min(MAX_STEP_INDEX, s + 1);
-    // update lastCompletedStep instantly in data for persistence
     setData(prev => ({ ...prev, lastCompletedStep: Math.max(prev.lastCompletedStep || 0, s) }));
     return next;
   });
@@ -137,6 +170,8 @@ export default function App() {
         JSON.stringify({
           step,
           data,
+          activeModule,
+          dashboardTab,
           lastSaved: new Date().toISOString(),
           onboarding_progress: `Step ${step + 1} of ${TOTAL_STEPS}`,
           lastCompletedStep: data.lastCompletedStep,
@@ -156,39 +191,207 @@ export default function App() {
     }, 200);
   };
 
+  // Universal 22-screen navigator
+  const getCurrentScreen = (): number => {
+    if (activeModule === 'staff-management') return 16;
+    if (activeModule === 'dashboard') {
+      const tabIndex = DASHBOARD_TABS.indexOf(dashboardTab);
+      return 17 + tabIndex;
+    }
+    // wizard
+    return step + 1; // step 0 => screen 1, step 15 => screen 16? but clamp to 15
+  };
+
+  const navigateToScreen = (screenId: number) => {
+    if (screenId >= 1 && screenId <= 15) {
+      setActiveModule('wizard');
+      setStep(screenId - 1);
+      setShowResumeBanner(false);
+      showToast(`Navigated to Screen ${String(screenId).padStart(2, '0')}`);
+    } else if (screenId === 16) {
+      setActiveModule('staff-management');
+      showToast('Opened Staff Management Module (Screen 16)');
+    } else if (screenId >= 17 && screenId <= 22) {
+      // Ensure published state for dashboard
+      if (data.publishState !== 'published') {
+        setData(prev => ({ ...prev, publishState: 'published', publishedUrl: prev.publishedUrl || `https://nexora.site/${prev.websiteSlug || 'royal-hair-studio'}`, websiteSlug: prev.websiteSlug || 'royal-hair-studio' }));
+      }
+      setActiveModule('dashboard');
+      const tabIndex = screenId - 17;
+      const tab = DASHBOARD_TABS[tabIndex] || 'overview';
+      setDashboardTab(tab as DashboardTab);
+      // For dashboard, ensure step is 0 to render Landing dashboard mode, but keep step for persistence
+      // We don't change step to avoid losing wizard progress; dashboard is separate module
+      showToast(`Opened Dashboard — ${tab} (Screen ${String(screenId).padStart(2, '0')})`);
+    }
+  };
+
   const handleDashboard = () => {
-    // Do NOT reset to Screen 01 automatically unless user explicitly wants dashboard.
-    // For this app, Go to Dashboard will take them to Landing (step 0) but preserve data.
-    // According to spec, do not return to onboarding after successful publish unless explicit — user clicked Go to Dashboard, so it's explicit.
     setStep(0);
     setShowResumeBanner(false);
   };
 
+  // Compute current screen for TopBar
+  const currentScreen = getCurrentScreen();
+
+  // Special handling: Landing preview for dashboard needs to be rendered via Landing component's dashboard mode
+  // If activeModule is dashboard, we render Landing with forced tab
+  if (activeModule === 'dashboard') {
+    return (
+      <div className="h-screen bg-[#f9f9f9] flex flex-col font-sans text-gray-900 overflow-hidden relative">
+        <TopBar
+          step={step}
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
+          saveStatus={saveStatus}
+          currentScreen={currentScreen}
+          onNavigate={navigateToScreen}
+        />
+        <main className="flex-1 flex overflow-hidden">
+          {/* Force Landing into dashboard mode by ensuring published and passing forcedActiveTab */}
+          <Landing
+            data={{ ...data, publishState: 'published', publishedUrl: data.publishedUrl || `https://nexora.site/${data.websiteSlug || 'royal-hair-studio'}` }}
+            setData={setData}
+            onNext={nextStep}
+            goToStep={goToStep}
+            onOpenStaffManagement={() => setActiveModule('staff-management')}
+            forcedActiveTab={dashboardTab as any}
+            onTabChange={(tab: any) => setDashboardTab(tab)}
+          />
+        </main>
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="absolute bottom-8 right-8 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3"
+            >
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span className="text-sm font-medium">{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  if (activeModule === 'staff-management') {
+    return (
+      <div className="h-screen bg-[#f9f9f9] flex flex-col font-sans text-gray-900 overflow-hidden relative">
+        <TopBar
+          step={step}
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
+          saveStatus={saveStatus}
+          currentScreen={currentScreen}
+          onNavigate={navigateToScreen}
+        />
+        <main className="flex-1 flex overflow-hidden">
+          <StaffManagementModule
+            data={data}
+            setData={setData}
+            onSave={handleSave}
+            onBackToWizard={() => setActiveModule('wizard')}
+          />
+        </main>
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="absolute bottom-8 right-8 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3"
+            >
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span className="text-sm font-medium">{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // Wizard module rendering
   if (step === 0) return (
-    <Landing 
-      data={data}
-      setData={setData}
-      onNext={nextStep} 
-      goToStep={goToStep}
-      onOpenStaffManagement={() => setActiveModule('staff-management')}
-    />
+    <div className="h-screen bg-[#f9f9f9] flex flex-col font-sans text-gray-900 overflow-hidden relative">
+      <TopBar
+        step={step}
+        activeModule={activeModule}
+        setActiveModule={setActiveModule}
+        saveStatus={saveStatus}
+        currentScreen={currentScreen}
+        onNavigate={navigateToScreen}
+      />
+      <div className="flex-1 overflow-auto">
+        <Landing 
+          data={data}
+          setData={setData}
+          onNext={nextStep} 
+          goToStep={goToStep}
+          onOpenStaffManagement={() => setActiveModule('staff-management')}
+        />
+      </div>
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="absolute bottom-8 right-8 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3"
+          >
+            <CheckCircle2 className="w-5 h-5 text-green-400" />
+            <span className="text-sm font-medium">{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
-  if (step === 1) return <HeroSplit onNext={nextStep} />;
 
-  // Determine if TopBar should show (for wizard steps, not for landing/hero/success? spec says show progress)
-  // Show for steps 2..13 (Step 3-14 of 15). For Step 15 success, hide or show minimal.
-  const showTopBar = step >= 2 && step < 14 && activeModule === 'wizard';
+  if (step === 1) return (
+    <div className="h-screen bg-[#f9f9f9] flex flex-col font-sans text-gray-900 overflow-hidden relative">
+      <TopBar
+        step={step}
+        activeModule={activeModule}
+        setActiveModule={setActiveModule}
+        saveStatus={saveStatus}
+        currentScreen={currentScreen}
+        onNavigate={navigateToScreen}
+      />
+      <div className="flex-1 overflow-auto">
+        <HeroSplit onNext={nextStep} />
+      </div>
+      <div className="p-4 bg-white border-t border-gray-200 flex justify-between items-center">
+        <button onClick={prevStep} className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-semibold">Back</button>
+        <button onClick={nextStep} className="px-6 py-2 bg-[#ac0053] text-white rounded-xl text-xs font-semibold">Continue to Template Selection</button>
+      </div>
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="absolute bottom-8 right-8 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3"
+          >
+            <CheckCircle2 className="w-5 h-5 text-green-400" />
+            <span className="text-sm font-medium">{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 
+  // For wizard steps 2..15, TopBar is always visible now (universal)
   return (
     <div className="h-screen bg-[#f9f9f9] flex flex-col font-sans text-gray-900 overflow-hidden relative">
-      {showTopBar && (
-        <TopBar 
-          step={step} 
-          activeModule={activeModule} 
-          setActiveModule={setActiveModule} 
-          saveStatus={saveStatus}
-        />
-      )}
+      <TopBar 
+        step={step} 
+        activeModule={activeModule} 
+        setActiveModule={setActiveModule} 
+        saveStatus={saveStatus}
+        currentScreen={currentScreen}
+        onNavigate={navigateToScreen}
+      />
 
       {/* Resume Welcome Back Banner - Fixed to show correct step and actually render correct screen below */}
       <AnimatePresence>
@@ -216,97 +419,88 @@ export default function App() {
       </AnimatePresence>
       
       <main className="flex-1 flex overflow-hidden">
-        {activeModule === 'staff-management' ? (
-          <StaffManagementModule
-            data={data}
-            setData={setData}
-            onSave={handleSave}
-            onBackToWizard={() => setActiveModule('wizard')}
-          />
-        ) : (
-          <>
-            {step === 2 && <StepTemplate data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
-            {step === 3 && <StepDetails data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
-            {step === 4 && <StepServices data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
-            {step === 5 && (
-              <StepTeam 
-                data={data} 
-                setData={setData} 
-                onNext={nextStep} 
-                onPrev={prevStep} 
-                onSave={handleSave} 
-                onOpenStaffManagement={() => setActiveModule('staff-management')}
-              />
-            )}
-            {step === 6 && (
-              <StepPhotos
-                data={data}
-                setData={setData}
-                onNext={nextStep}
-                onPrev={prevStep}
-                onSave={handleSave}
-              />
-            )}
-            {step === 7 && (
-              <StepSocials
-                data={data}
-                setData={setData}
-                onNext={nextStep}
-                onPrev={prevStep}
-                onSave={handleSave}
-              />
-            )}
-            {step === 8 && (
-              <StepLocation
-                data={data}
-                setData={setData}
-                onNext={nextStep}
-                onPrev={prevStep}
-                onSave={handleSave}
-              />
-            )}
-            {step === 9 && (
-              <StepContactBooking
-                data={data}
-                setData={setData}
-                onNext={nextStep}
-                onPrev={prevStep}
-                onSave={handleSave}
-              />
-            )}
-            {/* Step 11 of 15 (index 10) - Template Appearance */}
-            {step === 10 && <StepPublish data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
-            
-            {/* FIXED STEPS 12-15 - Previously not rendering */}
-            {step === 11 && <StepAIContentReview data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
-            {step === 12 && <StepFullWebsitePreview data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
-            {step === 13 && <StepPublishSetup data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
-            {step === 14 && <StepPublishSuccess data={data} setData={setData} onNext={nextStep} onSave={handleSave} />}
-            {step === 15 && (
-              <BookingConfirmation 
-                bookingId="NX-10482"
-                service="Hair Spa"
-                date="10 Aug 2026"
-                time="05:00 PM"
-                staff="Priya Sharma"
-                customer="Neha Verma"
-                price={1200}
-                advancePaid={300}
-              />
-            )}
+        <>
+          {step === 2 && <StepTemplate data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          {step === 3 && <StepDetails data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          {step === 4 && <StepServices data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          {step === 5 && (
+            <StepTeam 
+              data={data} 
+              setData={setData} 
+              onNext={nextStep} 
+              onPrev={prevStep} 
+              onSave={handleSave} 
+              onOpenStaffManagement={() => setActiveModule('staff-management')}
+            />
+          )}
+          {step === 6 && (
+            <StepPhotos
+              data={data}
+              setData={setData}
+              onNext={nextStep}
+              onPrev={prevStep}
+              onSave={handleSave}
+            />
+          )}
+          {step === 7 && (
+            <StepSocials
+              data={data}
+              setData={setData}
+              onNext={nextStep}
+              onPrev={prevStep}
+              onSave={handleSave}
+            />
+          )}
+          {step === 8 && (
+            <StepLocation
+              data={data}
+              setData={setData}
+              onNext={nextStep}
+              onPrev={prevStep}
+              onSave={handleSave}
+            />
+          )}
+          {step === 9 && (
+            <StepContactBooking
+              data={data}
+              setData={setData}
+              onNext={nextStep}
+              onPrev={prevStep}
+              onSave={handleSave}
+            />
+          )}
+          {/* Step 11 of 15 (index 10) - Template Appearance */}
+          {step === 10 && <StepPublish data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          
+          {/* FIXED STEPS 12-15 - Previously not rendering */}
+          {step === 11 && <StepAIContentReview data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          {step === 12 && <StepFullWebsitePreview data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          {step === 13 && <StepPublishSetup data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          {step === 14 && <StepPublishSuccess data={data} setData={setData} onNext={() => { setData(prev => ({ ...prev, publishState: 'published' })); setActiveModule('dashboard'); setDashboardTab('overview'); handleSave(); showToast('Website Published — Dashboard Active'); }} onSave={handleSave} />}
+          {step === 15 && (
+            <BookingConfirmation 
+              bookingId="NX-10482"
+              service="Hair Spa"
+              date="10 Aug 2026"
+              time="05:00 PM"
+              staff="Priya Sharma"
+              customer="Neha Verma"
+              price={1200}
+              advancePaid={300}
+            />
+          )}
 
-            {/* Fallback safety - should never hit if switch logic is correct, but prevent blank screen */}
-            {step > 15 && (
-              <div className="flex-1 flex items-center justify-center p-12">
-                <div className="text-center space-y-4">
-                  <h2 className="text-2xl font-bold">Step out of range — redirecting to resume point</h2>
-                  <p className="text-sm text-gray-500">Current step {step} is beyond {MAX_STEP_INDEX}</p>
-                  <button onClick={() => goToStep(11)} className="px-6 py-2 bg-[#ac0053] text-white rounded-lg text-sm">Go to Step 12 AI Review</button>
-                </div>
+          {/* Fallback safety - should never hit if switch logic is correct, but prevent blank screen */}
+          {step > 15 && (
+            <div className="flex-1 flex items-center justify-center p-12">
+              <div className="text-center space-y-4">
+                <h2 className="text-2xl font-bold">Step out of range — redirecting to resume point</h2>
+                <p className="text-sm text-gray-500">Current step {step} is beyond {MAX_STEP_INDEX}</p>
+                <button onClick={() => goToStep(11)} className="px-6 py-2 bg-[#ac0053] text-white rounded-lg text-sm">Go to Step 12 AI Review</button>
               </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+        </>
       </main>
 
       {/* Toast Notification */}

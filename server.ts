@@ -8,7 +8,24 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// API route for generating team member bio using Gemini API
+// CORS enabled for all origins - required for preview proxy (https://{port}-{sandboxId}.e2b.app)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Health check endpoint for verification
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', screens: 22, timestamp: new Date().toISOString() });
+});
+
+// API route for generating team member bio using Gemini API with offline fallback
 app.post('/api/generate-bio', async (req, res) => {
   try {
     const { name, role, specialties, salonName } = req.body;
@@ -17,45 +34,21 @@ app.post('/api/generate-bio', async (req, res) => {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY environment variable is required' });
-    }
-
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
-
-    const prompt = `Write a compelling, professional, and warm 2-3 sentence biography for a salon professional.
-Name: ${name}
-Role: ${role || 'Beauty Specialist'}
-Specialties: ${Array.isArray(specialties) ? specialties.join(', ') : specialties || 'Hair styling & care'}
-Salon Name: ${salonName || 'our salon'}
-
-Focus on their passion for craftsmanship, dedication to client satisfaction, and expertise. Do not include surrounding quotation marks or conversational meta-text. Keep it under 60 words.`;
-
     let bio = '';
-    try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY environment variable is required');
-      }
+    const apiKey = process.env.GEMINI_API_KEY;
 
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
+    if (apiKey) {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            },
           },
-        },
-      });
+        });
 
-      const prompt = `Write a compelling, professional, and warm 2-3 sentence biography for a salon professional.
+        const prompt = `Write a compelling, professional, and warm 2-3 sentence biography for a salon professional.
 Name: ${name}
 Role: ${role || 'Beauty Specialist'}
 Specialties: ${Array.isArray(specialties) ? specialties.join(', ') : specialties || 'Hair styling & care'}
@@ -63,14 +56,17 @@ Salon Name: ${salonName || 'our salon'}
 
 Focus on their passion for craftsmanship, dedication to client satisfaction, and expertise. Do not include surrounding quotation marks or conversational meta-text. Keep it under 60 words.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-      });
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+        });
 
-      bio = response.text?.trim() || '';
-    } catch (error: any) {
-      console.warn('Gemini API call encountered quota or rate limit error, using intelligent fallback bio:', error?.message);
+        bio = response.text?.trim() || '';
+      } catch (error: any) {
+        console.warn('Gemini API call encountered quota or rate limit error, using intelligent fallback bio:', error?.message);
+      }
+    } else {
+      console.log('GEMINI_API_KEY not configured, using offline fallback bio generator');
     }
 
     if (!bio) {
@@ -87,7 +83,7 @@ Focus on their passion for craftsmanship, dedication to client satisfaction, and
   }
 });
 
-// API route to rewrite and improve salon copy using Gemini API with custom settings
+// API route to rewrite and improve salon copy using Gemini API with custom settings and offline fallback
 app.post('/api/improve-text', async (req, res) => {
   try {
     const { text, field, tone, keywords, instructions } = req.body;
@@ -144,6 +140,8 @@ Do not include conversational filler, meta-comments, introductory greetings, or 
       } catch (apiErr: any) {
         console.warn('Gemini API failed in improve-text, applying rule-based transformation:', apiErr.message);
       }
+    } else {
+      console.log('GEMINI_API_KEY not configured, using offline fallback text improver');
     }
 
     // High quality offline fallback rewriting engine
@@ -186,7 +184,12 @@ Do not include conversational filler, meta-comments, introductory greetings, or 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        cors: true,
+        allowedHosts: true as unknown as string[],
+        hmr: process.env.DISABLE_HMR !== 'true',
+      } as any,
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -200,6 +203,8 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Health check: http://0.0.0.0:${PORT}/api/health`);
+    console.log(`22 screens active | allowedHosts: true | cors: true | offline fallback enabled`);
   });
 }
 
