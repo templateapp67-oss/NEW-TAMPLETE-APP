@@ -54,6 +54,8 @@ interface Props {
   onNext: () => void;
   goToStep: (target: number) => void;
   onOpenStaffManagement: () => void;
+  forcedActiveTab?: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings';
+  onTabChange?: (tab: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings') => void;
 }
 
 interface Appointment {
@@ -70,7 +72,7 @@ interface Appointment {
   status: 'Confirmed' | 'Pending' | 'Completed' | 'Cancelled';
 }
 
-export default function Landing({ data, setData, onNext, goToStep, onOpenStaffManagement }: Props) {
+export default function Landing({ data, setData, onNext, goToStep, onOpenStaffManagement, forcedActiveTab, onTabChange }: Props) {
   // If not published, render the initial welcome page
   if (data.publishState !== 'published') {
     return (
@@ -127,7 +129,15 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
   }
 
   // --- PUBLISHED DASHBOARD STATE ---
-  const [activeTab, setActiveTab] = useState<'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings'>('overview');
+  const [internalTab, setInternalTab] = useState<'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings'>('overview');
+  const activeTab = forcedActiveTab ?? internalTab;
+  const setActiveTab = (tab: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings') => {
+    if (onTabChange) onTabChange(tab);
+    if (!forcedActiveTab) setInternalTab(tab);
+  };
+  useEffect(() => {
+    if (forcedActiveTab) setInternalTab(forcedActiveTab);
+  }, [forcedActiveTab]);
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
   const [copied, setCopied] = useState(false);
   
