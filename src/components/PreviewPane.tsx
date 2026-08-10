@@ -1,6 +1,7 @@
 import { Monitor, Smartphone, Phone, Sparkles, Instagram, Youtube, Facebook, Video, Heart, ExternalLink, MapPin, Clock, Navigation, MessageCircle, CalendarCheck, CreditCard } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
+import CustomerBookingPreview from './CustomerBookingPreview';
 
 export default function PreviewPane({ data, step, activeStaffId }: { data: SalonData, step: number, activeStaffId?: string }) {
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
@@ -9,6 +10,20 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   const socialSectionRef = useRef<HTMLDivElement>(null);
   const locationSectionRef = useRef<HTMLDivElement>(null);
   const contactSectionRef = useRef<HTMLDivElement>(null);
+
+  const [showBookingWidget, setShowBookingWidget] = useState(step === 8);
+  const lastStepRef = useRef(step);
+
+  useEffect(() => {
+    if (lastStepRef.current !== step) {
+      if (step === 8) {
+        setShowBookingWidget(true);
+      } else {
+        setShowBookingWidget(false);
+      }
+      lastStepRef.current = step;
+    }
+  }, [step]);
 
   const templateId = data.templateId || 'hair';
 
@@ -86,8 +101,8 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
 
   // Determine dynamic section title based on services/salon context
   const getTeamTitle = () => {
-    const serviceNames = (data.services || []).map(s => (s.name + ' ' + s.category).toLowerCase()).join(' ');
-    const salonLower = (data.salonName || '').toLowerCase();
+    const serviceNames = data.services.map(s => (s.name + ' ' + s.category).toLowerCase()).join(' ');
+    const salonLower = data.salonName.toLowerCase();
     
     if (serviceNames.includes('barber') || serviceNames.includes('fade') || serviceNames.includes('beard') || salonLower.includes('barber')) {
       return 'Meet Our Barbers';
@@ -105,8 +120,15 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
     <div className="w-full h-full bg-[#f3f3f4] flex flex-col border-l border-gray-200 relative">
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#ac0053] to-[#ffb1c4] z-20"></div>
       
-      <div className="flex items-center justify-between p-4 md:p-6 shrink-0 z-10">
-        <div className="flex items-center gap-2">
+      {showBookingWidget ? (
+        <CustomerBookingPreview 
+          data={data} 
+          onBackToWebsite={() => setShowBookingWidget(false)} 
+        />
+      ) : (
+        <>
+          <div className="flex items-center justify-between p-4 md:p-6 shrink-0 z-10">
+            <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Live Website Preview</span>
           {step === 4 && (
             <span className="bg-[#ffd9e1] text-[#ac0053] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -199,12 +221,17 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
               <div className="relative z-10 max-w-xl mx-auto text-white">
                 <h1 className={`text-2xl md:text-3xl font-bold mb-2 ${templateConfig.headingFont}`}>{data.tagline || 'Elevating your natural beauty'}</h1>
                 <p className="text-xs text-gray-200 mb-6 max-w-md mx-auto leading-relaxed">{data.about || 'A brief description of your services and ambiance.'}</p>
-                <button className={`px-6 py-2.5 rounded-lg font-bold text-xs shadow-md transition-all ${templateConfig.primaryBtn}`}>Book Appointment</button>
+                <button 
+                  onClick={() => setShowBookingWidget(true)}
+                  className={`px-6 py-2.5 rounded-lg font-bold text-xs shadow-md transition-all ${templateConfig.primaryBtn}`}
+                >
+                  Book Appointment
+                </button>
               </div>
             </div>
 
             {/* Content based on step */}
-            {step === 2 && (
+            {(step >= 2 || data.ownerName) && (
                <div className="px-6 py-12 flex flex-col items-center text-center max-w-xl mx-auto">
                  <div className="w-32 h-32 bg-gray-100 rounded-full mb-6 overflow-hidden border-4 border-white shadow-xl">
                     <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop" className="w-full h-full object-cover" alt="Founder" />
@@ -215,7 +242,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                </div>
             )}
 
-            {(step === 3 || step === 4) && (
+            {(step >= 3 || (data.services && data.services.length > 0)) && (
               <div className="px-6 py-12 max-w-2xl mx-auto border-b border-gray-100">
                 <h3 className="text-2xl font-bold text-center mb-8 font-serif">Our Services</h3>
                 <div className={`grid gap-4 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -226,7 +253,10 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                         <span className="font-bold text-[#ac0053] text-sm">₹{s.price.toLocaleString('en-IN')}</span>
                       </div>
                       <p className="text-xs text-gray-500 mb-4">{s.description}</p>
-                      <button className="w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-900 rounded-lg font-semibold text-xs transition-colors border border-gray-200">
+                      <button 
+                        onClick={() => setShowBookingWidget(true)}
+                        className="w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-900 rounded-lg font-semibold text-xs transition-colors border border-gray-200"
+                      >
                         Book • {s.duration} min
                       </button>
                     </div>
@@ -236,7 +266,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             )}
             
             {/* Step 4: Focus on Team Section */}
-            {step === 4 && (
+            {(step >= 4 || (data.team && data.team.length > 0)) && (
               <div id="team-preview-section" ref={teamSectionRef} className="px-6 py-12 bg-gray-50/80 scroll-mt-12 border-t-2 border-[#ac0053]/20">
                 <div className="max-w-3xl mx-auto">
                   <div className="text-center mb-10">
@@ -294,7 +324,10 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                             </p>
                           )}
 
-                          <button className="w-full py-2 bg-[#1a1c1c] hover:bg-black text-white text-xs font-semibold rounded-lg transition-colors mt-auto">
+                          <button 
+                            onClick={() => setShowBookingWidget(true)}
+                            className="w-full py-2 bg-[#1a1c1c] hover:bg-black text-white text-xs font-semibold rounded-lg transition-colors mt-auto"
+                          >
                             Book with {pub.name.split(' ')[0]}
                           </button>
                         </div>
@@ -541,7 +574,10 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                     </button>
                   )}
                   {(!data.contactOptions || data.contactOptions.bookNow) && (
-                    <button className="w-full py-3 bg-[#ac0053] hover:bg-[#ba005b] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all">
+                    <button 
+                      onClick={() => setShowBookingWidget(true)}
+                      className="w-full py-3 bg-[#ac0053] hover:bg-[#ba005b] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all"
+                    >
                       <CalendarCheck className="w-4 h-4" /> Book Online
                     </button>
                   )}
@@ -582,6 +618,8 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

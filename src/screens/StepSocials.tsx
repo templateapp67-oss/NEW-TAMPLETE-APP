@@ -161,8 +161,8 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
 
             {/* Header */}
             <div>
-              <span className="text-xs font-bold tracking-wider text-[#ac0053] uppercase flex items-center gap-1">
-                <Share2 className="w-4 h-4" /> SCREEN 08 OF 16 • SOCIALS & VIDEO REELS
+              <span className="text-xs font-semibold tracking-wider text-[#ac0053] uppercase flex items-center gap-1">
+                <Share2 className="w-4 h-4" /> STEP 07 • SOCIAL CONNECTIVITY
               </span>
               <h1 className="text-2xl md:text-3xl font-bold text-[#1a1c1c] mt-1 mb-1">
                 Connect your social media

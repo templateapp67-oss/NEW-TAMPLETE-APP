@@ -1,32 +1,3 @@
-export interface ScreenDef {
-  id: number;
-  screenNumber: number;
-  title: string;
-  category: string;
-  description: string;
-}
-
-export const TOTAL_SCREENS_COUNT = 16;
-
-export const ALL_16_SCREENS: ScreenDef[] = [
-  { id: 0, screenNumber: 1, title: 'Landing Page', category: 'Welcome', description: 'Hero intro & start website creation' },
-  { id: 1, screenNumber: 2, title: 'Hero Split Intro', category: 'Intro', description: 'Interactive split screen & highlights' },
-  { id: 2, screenNumber: 3, title: 'Choose Template', category: 'Setup', description: 'Hair Studio, Barber Lounge, Wellness Spa' },
-  { id: 3, screenNumber: 4, title: 'Salon Details', category: 'Setup', description: 'Name, tagline, bio, contact & hero image' },
-  { id: 4, screenNumber: 5, title: 'Services & Packages', category: 'Setup', description: 'Service list, prices, durations & combos' },
-  { id: 5, screenNumber: 6, title: 'Team & Staff Setup', category: 'Staff', description: 'Staff members, roles, AI bio & services' },
-  { id: 6, screenNumber: 7, title: 'Photo Gallery', category: 'Media', description: 'Categorized interior & styling photo grid' },
-  { id: 7, screenNumber: 8, title: 'Socials & Video Reels', category: 'Media', description: 'Social links & video reel cards' },
-  { id: 8, screenNumber: 9, title: 'Location & Hours', category: 'Details', description: 'Address, map pin & 7-day business hours' },
-  { id: 9, screenNumber: 10, title: 'Contact & Booking Rules', category: 'Booking', description: 'WhatsApp, Call, deposit & booking notice' },
-  { id: 10, screenNumber: 11, title: 'Template Appearance', category: 'Theme', description: 'Light & Dark theme appearance customizer' },
-  { id: 11, screenNumber: 12, title: 'AI Content Review', category: 'AI Tools', description: 'Gemini AI copywriting, tone & keywords' },
-  { id: 12, screenNumber: 13, title: 'Full Live Preview', category: 'Preview', description: 'Interactive Desktop & Mobile live preview' },
-  { id: 13, screenNumber: 14, title: 'Publish Setup & Slug', category: 'Launch', description: 'Custom domain slug & pre-launch checklist' },
-  { id: 14, screenNumber: 15, title: 'Publish Success & QR', category: 'Launch', description: 'Live link, QR code & social sharing' },
-  { id: 15, screenNumber: 16, title: 'Staff Management Module', category: 'Management', description: 'Advanced schedules, commissions & access roles' },
-];
-
 export interface Service {
   id: string;
   name: string;

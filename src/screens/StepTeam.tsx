@@ -435,8 +435,8 @@ export default function StepTeam({ data, setData, onNext, onPrev, onSave, onOpen
           <div className="max-w-2xl mx-auto pb-32 space-y-6">
             
             <div>
-              <span className="text-xs font-bold tracking-wider text-[#ac0053] uppercase flex items-center gap-1">
-                <UserCheck className="w-4 h-4" /> SCREEN 06 OF 16 — TEAM & STAFF SETUP
+              <span className="text-xs font-semibold tracking-wider text-[#ac0053] uppercase flex items-center gap-1">
+                <UserCheck className="w-4 h-4" /> SCREEN 05 — STAFF / TEAM
               </span>
               <h1 className="text-2xl md:text-3xl font-bold text-[#1a1c1c] mt-1 mb-1">Manage Salon Staff</h1>
               <p className="text-[#5f5e5e] text-sm">
@@ -736,7 +736,7 @@ export default function StepTeam({ data, setData, onNext, onPrev, onSave, onOpen
                   {/* 5. Assign Services */}
                   <div>
                     <label className="block text-xs font-bold text-[#1a1c1c] mb-1.5">
-                      Assign Services (from Screen 05)
+                      Assign Services (from Screen 04)
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#f9f9f9] border border-[#eeeeee] p-3 rounded-xl max-h-40 overflow-y-auto">
                       {data.services.map(s => {

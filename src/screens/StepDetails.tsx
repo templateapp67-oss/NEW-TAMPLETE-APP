@@ -19,7 +19,7 @@ export default function StepDetails({ data, setData, onNext, onPrev, onSave }: P
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-xl mx-auto pb-24">
             <div className="mb-10">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ffd9e1] text-[#8f0044] rounded-full text-[10px] font-bold uppercase tracking-wider mb-6">
-                <Sparkles className="w-3 h-3 text-[#ac0053]" /> SCREEN 04 OF 16 • SALON DETAILS
+                Business Details
               </span>
               <h1 className="text-4xl font-bold text-gray-900 mb-3 tracking-tight">Tell us about your salon</h1>
               <p className="text-gray-500 text-lg">Add a few basic details. Nexora will use them to create your website.</p>
