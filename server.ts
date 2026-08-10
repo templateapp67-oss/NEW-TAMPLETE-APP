@@ -22,7 +22,7 @@ app.use((req, res, next) => {
 
 // Health check endpoint for verification
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', screens: 22, timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', screens: 23, timestamp: new Date().toISOString() });
 });
 
 // API route for generating team member bio using Gemini API with offline fallback
@@ -204,7 +204,7 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
     console.log(`Health check: http://0.0.0.0:${PORT}/api/health`);
-    console.log(`22 screens active | allowedHosts: true | cors: true | offline fallback enabled`);
+    console.log(`23 screens active | allowedHosts: true | cors: true | offline fallback enabled`);
   });
 }
 
