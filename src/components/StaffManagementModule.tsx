@@ -354,14 +354,14 @@ export default function StaffManagementModule({ data, setData, onSave, onBackToW
           <div>
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold uppercase tracking-wider text-[#ac0053] bg-[#ffd9e1]/50 px-2.5 py-1 rounded-md">
-                MODULE
+                SCREEN 16 OF 16 • STAFF MANAGEMENT MODULE
               </span>
               {onBackToWizard && (
                 <button 
                   onClick={onBackToWizard} 
-                  className="text-xs font-medium text-gray-500 hover:text-black transition-colors flex items-center gap-1"
+                  className="text-xs font-semibold text-gray-500 hover:text-[#ac0053] transition-colors flex items-center gap-1 bg-gray-100 hover:bg-[#ffd9e1]/30 px-3 py-1 rounded-lg"
                 >
-                  ← Back to Website Setup
+                  ← Back to Website Builder (Screen 06)
                 </button>
               )}
             </div>

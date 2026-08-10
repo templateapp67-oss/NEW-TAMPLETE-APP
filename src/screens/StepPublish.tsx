@@ -55,7 +55,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
               <Sparkles className="w-4 h-4 text-[#ac0053]" />
               <span className="text-xs font-medium text-[#ac0053]">Live Sync Active</span>
             </div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#ac0053]">STEP 11 • TEMPLATE APPEARANCE</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#ac0053]">SCREEN 11 OF 16 • TEMPLATE APPEARANCE</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-[#1a1c1c] mb-2">Your Website is Coming to Life</h1>
           <p className="text-[#5f5e5e]">Choose light or dark appearance. Changes appear instantly. You're 5 minutes away from being live.</p>
