@@ -161,6 +161,42 @@ export default function TemplateRenderer({ data, mode }: Props) {
               </div>
             ))}
           </div>
+
+          {/* Packages Section (Value Packages & Bundles) */}
+          {data.packages && data.packages.length > 0 && (
+            <div className="mt-12 pt-10 border-t border-gray-200/40">
+              <div className="text-center mb-8">
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${config.accentText}`}>Special Combos</span>
+                <h3 className={`text-xl font-bold mt-1 ${config.headingFont}`}>Value Packages & Bundles</h3>
+                <p className="text-xs text-gray-500 mt-1">Bundled treatments designed to save you time and money.</p>
+              </div>
+
+              <div className="grid gap-4 grid-cols-1">
+                {data.packages.map(p => (
+                  <div key={p.id} className={`p-5 rounded-2xl border border-dashed hover:border-solid transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${config.cardBg}`}>
+                    <div className="space-y-1 max-w-xl">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-sm">{p.name}</h4>
+                        <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">Best Value</span>
+                      </div>
+                      <p className="text-xs opacity-75 leading-relaxed">{p.description}</p>
+                      <div className="text-[10px] opacity-50 font-bold uppercase tracking-wider flex items-center gap-2 pt-1">
+                        <span>🕒 {p.duration} mins</span>
+                        <span>•</span>
+                        <span>Complete Bundle</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-0 border-gray-150">
+                      <span className={`font-extrabold text-base md:text-lg ${config.accentText}`}>₹{p.price.toLocaleString('en-IN')}</span>
+                      <button className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-colors ${config.primaryBtn}`}>
+                        Book Bundle
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Owner / Founder Section */}
@@ -168,13 +204,18 @@ export default function TemplateRenderer({ data, mode }: Props) {
           <div id="section-owner" className="px-6 py-10 bg-gray-50 border-y border-gray-100">
             <div className="max-w-xl mx-auto flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
               <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md shrink-0">
-                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop" alt="Founder" className="w-full h-full object-cover" />
+                <img 
+                  src={data.team?.[0]?.imageUrl || "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop"} 
+                  alt="Founder" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <div>
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${config.accentText}`}>Founder & Principal Expert</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${config.accentText}`}>{data.ownerRole || "Founder & Master Stylist"}</span>
                 <h3 className="text-xl font-bold text-gray-900 mt-0.5">{data.ownerName}</h3>
                 <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                  "We believe in personalized artistry and exceptional client care to ensure you leave feeling confident and rejuvenated."
+                  "{data.reviewedContent?.ownerIntro || "We believe in personalized artistry and exceptional client care to ensure you leave feeling confident and rejuvenated."}"
                 </p>
               </div>
             </div>

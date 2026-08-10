@@ -163,7 +163,15 @@ export default function App() {
     setShowResumeBanner(false);
   };
 
-  if (step === 0) return <Landing onNext={nextStep} />;
+  if (step === 0) return (
+    <Landing 
+      data={data}
+      setData={setData}
+      onNext={nextStep} 
+      goToStep={goToStep}
+      onOpenStaffManagement={() => setActiveModule('staff-management')}
+    />
+  );
   if (step === 1) return <HeroSplit onNext={nextStep} />;
 
   // Determine if TopBar should show (for wizard steps, not for landing/hero/success? spec says show progress)
