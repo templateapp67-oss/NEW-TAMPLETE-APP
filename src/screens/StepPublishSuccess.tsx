@@ -246,7 +246,7 @@ export default function StepPublishSuccess({ data, setData, onNext, onSave }: Pr
           <span className="text-xl font-bold text-[#ac0053] tracking-tight">Nexora</span>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Step 15 of 15</span>
+          <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">SCREEN 15 OF 16</span>
           <div className="flex items-center gap-1.5 text-[#ac0053]">
             <span className="text-xs font-bold">Website Published</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600 fill-emerald-100" />

@@ -91,7 +91,7 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
           {/* Header section */}
           <div className="flex flex-col gap-2">
             <span className="text-[10px] font-bold text-[#ac0053] uppercase tracking-widest flex items-center gap-1">
-              <Globe className="w-3.5 h-3.5" /> STEP 14 OF 15 • PUBLISH
+              <Globe className="w-3.5 h-3.5" /> SCREEN 14 OF 16 • PUBLISH SETUP & SLUG
             </span>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
               Ready to publish your website?

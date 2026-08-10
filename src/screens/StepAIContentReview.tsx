@@ -260,7 +260,7 @@ export default function StepAIContentReview({ data, setData, onNext, onPrev, onS
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ac0053]">
-                  <Sparkles className="w-4 h-4" /> STEP 12 • AI CONTENT REVIEW
+                  <Sparkles className="w-4 h-4" /> SCREEN 12 OF 16 • AI CONTENT REVIEW
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium">
                   {saveStatus === 'saving' ? (

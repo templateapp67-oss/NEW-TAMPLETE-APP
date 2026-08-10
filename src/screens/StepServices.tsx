@@ -200,7 +200,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto pb-32 space-y-8">
             <div>
-              <span className="text-xs font-semibold tracking-widest text-[#5f5e5e] uppercase">SERVICES</span>
+              <span className="text-xs font-bold tracking-widest text-[#ac0053] uppercase flex items-center gap-1.5 mb-2">
+                <Sparkles className="w-3.5 h-3.5" /> SCREEN 05 OF 16 • SERVICES & PACKAGES
+              </span>
               <h1 className="text-3xl md:text-4xl font-bold text-[#1a1c1c] mt-1 mb-2">What services do you offer?</h1>
               <p className="text-[#5f5e5e] text-base">Choose your services, add prices and your website will update instantly.</p>
             </div>

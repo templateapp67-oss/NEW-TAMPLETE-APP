@@ -160,7 +160,7 @@ export default function StepContactBooking({ data, setData, onNext, onPrev, onSa
         {/* Header Section */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ac0053]">
-            <CalendarCheck className="w-4 h-4" /> STEP 09 • CONTACT & BOOKING BASICS
+            <CalendarCheck className="w-4 h-4" /> SCREEN 10 OF 16 • CONTACT & BOOKING RULES
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#1a1c1c]">How can customers contact and book you?</h1>
           <p className="text-sm text-[#5f5e5e]">Confirm your contact details and set when customers can book.</p>
@@ -455,8 +455,8 @@ export default function StepContactBooking({ data, setData, onNext, onPrev, onSa
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <div className="hidden sm:block text-xs font-medium text-gray-400">
-          Step 9 of 15 • Contact & Booking Details
+        <div className="hidden sm:block text-xs font-semibold text-gray-500">
+          Screen 10 of 16 • Contact & Booking Rules
         </div>
 
         <button

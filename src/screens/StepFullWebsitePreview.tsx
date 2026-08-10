@@ -58,11 +58,11 @@ export default function StepFullWebsitePreview({ data, onNext, onPrev }: Props) 
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-[#ffd9e1] text-[#ac0053] font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded">
-              Step 13 of 15
+              SCREEN 13 OF 16 • FULL LIVE PREVIEW
             </span>
             <span className="text-xs text-gray-400 font-medium">|</span>
             <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-1">
-              <Eye className="w-3.5 h-3.5 text-[#ac0053]" /> Live Preview
+              <Eye className="w-3.5 h-3.5 text-[#ac0053]" /> Live Interactive Preview
             </span>
           </div>
           <h1 className="text-xl md:text-2xl font-bold text-[#1a1c1c] tracking-tight">Review your website</h1>

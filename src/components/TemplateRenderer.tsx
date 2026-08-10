@@ -51,8 +51,8 @@ export default function TemplateRenderer({ data, mode }: Props) {
 
   // Dynamic team title
   const getTeamTitle = () => {
-    const serviceNames = data.services.map(s => (s.name + ' ' + s.category).toLowerCase()).join(' ');
-    const salonLower = data.salonName.toLowerCase();
+    const serviceNames = (data.services || []).map(s => (s.name + ' ' + s.category).toLowerCase()).join(' ');
+    const salonLower = (data.salonName || '').toLowerCase();
     if (serviceNames.includes('barber') || serviceNames.includes('fade') || serviceNames.includes('beard') || salonLower.includes('barber')) {
       return 'Meet Our Barbers';
     }
