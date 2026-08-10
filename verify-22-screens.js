@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 
-console.log('🔍 Verifying 24 Complete Screens & Repository Features...\n');
+console.log('🔍 Verifying 25 Complete Screens & Repository Features...\n');
 
 let allPassed = true;
 const check = (desc, condition, details='') => {
@@ -11,7 +11,7 @@ const check = (desc, condition, details='') => {
   if (!condition) allPassed = false;
 };
 
-// 1. Check all 24 screens exist
+// 1. Check all 25 screens exist
 console.log('=== 1. WIZARD SCREENS (01-16) ===');
 const wizardScreens = [
   { id: '01', file: 'src/screens/Landing.tsx', name: 'Landing' },
@@ -51,8 +51,8 @@ check('  ↳ Payroll & Commissions', staffContent.includes('Payroll') && staffCo
 check('  ↳ Role Permissions', staffContent.includes('Role Permissions') || staffContent.includes('App Access'), 'found');
 check('  ↳ Availability', staffContent.includes('Available') && staffContent.includes('Busy'), 'statuses found');
 
-// Dashboard Screens 18-24
-console.log('\n=== 3. SALON POST-LAUNCH DASHBOARD (Screens 18-24) ===');
+// Dashboard Screens 18-25
+console.log('\n=== 3. SALON POST-LAUNCH DASHBOARD (Screens 18-25) ===');
 const dashboardTabs = [
   { id: '18', name: 'Overview Dashboard', keyword: 'overview' },
   { id: '19', name: 'Website & Design Manager', keyword: 'website' },
@@ -61,6 +61,7 @@ const dashboardTabs = [
   { id: '22', name: 'Marketing & Social Share Hub', keyword: 'share' },
   { id: '23', name: 'Salon Settings & Policies', keyword: 'settings' },
   { id: '24', name: 'Share & Referral Premium', keyword: 'referral' },
+  { id: '25', name: 'Branding & White-label Settings Premium', keyword: 'branding' },
 ];
 const landingContent = fs.existsSync('src/screens/Landing.tsx') ? fs.readFileSync('src/screens/Landing.tsx', 'utf8') : '';
 dashboardTabs.forEach(t => {
@@ -68,14 +69,14 @@ dashboardTabs.forEach(t => {
 });
 
 // Universal Navigator
-console.log('\n=== 4. UNIVERSAL 24-SCREEN NAVIGATOR IN TopBar ===');
+console.log('\n=== 4. UNIVERSAL 25-SCREEN NAVIGATOR IN TopBar ===');
 const topBarContent = fs.existsSync('src/components/TopBar.tsx') ? fs.readFileSync('src/components/TopBar.tsx', 'utf8') : '';
 check('TopBar exists', fs.existsSync('src/components/TopBar.tsx'));
-check('TopBar has 24 SCREENS array', topBarContent.includes('SCREENS') && (topBarContent.match(/label:/g) || []).length >= 24, `${(topBarContent.match(/label:/g) || []).length} labels`);
+check('TopBar has 25 SCREENS array', topBarContent.includes('SCREENS') && (topBarContent.match(/label:/g) || []).length >= 25, `${(topBarContent.match(/label:/g) || []).length} labels`);
 check('TopBar has universal-navigator test id', topBarContent.includes('universal-navigator'));
 check('TopBar dropdown 1-click jump', topBarContent.includes('onNavigate') && topBarContent.includes('ChevronDown'));
-check('TopBar shows 01 to 24', topBarContent.includes('01 —') && topBarContent.includes('24 —'));
-check('TopBar badge 24 SCREENS', topBarContent.includes('24 SCREENS'));
+check('TopBar shows 01 to 25', topBarContent.includes('01 —') && topBarContent.includes('25 —'));
+check('TopBar badge 25 SCREENS', topBarContent.includes('25 SCREENS'));
 check('App.tsx integrates TopBar navigator', fs.readFileSync('src/App.tsx','utf8').includes('navigateToScreen') && fs.readFileSync('src/App.tsx','utf8').includes('currentScreen'));
 
 // Backend & Vite config
@@ -86,14 +87,14 @@ check('Express server.ts has cors:true', serverContent.includes('Access-Control-
 check('Express server has allowedHosts:true', serverContent.includes('allowedHosts'));
 check('Offline fallback for /api/generate-bio', serverContent.includes('/api/generate-bio') && serverContent.includes('offline fallback'));
 check('Offline fallback for /api/improve-text', serverContent.includes('/api/improve-text') && serverContent.includes('offline fallback'));
-check('Health endpoint reports screens:24', serverContent.includes('/api/health') && serverContent.includes('screens: 24'));
+check('Health endpoint reports screens:25', serverContent.includes('/api/health') && serverContent.includes('screens: 25'));
 check('Vite config has allowedHosts:true', viteContent.includes('allowedHosts: true'));
 check('Vite config has cors:true', viteContent.includes('cors: true'));
 check('Vite server host 0.0.0.0', viteContent.includes("host: '0.0.0.0'") || viteContent.includes('host: "0.0.0.0"'));
 
 // Build check
 console.log('\n=== 6. BUILD & MODULE INTEGRITY ===');
-check('App.tsx handles all 24 screens routing', fs.readFileSync('src/App.tsx','utf8').includes('16') && fs.readFileSync('src/App.tsx','utf8').includes('17') && fs.readFileSync('src/App.tsx','utf8').includes('24'));
+check('App.tsx handles all 25 screens routing', fs.readFileSync('src/App.tsx','utf8').includes('16') && fs.readFileSync('src/App.tsx','utf8').includes('17') && fs.readFileSync('src/App.tsx','utf8').includes('25'));
 
-console.log('\n' + (allPassed ? '✅ ALL 24 SCREENS VERIFIED — READY FOR PR' : '❌ SOME CHECKS FAILED — REVIEW ABOVE'));
+console.log('\n' + (allPassed ? '✅ ALL 25 SCREENS VERIFIED — READY FOR PR' : '❌ SOME CHECKS FAILED — REVIEW ABOVE'));
 process.exit(allPassed ? 0 : 1);

@@ -19,13 +19,14 @@ export const SCREENS = [
   { id: 15, label: '15 — Publish Success & Live QR', group: 'WIZARD (01-16)' },
   { id: 16, label: '16 — Booking Confirmation', group: 'WIZARD (01-16)' },
   { id: 17, label: '17 — Staff Management Module', group: 'STAFF MODULE' },
-  { id: 18, label: '18 — Overview Dashboard', group: 'DASHBOARD (18-24)' },
-  { id: 19, label: '19 — Website & Design Manager', group: 'DASHBOARD (18-24)' },
-  { id: 20, label: '20 — Bookings & Calendar', group: 'DASHBOARD (18-24)' },
-  { id: 21, label: '21 — Payments & Revenue Analytics', group: 'DASHBOARD (18-24)' },
-  { id: 22, label: '22 — Marketing & Social Share Hub', group: 'DASHBOARD (18-24)' },
-  { id: 23, label: '23 — Salon Settings & Policies', group: 'DASHBOARD (18-24)' },
-  { id: 24, label: '24 — Share & Referral Premium', group: 'DASHBOARD (18-24)' },
+  { id: 18, label: '18 — Overview Dashboard', group: 'DASHBOARD (18-25)' },
+  { id: 19, label: '19 — Website & Design Manager', group: 'DASHBOARD (18-25)' },
+  { id: 20, label: '20 — Bookings & Calendar', group: 'DASHBOARD (18-25)' },
+  { id: 21, label: '21 — Payments & Revenue Analytics', group: 'DASHBOARD (18-25)' },
+  { id: 22, label: '22 — Marketing & Social Share Hub', group: 'DASHBOARD (18-25)' },
+  { id: 23, label: '23 — Salon Settings & Policies', group: 'DASHBOARD (18-25)' },
+  { id: 24, label: '24 — Share & Referral Premium', group: 'DASHBOARD (18-25)' },
+  { id: 25, label: '25 — Branding & White-label Settings Premium', group: 'DASHBOARD (18-25)' },
 ] as const;
 
 interface Props {
@@ -73,9 +74,9 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
             className="w-full flex items-center justify-between gap-2 bg-gray-900 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-black transition-colors border border-gray-800 shadow-xs"
           >
             <span className="flex items-center gap-2 truncate">
-              <span className="bg-[#ac0053] text-white text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider shrink-0">24 SCREENS</span>
+              <span className="bg-[#ac0053] text-white text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider shrink-0">25 SCREENS</span>
               <span className="truncate hidden sm:inline">{currentLabel}</span>
-              <span className="truncate sm:hidden">Screen {derivedScreen}/24</span>
+              <span className="truncate sm:hidden">Screen {derivedScreen}/25</span>
             </span>
             <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -83,12 +84,12 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
           {dropdownOpen && (
             <div className="absolute top-full left-0 mt-2 w-full sm:w-[420px] bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
               <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 z-10">
-                <div className="text-[11px] font-black tracking-widest text-gray-400 uppercase">UNIVERSAL 24-SCREEN NAVIGATOR</div>
-                <div className="text-[11px] text-gray-500">1-click jump to any screen • Wizard 01-16 • Staff 17 • Dashboard 18-24</div>
+                <div className="text-[11px] font-black tracking-widest text-gray-400 uppercase">UNIVERSAL 25-SCREEN NAVIGATOR</div>
+                <div className="text-[11px] text-gray-500">1-click jump to any screen • Wizard 01-16 • Staff 17 • Dashboard 18-25</div>
               </div>
 
               {/* Grouped rendering */}
-              {['WIZARD (01-16)', 'STAFF MODULE', 'DASHBOARD (18-24)'].map(group => (
+              {['WIZARD (01-16)', 'STAFF MODULE', 'DASHBOARD (18-25)'].map(group => (
                 <div key={group} className="p-2">
                   <div className="text-[10px] font-black tracking-widest text-[#ac0053] bg-[#ffd9e1]/40 px-2 py-1 rounded uppercase mb-1">{group}</div>
                   <div className="space-y-0.5">
@@ -118,7 +119,7 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
               ))}
 
               <div className="p-3 border-t border-gray-100 bg-gray-50/30 text-[10px] text-gray-400 text-center">
-                Wizard Screens replicate 16-step onboarding • Staff=17 • Dashboard 18-24 = post-publish mode
+                Wizard Screens replicate 16-step onboarding • Staff=17 • Dashboard 18-25 = post-publish mode
               </div>
             </div>
           )}
