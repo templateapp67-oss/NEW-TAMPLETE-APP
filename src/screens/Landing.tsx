@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { SalonData, Service, Package, TeamMember, StaffStatus } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import TemplateRenderer from '../components/TemplateRenderer';
+import ShareReferralPremium from '../components/ShareReferralPremium';
+import BrandingWhiteLabel from '../components/BrandingWhiteLabel';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -46,7 +48,8 @@ import {
   Menu,
   Grid,
   Pencil,
-  Download
+  Download,
+  Palette
 } from 'lucide-react';
 
 interface Props {
@@ -55,8 +58,8 @@ interface Props {
   onNext: () => void;
   goToStep: (target: number) => void;
   onOpenStaffManagement: () => void;
-  forcedActiveTab?: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings';
-  onTabChange?: (tab: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings') => void;
+  forcedActiveTab?: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings' | 'referral' | 'branding';
+  onTabChange?: (tab: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings' | 'referral' | 'branding') => void;
 }
 
 interface Appointment {
@@ -130,9 +133,9 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
   }
 
   // --- PUBLISHED DASHBOARD STATE ---
-  const [internalTab, setInternalTab] = useState<'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings'>('overview');
+  const [internalTab, setInternalTab] = useState<'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings' | 'referral' | 'branding'>('overview');
   const activeTab = forcedActiveTab ?? internalTab;
-  const setActiveTab = (tab: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings') => {
+  const setActiveTab = (tab: 'overview' | 'website' | 'services' | 'bookings' | 'staff' | 'payments' | 'share' | 'settings' | 'referral' | 'branding') => {
     if (onTabChange) onTabChange(tab);
     if (!forcedActiveTab) setInternalTab(tab);
   };
@@ -973,6 +976,32 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                 <span>Salon Rules</span>
               </button>
             </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('referral')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all font-semibold text-xs ${
+                  activeTab === 'referral' 
+                    ? 'text-[#ac0053] bg-[#ffd9e1]/30 font-bold border-l-4 border-[#ac0053] pl-3' 
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Gift className="w-4.5 h-4.5" />
+                <span>Refer & Earn</span>
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('branding')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all font-semibold text-xs ${
+                  activeTab === 'branding' 
+                    ? 'text-[#ac0053] bg-[#ffd9e1]/30 font-bold border-l-4 border-[#ac0053] pl-3' 
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Palette className="w-4.5 h-4.5" />
+                <span>Branding</span>
+              </button>
+            </li>
           </ul>
         </div>
 
@@ -1119,6 +1148,46 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
               }`}
             >
               Staff
+            </button>
+            <button 
+              onClick={() => setActiveTab('payments')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                activeTab === 'payments' ? 'bg-[#ac0053] text-white' : 'text-gray-500'
+              }`}
+            >
+              Payments
+            </button>
+            <button 
+              onClick={() => setActiveTab('share')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                activeTab === 'share' ? 'bg-[#ac0053] text-white' : 'text-gray-500'
+              }`}
+            >
+              Share
+            </button>
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                activeTab === 'settings' ? 'bg-[#ac0053] text-white' : 'text-gray-500'
+              }`}
+            >
+              Settings
+            </button>
+            <button 
+              onClick={() => setActiveTab('referral')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                activeTab === 'referral' ? 'bg-[#ac0053] text-white' : 'text-gray-500'
+              }`}
+            >
+              Refer & Earn
+            </button>
+            <button 
+              onClick={() => setActiveTab('branding')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                activeTab === 'branding' ? 'bg-[#ac0053] text-white' : 'text-gray-500'
+              }`}
+            >
+              Branding
             </button>
           </div>
 
@@ -3080,6 +3149,39 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                     </button>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* TAB: SHARE & REFERRAL PREMIUM (Screen 24) */}
+            {activeTab === 'referral' && (
+              <motion.div 
+                key="referral"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 15 }}
+                className="max-w-[1440px] mx-auto w-full"
+              >
+                <ShareReferralPremium
+                  salonName={data.salonName}
+                  liveUrl={liveUrl}
+                  onNotify={(msg) => setNotifications(prev => [{ id: `n-${Date.now()}`, text: msg, time: 'Just now', read: false }, ...prev])}
+                />
+              </motion.div>
+            )}
+
+            {/* TAB: BRANDING & WHITE-LABEL PREMIUM (Screen 25) */}
+            {activeTab === 'branding' && (
+              <motion.div 
+                key="branding"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 15 }}
+                className="max-w-[1440px] mx-auto w-full"
+              >
+                <BrandingWhiteLabel
+                  data={data}
+                  onNotify={(msg) => setNotifications(prev => [{ id: `n-${Date.now()}`, text: msg, time: 'Just now', read: false }, ...prev])}
+                />
               </motion.div>
             )}
 

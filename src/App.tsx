@@ -31,9 +31,9 @@ const DASHBOARD_TAB_KEY = 'nexora_dashboard_tab';
 const TOTAL_STEPS = 16;
 const MAX_STEP_INDEX = 15; // 0-based: 0..15 => 1..16
 
-// Dashboard tab mapping for screens 17-22
-type DashboardTab = 'overview' | 'website' | 'bookings' | 'payments' | 'share' | 'settings';
-const DASHBOARD_TABS: DashboardTab[] = ['overview', 'website', 'bookings', 'payments', 'share', 'settings'];
+// Dashboard tab mapping for screens 18-25
+type DashboardTab = 'overview' | 'website' | 'bookings' | 'payments' | 'share' | 'settings' | 'referral' | 'branding';
+const DASHBOARD_TABS: DashboardTab[] = ['overview', 'website', 'bookings', 'payments', 'share', 'settings', 'referral', 'branding'];
 
 export default function App() {
   const [step, setStep] = useState<number>(() => {
@@ -191,33 +191,33 @@ export default function App() {
     }, 200);
   };
 
-  // Universal 22-screen navigator
+  // Universal 25-screen navigator
   const getCurrentScreen = (): number => {
-    if (activeModule === 'staff-management') return 16;
+    if (activeModule === 'staff-management') return 17;
     if (activeModule === 'dashboard') {
       const tabIndex = DASHBOARD_TABS.indexOf(dashboardTab);
-      return 17 + tabIndex;
+      return 18 + tabIndex;
     }
     // wizard
-    return step + 1; // step 0 => screen 1, step 15 => screen 16? but clamp to 15
+    return step + 1; // step 0 => screen 1, step 15 => screen 16
   };
 
   const navigateToScreen = (screenId: number) => {
-    if (screenId >= 1 && screenId <= 15) {
+    if (screenId >= 1 && screenId <= 16) {
       setActiveModule('wizard');
       setStep(screenId - 1);
       setShowResumeBanner(false);
       showToast(`Navigated to Screen ${String(screenId).padStart(2, '0')}`);
-    } else if (screenId === 16) {
+    } else if (screenId === 17) {
       setActiveModule('staff-management');
-      showToast('Opened Staff Management Module (Screen 16)');
-    } else if (screenId >= 17 && screenId <= 22) {
+      showToast('Opened Staff Management Module (Screen 17)');
+    } else if (screenId >= 18 && screenId <= 25) {
       // Ensure published state for dashboard
       if (data.publishState !== 'published') {
         setData(prev => ({ ...prev, publishState: 'published', publishedUrl: prev.publishedUrl || `https://nexora.site/${prev.websiteSlug || 'royal-hair-studio'}`, websiteSlug: prev.websiteSlug || 'royal-hair-studio' }));
       }
       setActiveModule('dashboard');
-      const tabIndex = screenId - 17;
+      const tabIndex = screenId - 18;
       const tab = DASHBOARD_TABS[tabIndex] || 'overview';
       setDashboardTab(tab as DashboardTab);
       // For dashboard, ensure step is 0 to render Landing dashboard mode, but keep step for persistence
