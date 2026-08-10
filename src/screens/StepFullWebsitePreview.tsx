@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { SalonData } from '../types';
 import TemplateRenderer from '../components/TemplateRenderer';
-import { ArrowLeft, ArrowRight, Monitor, Smartphone, Eye, Sparkles, Layout, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Monitor, Smartphone, Eye, Sparkles, Layout, Compass, Info } from 'lucide-react';
 
 interface Props {
   data: SalonData;
@@ -28,117 +28,156 @@ export default function StepFullWebsitePreview({ data, onNext, onPrev }: Props) 
   };
 
   const isDark = data.websiteAppearance === 'dark';
+  const appearanceLabel = isDark ? 'Dark' : 'Light';
 
   const scrollToSection = (id: string) => {
     if (!previewRef.current) return;
-    const el = previewRef.current.querySelector(`[data-section="${id}"]`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = previewRef.current.querySelector(`#section-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
-  const appearanceLabel = isDark ? 'Dark' : 'Light';
+  const navItems = [
+    { id: 'header', label: 'Header Menu' },
+    { id: 'hero', label: 'Hero Banner' },
+    { id: 'services', label: 'Services & Rates' },
+    ...(previewData.ownerName ? [{ id: 'owner', label: 'Owner Story' }] : []),
+    ...(previewData.team && previewData.team.length > 0 ? [{ id: 'team', label: 'Stylists & Staff' }] : []),
+    ...(previewData.gallery && previewData.gallery.length > 0 ? [{ id: 'gallery', label: 'Work Gallery' }] : []),
+    ...(previewData.socialVideos && previewData.socialVideos.length > 0 ? [{ id: 'social', label: 'Social Reels' }] : []),
+    { id: 'location', label: 'Location & Hours' },
+    { id: 'contact', label: 'Booking Options' },
+    { id: 'footer', label: 'Footer Info' },
+  ];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#f9f9f9]">
-      {/* Header bar */}
-      <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ac0053]">
-            <Eye className="w-4 h-4" /> STEP 13 • FULL WEBSITE PREVIEW
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#f9f9f9]" id="full-preview-screen">
+      {/* Controls Header */}
+      <div className="px-6 py-5 bg-white border-b border-gray-200 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="bg-[#ffd9e1] text-[#ac0053] font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded">
+              Step 13 of 15
+            </span>
+            <span className="text-xs text-gray-400 font-medium">|</span>
+            <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5 text-[#ac0053]" /> Live Preview
+            </span>
           </div>
-          <div className="hidden md:flex items-center gap-2 text-xs text-gray-500 border-l border-gray-200 pl-4">
-            <Layout className="w-3.5 h-3.5" /> {previewData.templateId} template • {appearanceLabel} • {previewData.services.length} services • {previewData.team.length} team
-          </div>
+          <h1 className="text-xl md:text-2xl font-bold text-[#1a1c1c] tracking-tight">Review your website</h1>
+          <p className="text-xs md:text-sm text-gray-500 mt-0.5">This is how your clients will see your salon online.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Device Toggle */}
+          <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-semibold">
             <button
               onClick={() => setMode('desktop')}
-              className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-medium transition-colors ${mode === 'desktop' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+              className={`px-4 py-1.5 rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                mode === 'desktop'
+                  ? 'bg-white shadow-sm text-gray-950 font-bold'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
             >
-              <Monitor className="w-3.5 h-3.5" /> Desktop
+              <Monitor className="w-4 h-4" /> Desktop
             </button>
             <button
               onClick={() => setMode('mobile')}
-              className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-medium transition-colors ${mode === 'mobile' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+              className={`px-4 py-1.5 rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                mode === 'mobile'
+                  ? 'bg-white shadow-sm text-gray-950 font-bold'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
             >
-              <Smartphone className="w-3.5 h-3.5" /> Mobile
+              <Smartphone className="w-4 h-4" /> Mobile
             </button>
           </div>
+
+          {/* Quick Edit Website Link */}
+          <button
+            onClick={onPrev}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold border border-gray-200 rounded-xl bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-2xs hover:text-[#ac0053]"
+          >
+            <Layout className="w-4 h-4" />
+            Edit Content
+          </button>
         </div>
       </div>
 
-      {/* Info strip */}
-      <div className="bg-[#3f001a] text-white px-6 py-2 flex items-center justify-between text-xs shrink-0">
-        <span className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#ffb1c4]" /> Full scrollable preview — this is exactly how your website will look to customers. Hide empty sections automatically.</span>
-        <span className="hidden md:flex items-center gap-2 text-[#ffd9e1]"><span className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-emerald-400'}`} /> {appearanceLabel} appearance active</span>
-      </div>
-
+      {/* Main Section Navigation & Frame */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left quick nav - desktop */}
-        <div className="hidden lg:flex w-56 shrink-0 bg-white border-r border-gray-200 flex-col p-4 overflow-y-auto">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Jump to section</h3>
-          <div className="space-y-1">
-            {[
-              { id: 'header', label: 'Header' },
-              { id: 'hero', label: 'Hero' },
-              { id: 'services', label: 'Services' },
-              { id: 'packages', label: 'Packages' },
-              { id: 'owner', label: 'Owner / About' },
-              { id: 'team', label: 'Team' },
-              { id: 'gallery', label: 'Gallery' },
-              { id: 'social', label: 'Social Videos' },
-              { id: 'location', label: 'Location' },
-              { id: 'hours', label: 'Opening Hours' },
-              { id: 'contact', label: 'Contact' },
-              { id: 'booking', label: 'Booking CTA' },
-              { id: 'footer', label: 'Footer' },
-            ].map(item => (
-              <button
-                key={item.id}
-                onClick={() => scrollToSection(item.id)}
-                className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-gray-600 hover:bg-[#ffd9e1]/30 hover:text-[#ac0053] transition-colors"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <div className="mt-6 p-3 bg-gray-50 rounded-xl border border-gray-200 text-[11px] text-gray-600">
-            <p className="font-bold text-gray-900 mb-1">What's included?</p>
-            <p>• Header, Hero, Services, Packages, Owner, Team, Gallery, Social, Location, Hours, Contact, CTA, Footer</p>
-            <p className="mt-2">Empty sections are hidden.</p>
-          </div>
-        </div>
-
-        {/* Center preview canvas */}
-        <div className="flex-1 bg-gray-100 overflow-hidden p-4 md:p-6 flex flex-col relative">
-          <div ref={previewRef} className={`flex-1 overflow-y-auto flex justify-start custom-scrollbar ${isDark ? 'bg-zinc-900' : 'bg-white'} rounded-xl border shadow-sm`}>
-            {/* Wrap TemplateRenderer inside markers for scroll */}
-            <div className="w-full">
-              <div data-section="header"><TemplateRenderer data={previewData} mode={mode} /></div>
-              {/* Since TemplateRenderer already includes all sections, we will also show extra note about reviewed booking CTA if different */}
-              {previewData.reviewedContent?.bookingCTA && (
-                <div data-section="booking" className={`px-6 py-6 text-center border-t ${isDark ? 'bg-zinc-950 text-white border-zinc-800' : 'bg-white border-gray-100'}`}>
-                  <p className="text-sm font-semibold">{previewData.reviewedContent?.bookingCTA || previewData.reviewedContent?.bookingCTA}</p>
-                </div>
-              )}
+        {/* Left Quick Jump Navigation */}
+        <div className="hidden lg:flex w-60 shrink-0 bg-white border-r border-gray-200 flex-col p-5 overflow-y-auto justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[#ac0053]">
+              <Compass className="w-4 h-4" /> Quick Section Jump
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Click any section below to instantly scroll the preview canvas and check the layout:
+            </p>
+            <div className="space-y-1">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => scrollToSection(item.id)}
+                  className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-[#ffd9e1]/20 hover:text-[#ac0053] transition-all flex items-center justify-between group"
+                >
+                  <span>{item.label}</span>
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-[#ac0053] font-mono">
+                    Go →
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Floating edit hints */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur border border-gray-200 shadow-lg rounded-full px-4 py-2 text-xs font-medium text-gray-600 flex items-center gap-2">
-            <Sun className="w-3.5 h-3.5" /> Preview uses {appearanceLabel} appearance • {mode} • Scroll to review full website
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-[11px] text-gray-500 space-y-2 mt-6">
+            <div className="flex items-center gap-1.5 font-bold text-gray-800">
+              <Info className="w-3.5 h-3.5 text-[#ac0053]" /> Smart Filter
+            </div>
+            <p className="leading-relaxed">
+              Nexora automatically hides empty sections to keep your landing page compact and modern.
+            </p>
+            <div className="pt-1.5 border-t border-gray-200/60 text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
+              {appearanceLabel} theme active
+            </div>
+          </div>
+        </div>
+
+        {/* Center Preview Frame */}
+        <div className="flex-1 bg-gray-50 overflow-hidden p-4 md:p-6 flex flex-col justify-center items-center relative">
+          <div
+            ref={previewRef}
+            className="w-full h-full flex items-center justify-center overflow-hidden relative"
+          >
+            <TemplateRenderer data={previewData} mode={mode} />
+          </div>
+
+          {/* Toast / Help Tip overlay */}
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 bg-[#1a1c1c]/90 text-white backdrop-blur-md rounded-full py-2 px-4 shadow-lg text-[10px] font-semibold tracking-wide uppercase flex items-center gap-1.5 pointer-events-none">
+            <Sparkles className="w-3.5 h-3.5 text-pink-300" />
+            Scroll inside the frame to inspect — {appearanceLabel} mode active
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="h-[72px] bg-white border-t border-gray-200 flex items-center justify-between px-6 shrink-0">
-        <button onClick={onPrev} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-xs hover:bg-gray-50 flex items-center gap-2">
-          <ArrowLeft className="w-4 h-4" /> Back to Content Review
+      {/* Persistent Bottom Bar */}
+      <footer className="h-[76px] bg-white border-t border-gray-200 flex items-center justify-between px-6 shrink-0 z-10 shadow-xs">
+        <button
+          onClick={onPrev}
+          className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-50 flex items-center gap-2 transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Review
         </button>
-        <span className="hidden md:block text-xs text-gray-400">Step 13 of 15 • Full Website Preview</span>
-        <button onClick={onNext} className="px-8 py-2.5 rounded-xl bg-[#ac0053] text-white font-semibold text-xs hover:bg-[#ba005b] flex items-center gap-2 shadow-sm">
-          Continue to Publish Setup <ArrowRight className="w-4 h-4" />
+        <span className="hidden md:block text-xs font-semibold text-gray-400">
+          royalhairstudio.nexora.site
+        </span>
+        <button
+          onClick={onNext}
+          className="px-8 py-2.5 rounded-xl bg-[#ac0053] text-white font-bold text-xs hover:bg-[#ba005b] flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-98"
+        >
+          Looks Good — Continue <ArrowRight className="w-4 h-4" />
         </button>
       </footer>
     </div>

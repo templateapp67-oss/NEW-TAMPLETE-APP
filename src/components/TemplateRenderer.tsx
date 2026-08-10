@@ -88,7 +88,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
       <div className="flex-1 overflow-y-auto bg-white custom-scrollbar pb-16">
         
         {/* Navigation Header */}
-        <div className={`px-6 py-4 flex items-center justify-between border-b sticky top-0 backdrop-blur-md z-30 transition-colors ${config.navBg}`}>
+        <div id="section-header" className={`px-6 py-4 flex items-center justify-between border-b sticky top-0 backdrop-blur-md z-30 transition-colors ${config.navBg}`}>
           <div className="flex items-center gap-2">
             {data.logoUrl ? (
               <img src={data.logoUrl} alt="Logo" className="h-7 w-auto object-contain max-w-[120px]" />
@@ -109,7 +109,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
         </div>
 
         {/* Hero Section */}
-        <div className={`px-6 py-16 text-center relative overflow-hidden min-h-[300px] flex items-center justify-center ${config.heroBg}`}>
+        <div id="section-hero" className={`px-6 py-16 text-center relative overflow-hidden min-h-[300px] flex items-center justify-center ${config.heroBg}`}>
           {data.heroImageUrl && (
             <img
               src={data.heroImageUrl}
@@ -137,7 +137,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
         </div>
 
         {/* Services Section */}
-        <div className="px-6 py-12 max-w-3xl mx-auto">
+        <div id="section-services" className="px-6 py-12 max-w-3xl mx-auto">
           <div className="text-center mb-8">
             <span className={`text-[10px] font-bold uppercase tracking-widest ${config.accentText}`}>Our Offerings</span>
             <h2 className={`text-2xl font-bold mt-1 ${config.headingFont}`}>Signature Services & Pricing</h2>
@@ -165,7 +165,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
 
         {/* Owner / Founder Section */}
         {data.ownerName && (
-          <div className="px-6 py-10 bg-gray-50 border-y border-gray-100">
+          <div id="section-owner" className="px-6 py-10 bg-gray-50 border-y border-gray-100">
             <div className="max-w-xl mx-auto flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
               <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md shrink-0">
                 <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop" alt="Founder" className="w-full h-full object-cover" />
@@ -183,7 +183,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
 
         {/* Team Section (Conditional: Hide if no team members) */}
         {data.team && data.team.length > 0 && (
-          <div className="px-6 py-12 max-w-3xl mx-auto">
+          <div id="section-team" className="px-6 py-12 max-w-3xl mx-auto">
             <div className="text-center mb-8">
               <span className={`text-[10px] font-bold uppercase tracking-widest ${config.accentText}`}>Talented Professionals</span>
               <h3 className={`text-2xl font-bold mt-1 ${config.headingFont}`}>{getTeamTitle()}</h3>
@@ -229,7 +229,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
 
         {/* Gallery Section (Conditional: Hide if empty) */}
         {data.gallery && data.gallery.length > 0 && (
-          <div className="px-6 py-12 bg-gray-50 border-t border-gray-100">
+          <div id="section-gallery" className="px-6 py-12 bg-gray-50 border-t border-gray-100">
             <div className="max-w-3xl mx-auto">
               <div className="text-center mb-8">
                 <span className={`text-[10px] font-bold uppercase tracking-widest ${config.accentText}`}>Visual Showcase</span>
@@ -254,7 +254,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
 
         {/* Social Videos Section (Conditional: Hide if no social videos) */}
         {data.socialVideos && data.socialVideos.length > 0 && (
-          <div className="px-6 py-12 max-w-3xl mx-auto">
+          <div id="section-social" className="px-6 py-12 max-w-3xl mx-auto">
             <div className="text-center mb-8">
               <span className={`text-[10px] font-bold uppercase tracking-widest ${config.accentText} flex items-center justify-center gap-1`}>
                 <Video className="w-3 h-3" /> Social Feed
@@ -281,7 +281,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
         )}
 
         {/* Location & Opening Hours Section */}
-        <div className="px-6 py-12 bg-gray-50 border-t border-gray-100">
+        <div id="section-location" className="px-6 py-12 bg-gray-50 border-t border-gray-100">
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-8">
               <span className={`text-[10px] font-bold uppercase tracking-widest ${config.accentText}`}>Visit Us</span>
@@ -323,7 +323,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
         </div>
 
         {/* Contact & Booking Options Section */}
-        <div className="px-6 py-12 max-w-xl mx-auto text-center">
+        <div id="section-contact" className="px-6 py-12 max-w-xl mx-auto text-center">
           <div className="w-12 h-12 bg-gray-100 rounded-full mx-auto flex items-center justify-center mb-3">
             <CalendarCheck className={`w-6 h-6 ${config.accentText}`} />
           </div>
@@ -351,7 +351,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
         </div>
 
         {/* Footer */}
-        <footer className={`px-6 py-8 text-center text-xs border-t border-gray-800 ${config.footerBg}`}>
+        <footer id="section-footer" className={`px-6 py-8 text-center text-xs border-t border-gray-800 ${config.footerBg}`}>
           <p className="font-bold text-sm mb-1">{data.salonName || 'Your Salon'}</p>
           <p className="opacity-70 mb-4">{data.tagline || 'Excellence in Hair & Beauty'}</p>
           <p className="opacity-50 text-[10px]">© 2026 {data.salonName || 'Salon'}. Powered by Nexora Platform.</p>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SalonData } from '../types';
-import { ArrowLeft, ArrowRight, Globe, CheckCircle2, Link2, AlertCircle, Sparkles, ExternalLink } from 'lucide-react';
+import TemplateRenderer from '../components/TemplateRenderer';
+import { ArrowLeft, ArrowRight, Globe, CheckCircle2, Link2, AlertCircle, Monitor, Smartphone, Circle, Check } from 'lucide-react';
 
 interface Props {
   data: SalonData;
@@ -22,7 +23,7 @@ function slugify(text: string) {
 
 export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave }: Props) {
   const [slug, setSlug] = useState<string>(data.websiteSlug || slugify(data.salonName) || 'royal-hair-studio');
-  const [editingSlug, setEditingSlug] = useState(false);
+  const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
   const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
@@ -41,20 +42,23 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
 
   // Checklist logic
   const checks = [
-    { label: 'Business details added', done: !!(data.salonName && (data.tagline || data.about)) },
-    { label: 'Services added', done: data.services && data.services.length > 0 },
-    { label: 'Contact details added', done: !!(data.phone && data.email) },
+    { label: 'Salon details added', done: !!(data.salonName && (data.tagline || data.about)) },
+    { label: 'Services added', done: !!(data.services && data.services.length > 0) },
+    { label: 'Contact details added', done: !!(data.phone || data.email) },
     { label: 'Template selected', done: !!data.templateId },
     { label: 'Website appearance selected', done: !!data.websiteAppearance },
-    { label: 'Preview reviewed', done: !!(data.reviewedContent && data.lastCompletedStep && data.lastCompletedStep >= 12) },
+    { label: 'Website reviewed', done: !!data.reviewedContent },
   ];
 
-  const allRequiredDone = checks.slice(0, 4).every(c => c.done); // first 4 required, others optional
-  const optionalMissing = checks.slice(4).filter(c => !c.done).length;
+  const optionalChecks = [
+    { label: 'Team (Optional — can be added later)', done: !!(data.team && data.team.length > 0) },
+    { label: 'Gallery (Optional — can be added later)', done: !!(data.gallery && data.gallery.length > 0) },
+  ];
+
+  const allRequiredDone = checks.every(c => c.done);
 
   const handlePublish = () => {
     setPublishing(true);
-    // Save appearance in background already done, now simulate publishing
     setData(prev => ({ ...prev, publishState: 'publishing', publishedUrl: fullUrl, websiteSlug: slug }));
     if (onSave) onSave();
     setTimeout(() => {
@@ -65,117 +69,191 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
     }, 1200);
   };
 
+  const previewData: SalonData = {
+    ...data,
+    salonName: data.reviewedContent?.heroHeadline || data.salonName,
+    tagline: data.reviewedContent?.tagline || data.tagline,
+    about: data.reviewedContent?.about || data.about,
+    services: data.services.map(s => ({
+      ...s,
+      description: data.reviewedContent?.serviceDescriptions?.[s.id] || s.description
+    }))
+  };
+
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#f9f9f9]">
-      <div className="flex-1 overflow-y-auto p-6 md:p-10">
-        <div className="max-w-3xl mx-auto pb-28 space-y-8">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ac0053]">
-              <Globe className="w-4 h-4" /> STEP 14 • PUBLISH SETUP
-            </div>
-            <h1 className="text-3xl font-bold text-[#1a1c1c]">Prepare your website for publishing</h1>
-            <p className="text-sm text-[#5f5e5e]">Review your URL and checklist. Optional sections won’t block publishing.</p>
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#f9f9f9]" id="publish-setup-screen">
+      {/* Top Main Section with Split View */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* Left Side: Publish Settings */}
+        <div className="w-full md:w-[45%] h-full overflow-y-auto px-6 md:px-10 py-8 flex flex-col gap-6 pb-24 border-r border-gray-200">
+          
+          {/* Header section */}
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] font-bold text-[#ac0053] uppercase tracking-widest flex items-center gap-1">
+              <Globe className="w-3.5 h-3.5" /> STEP 14 OF 15 • PUBLISH
+            </span>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
+              Ready to publish your website?
+            </h1>
+            <p className="text-xs md:text-sm text-gray-500 leading-relaxed">
+              Check your website address and publish when you're ready.
+            </p>
           </div>
 
-          {/* URL Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#1a1c1c] flex items-center gap-2"><Link2 className="w-5 h-5 text-[#ac0053]" /> Website Address</h2>
-              <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Ready to publish</span>
+          {/* Website Address Section */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Website Address *
+              </label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3.5 text-gray-400 font-semibold text-sm">
+                  nexora.site/
+                </span>
+                <input
+                  className="w-full pl-[92px] pr-10 py-3 rounded-xl border border-gray-200 focus:border-[#ac0053] focus:ring-2 focus:ring-[#ffd9e1] bg-white text-gray-900 font-mono text-sm outline-none transition-all font-semibold"
+                  type="text"
+                  value={slug}
+                  onChange={e => setSlug(slugify(e.target.value))}
+                  placeholder="your-salon-name"
+                />
+                <CheckCircle2 className="absolute right-3.5 text-emerald-500 w-5 h-5" />
+              </div>
+              <p className="mt-2 text-emerald-600 font-semibold text-xs flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
+                Address is available
+              </p>
+            </div>
+          </div>
+
+          {/* Website Checklist Section */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-5">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-1">
+                Website Check
+              </h3>
+              <p className="text-[11px] text-gray-400">
+                Ensure all essential criteria are satisfied before launching
+              </p>
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <label className="text-xs font-semibold text-gray-600 w-28">Website Name</label>
-                <div className="flex-1 text-sm font-semibold text-gray-900">{data.salonName}</div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <label className="text-xs font-semibold text-gray-600 w-28">Slug</label>
-                <div className="flex-1 flex items-center gap-2">
-                  {editingSlug ? (
-                    <input
-                      value={slug}
-                      onChange={e => setSlug(slugify(e.target.value))}
-                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-[#ac0053] outline-none text-sm"
-                      autoFocus
-                      onBlur={() => setEditingSlug(false)}
-                      onKeyDown={e => e.key === 'Enter' && setEditingSlug(false)}
-                    />
+              {/* Required Items */}
+              {checks.map((item, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  {item.done ? (
+                    <div className="w-5 h-5 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                    </div>
                   ) : (
-                    <div className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm font-mono text-gray-800 flex items-center justify-between">
-                      <span>{slug}</span>
-                      <button onClick={() => setEditingSlug(true)} className="text-xs text-[#ac0053] font-semibold hover:underline">Edit</button>
+                    <div className="w-5 h-5 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
                     </div>
                   )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <label className="text-xs font-semibold text-gray-600 w-28">Preview URL</label>
-                <a href={fullUrl} target="_blank" rel="noreferrer" className="flex-1 px-3 py-2 rounded-lg bg-[#ffd9e1]/20 border border-[#ac0053]/20 text-sm font-mono text-[#ac0053] flex items-center justify-between hover:bg-[#ffd9e1]/40 transition-colors">
-                  <span>{previewUrl}</span>
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-3 text-[11px] text-gray-500 leading-relaxed">
-                Example: If your salon is <strong>Royal Hair Studio</strong>, slug becomes <strong>royal-hair-studio</strong> and URL is <strong>nexora.site/royal-hair-studio</strong>. You can edit slug if available. Domain will be available instantly after publish.
-              </div>
-            </div>
-          </div>
-
-          {/* Checklist */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-            <h2 className="text-base font-bold text-[#1a1c1c] flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Publishing Checklist</h2>
-            <div className="space-y-3">
-              {checks.map((c, i) => (
-                <div key={i} className={`flex items-center justify-between p-3 rounded-xl border ${c.done ? 'bg-emerald-50/60 border-emerald-200' : 'bg-amber-50/60 border-amber-200'}`}>
-                  <span className="text-sm font-medium text-gray-800 flex items-center gap-2">
-                    {c.done ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-amber-600" />}
-                    {c.label}
+                  <span className={`text-sm ${item.done ? 'text-gray-700 font-medium' : 'text-amber-600 font-semibold'}`}>
+                    {item.label} {!item.done && '(Required)'}
                   </span>
-                  <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${c.done ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                    {c.done ? 'Done ✓' : (i >= 4 ? 'Optional' : 'Required')}
+                </div>
+              ))}
+
+              <div className="border-t border-gray-100 my-4"></div>
+
+              {/* Optional Items */}
+              {optionalChecks.map((item, index) => (
+                <div key={index} className="flex items-center gap-3 opacity-70">
+                  {item.done ? (
+                    <div className="w-5 h-5 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center shrink-0">
+                      <Circle className="w-3 h-3 text-gray-400" />
+                    </div>
+                  )}
+                  <span className="text-sm text-gray-500 font-medium">
+                    {item.label}
                   </span>
                 </div>
               ))}
             </div>
+
             {!allRequiredDone && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 flex gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" /> Please complete required fields: Business details, Services, Contact, Template.
-              </div>
-            )}
-            {allRequiredDone && optionalMissing > 0 && (
-              <div className="bg-[#ffd9e1]/20 border border-[#ac0053]/20 rounded-xl p-3 text-xs text-[#80003c]">
-                Optional sections missing ({optionalMissing}) — you can still publish now and add them later.
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                Please complete all required fields above to proceed with publishing.
               </div>
             )}
           </div>
+        </div>
 
-          {/* Appearance summary */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Template & Appearance</h3>
-              <p className="text-xs text-gray-500 mt-1">Template: <span className="font-semibold text-gray-900">{data.templateId}</span> • Appearance: <span className="font-semibold text-gray-900">{data.websiteAppearance || 'light'}</span> • Reviewed: <span className="font-semibold text-gray-900">{data.reviewedContent ? 'Yes' : 'Not yet'}</span></p>
+        {/* Right Side: Final Website Preview */}
+        <div className="hidden md:flex w-[55%] h-full bg-gray-100 flex-col">
+          {/* Preview Controls Header */}
+          <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0">
+            <span className="text-xs font-bold text-gray-500 tracking-wide uppercase flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+              Final Website Preview
+            </span>
+            <div className="flex bg-gray-100 rounded-xl p-1 border border-gray-200">
+              <button
+                onClick={() => setMode('desktop')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all duration-200 text-xs font-semibold ${
+                  mode === 'desktop'
+                    ? 'bg-white text-gray-950 shadow-sm font-bold'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <Monitor className="w-4 h-4" /> Desktop
+              </button>
+              <button
+                onClick={() => setMode('mobile')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all duration-200 text-xs font-semibold ${
+                  mode === 'mobile'
+                    ? 'bg-white text-gray-950 shadow-sm font-bold'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <Smartphone className="w-4 h-4" /> Mobile
+              </button>
             </div>
-            <div className="flex items-center gap-2 text-xs bg-[#ffd9e1]/30 text-[#ac0053] px-3 py-1.5 rounded-full font-semibold"><Sparkles className="w-3.5 h-3.5" /> Nexora AI ready</div>
+          </div>
+
+          {/* Scrollable Preview Area */}
+          <div className="flex-grow p-6 overflow-y-auto flex justify-center items-center relative">
+            <div className="w-full h-full flex items-center justify-center overflow-hidden relative">
+              <TemplateRenderer data={previewData} mode={mode} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="h-[80px] bg-white border-t border-gray-200 flex items-center justify-between px-6 shrink-0">
-        <button onClick={onPrev} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-xs hover:bg-gray-50 flex items-center gap-2">
+      {/* Persistent Bottom Bar */}
+      <footer className="h-[76px] bg-white border-t border-gray-200 flex items-center justify-between px-6 shrink-0 z-10 shadow-xs">
+        <button
+          onClick={onPrev}
+          className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-50 flex items-center gap-2 transition-all"
+        >
           <ArrowLeft className="w-4 h-4" /> Back to Preview
         </button>
-        <span className="hidden md:block text-xs text-gray-400">Step 14 of 15 • Publish Setup</span>
+        <span className="hidden md:block text-xs font-semibold text-gray-400">
+          {previewUrl}
+        </span>
         <button
           disabled={!allRequiredDone || publishing}
           onClick={handlePublish}
-          className="px-8 py-3 rounded-xl bg-[#ac0053] text-white font-semibold text-xs hover:bg-[#ba005b] flex items-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-8 py-2.5 rounded-xl bg-[#ac0053] text-white font-bold text-xs hover:bg-[#ba005b] flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {publishing ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Publishing…</> : <><Globe className="w-4 h-4" /> Publish Website <ArrowRight className="w-4 h-4" /></>}
+          {publishing ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Publishing…
+            </>
+          ) : (
+            <>
+              <Globe className="w-4 h-4" /> Publish Website
+            </>
+          )}
         </button>
       </footer>
     </div>
