@@ -113,18 +113,28 @@ on conflict do nothing;
 -- STEP 6 — Public read for the customer nearby search
 -- =====================================================================
 -- The policy `salons_anon_catalogue_select` already exists and already
--- restricts anonymous access (is_active AND deleted_at IS NULL). Do NOT
+-- restricts anonymous access (verified / is_active / deleted_at). Do NOT
 -- weaken or replace it.
 --
 -- The block today is at the GRANT layer, before RLS is evaluated:
 --   "permission denied for table salons" (42501) for role anon.
 --
--- Minimum fix — a COLUMN-SCOPED grant that exposes only the public
--- catalogue fields the UI needs. It does not widen the existing policy and
--- does not expose private columns (e.g. phone):
+-- COLUMN-GRANT SEMANTICS (verified empirically on PostgreSQL 18):
+--   * RLS predicate columns (verified, is_active, deleted_at) do NOT need
+--     to be granted for the POLICY itself to evaluate — the policy reads
+--     them internally regardless of column privileges.
+--   * BUT any column the CLIENT names in its own SELECT list or WHERE
+--     clause DOES need a column grant. The application filters on
+--     is_active, deleted_at and location_confirmed, so those three must be
+--     granted or the query fails with 42501.
 --
---   grant select (id, name, address, city, slug, latitude, longitude)
---     on public.salons to anon;
+-- Minimum working grant — display columns + the columns the app filters on.
+-- Private columns (e.g. phone) remain blocked, and `select *` still fails:
+--
+--   grant select (
+--     id, name, address, city, slug, latitude, longitude,
+--     is_active, deleted_at, location_confirmed
+--   ) on public.salons to anon;
 --
 -- Review against your privacy requirements before applying.
 -- This is a permission change only — no schema change.
