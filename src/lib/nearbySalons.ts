@@ -36,6 +36,18 @@ export interface NearbySalonRecord {
 
 export type NearbySalon = WithDistance<NearbySalonRecord>;
 
+/**
+ * Raised when the database refuses the public read (missing GRANT or an RLS
+ * policy). Surfaced to the customer as a friendly message; the UI must not
+ * crash and must not attempt to bypass security.
+ */
+export class NearbySalonsPermissionError extends Error {
+  constructor() {
+    super('Unable to load nearby salons right now. Please try again.');
+    this.name = 'NearbySalonsPermissionError';
+  }
+}
+
 /** Only the fields the cards/search UI and the distance maths require. */
 const NEARBY_COLUMNS = 'id, name, address, city, slug, latitude, longitude';
 
@@ -53,7 +65,15 @@ export async function fetchLocatableSalons(): Promise<NearbySalonRecord[]> {
     .not('latitude', 'is', null)
     .not('longitude', 'is', null);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Log technical detail; never surface SQL/keys/DB internals to customers.
+    console.error('Failed to load nearby salons:', error);
+    const code = (error as { code?: string }).code;
+    if (code === '42501' || code === 'PGRST301') {
+      throw new NearbySalonsPermissionError();
+    }
+    throw new Error('Unable to load nearby salons right now. Please try again.');
+  }
   return (data ?? []) as unknown as NearbySalonRecord[];
 }
 

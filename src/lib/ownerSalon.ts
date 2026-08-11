@@ -1,33 +1,41 @@
 /**
  * Resolves the salon belonging to the CURRENTLY AUTHENTICATED shop owner.
  *
- * The salon id must never come from client input, localStorage, a hardcoded
- * value, or "the first row Supabase returns". It has to be derived from the
- * authenticated session through an existing owner -> salon relationship.
+ * The salon id is never hardcoded, never taken from client input or
+ * localStorage, and never "the first salon row". It is derived from the
+ * authenticated Supabase session through the existing membership table.
  *
- * Live-schema inspection of public.salons found NO such relationship:
- * there is no owner_id / user_id / profile_id / created_by / owner_user_id /
- * auth_user_id / owner / owner_email column, no salon_owners or salon_members
- * table, and public.profiles has no salon_id column. The repository also has
- * no authentication flow at all (no supabase.auth usage, no login screen).
+ * Existing relationship discovered on the live schema (PostgREST FK metadata):
+ *   public.job_salon_members
+ *     - job_salon_members_user_id_fkey  (user_id  -> profiles/auth user)
+ *     - job_salon_members_salon_id_fkey (salon_id -> salons.id)
+ *     - member_role, status
  *
- * Because the linkage genuinely does not exist, this module refuses to
- * resolve a salon rather than guessing one. No salon row is written until the
- * correct id is known.
+ * No table, column or relationship was created for this feature.
  */
 
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+
+/** Existing membership table linking an authenticated user to a salon. */
+export const SALON_MEMBER_TABLE = 'job_salon_members';
+
+/**
+ * Roles that may edit a salon's location. `member_role` is free text in the
+ * live schema, so matching is case-insensitive and limited to owner-like
+ * roles. A member whose role is not listed cannot edit the location.
+ */
+const OWNER_ROLES = ['owner', 'admin', 'manager'];
 
 export type OwnerSalonResolution =
   | { status: 'resolved'; salonId: string }
   | { status: 'not-configured' }
   | { status: 'not-authenticated' }
-  | { status: 'no-linkage' };
+  | { status: 'no-membership' }
+  | { status: 'ambiguous' }
+  | { status: 'permission-denied' }
+  | { status: 'error' };
 
-/**
- * Returns the authenticated user's id, or null when there is no session.
- * Uses the real Supabase session; never a hardcoded or client-supplied id.
- */
+/** Authenticated user id from the real session, or null when signed out. */
 export async function getAuthenticatedUserId(): Promise<string | null> {
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser();
@@ -35,38 +43,77 @@ export async function getAuthenticatedUserId(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
-/**
- * Resolve the authenticated owner's salon id.
- *
- * Returns 'no-linkage' when a session exists but the schema offers no way to
- * map that user to a salon row. Callers must treat anything other than
- * 'resolved' as "do not write".
- */
-export async function resolveOwnerSalonId(): Promise<OwnerSalonResolution> {
-  if (!isSupabaseConfigured || !supabase) {
-    return { status: 'not-configured' };
-  }
-
-  const userId = await getAuthenticatedUserId();
-  if (!userId) {
-    return { status: 'not-authenticated' };
-  }
-
-  // A session exists, but public.salons has no column tying a row to
-  // auth.users, and no membership/ownership join table exists. Selecting an
-  // arbitrary salon would let one owner overwrite another owner's location,
-  // so resolution stops here.
-  return { status: 'no-linkage' };
+interface MembershipRow {
+  salon_id: string | null;
+  member_role: string | null;
+  status: string | null;
 }
 
-/** User-facing message for a non-resolved state. Never leaks DB internals. */
+/**
+ * Resolve the authenticated owner's salon id via the existing membership
+ * table. Anything other than `resolved` means: do not write to any salon.
+ */
+export async function resolveOwnerSalonId(): Promise<OwnerSalonResolution> {
+  if (!isSupabaseConfigured || !supabase) return { status: 'not-configured' };
+
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return { status: 'not-authenticated' };
+
+  // Scoped to the authenticated user only. RLS still applies on top of this.
+  const { data, error } = await supabase
+    .from(SALON_MEMBER_TABLE)
+    .select('salon_id, member_role, status')
+    .eq('user_id', userId);
+
+  if (error) {
+    // 42501 = insufficient privilege; PGRST301 = JWT/RLS rejection.
+    const code = (error as { code?: string }).code;
+    if (code === '42501' || code === 'PGRST301') {
+      return { status: 'permission-denied' };
+    }
+    console.error('Failed to resolve owner salon membership:', error);
+    return { status: 'error' };
+  }
+
+  const rows = (data ?? []) as MembershipRow[];
+
+  const ownerSalonIds = Array.from(
+    new Set(
+      rows
+        .filter((row) => {
+          if (!row.salon_id) return false;
+          // Ignore memberships that are explicitly not active.
+          if (row.status && !['active', 'accepted', 'approved'].includes(row.status.toLowerCase())) {
+            return false;
+          }
+          const role = row.member_role?.toLowerCase().trim();
+          return role ? OWNER_ROLES.includes(role) : false;
+        })
+        .map((row) => row.salon_id as string),
+    ),
+  );
+
+  if (ownerSalonIds.length === 0) return { status: 'no-membership' };
+
+  // More than one owned salon: refuse to pick one arbitrarily.
+  if (ownerSalonIds.length > 1) return { status: 'ambiguous' };
+
+  return { status: 'resolved', salonId: ownerSalonIds[0] };
+}
+
+/** User-facing message. Never exposes SQL, tokens or database internals. */
 export function ownerSalonMessage(resolution: OwnerSalonResolution): string {
   switch (resolution.status) {
     case 'not-configured':
       return 'Shop location is unavailable right now. Please try again later.';
     case 'not-authenticated':
       return 'Please sign in to edit your shop location.';
-    case 'no-linkage':
+    case 'permission-denied':
+      return 'You do not have permission to edit this shop location.';
+    case 'ambiguous':
+      return 'Multiple shops are linked to your account. Please select a shop first.';
+    case 'no-membership':
+    case 'error':
       return 'Unable to determine your shop.';
     default:
       return '';
