@@ -7,6 +7,7 @@ import { fetchSalonLocation, saveSalonLocation } from '../lib/salonLocationServi
 import { resolveOwnerSalonId, ownerSalonMessage } from '../lib/ownerSalon';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { useAuth } from '../lib/useAuth';
+import LoginModal from '../components/LoginModal';
 import { 
   MapPin, 
   Clock, 
@@ -69,6 +70,7 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
    */
   const [salonId, setSalonId] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
 
   // The editor may only be opened once the authenticated owner's salon is known.
   const canEditLocation = salonId !== null && isSupabaseConfigured;
@@ -352,7 +354,15 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
           {locationError && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
               <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>{locationError}</span>
+              <span className="flex-1">{locationError}</span>
+              {!user && !authLoading && (
+                <button
+                  onClick={() => setLoginOpen(true)}
+                  className="shrink-0 rounded-lg bg-[#ac0053] px-3 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#ba005b]"
+                >
+                  Log In
+                </button>
+              )}
             </div>
           )}
 
@@ -589,6 +599,8 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
       </footer>
 
       {/* Owner location editor — map + Nominatim. No browser geolocation here. */}
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+
       <LocationPickerModal
         open={pickerOpen}
         initialAddress={address.fullAddress}
