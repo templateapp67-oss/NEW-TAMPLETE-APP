@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { SalonData, SalonAddress, SalonOpeningHours, DaySchedule } from '../types';
 import PreviewPane from '../components/PreviewPane';
+import LocationPickerModal, { ConfirmedLocation } from '../components/LocationPickerModal';
+import { normalizeCoordinates } from '../lib/location';
 import { 
   MapPin, 
   Clock, 
@@ -8,12 +10,9 @@ import {
   ArrowLeft, 
   Eye, 
   Navigation, 
-  Search, 
   Copy, 
-  Check, 
   Building2, 
-  CheckCircle2, 
-  Crosshair 
+  CheckCircle2 
 } from 'lucide-react';
 
 interface Props {
@@ -45,10 +44,40 @@ const DEFAULT_HOURS: SalonOpeningHours = {
 export default function StepLocation({ data, setData, onNext, onPrev, onSave }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [copiedSuccess, setCopiedSuccess] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const address = data.address || DEFAULT_ADDRESS;
   const hours = data.openingHours || DEFAULT_HOURS;
+
+  // Saved coordinates, validated on read so bad values never reach the map.
+  const savedCoords = normalizeCoordinates(address.latitude, address.longitude);
+  const hasCoordinates = savedCoords !== null;
+
+  /**
+   * Persists the confirmed address + coordinates onto the single existing
+   * salon address record. Coordinates are validated before saving.
+   */
+  const handleConfirmLocation = (location: ConfirmedLocation) => {
+    const coords = normalizeCoordinates(location.latitude, location.longitude);
+    if (!coords) return;
+
+    setData(prev => ({
+      ...prev,
+      address: {
+        ...(prev.address || DEFAULT_ADDRESS),
+        fullAddress: location.address,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        locationConfirmedAt: new Date().toISOString()
+      }
+    }));
+
+    setPickerOpen(false);
+    setSaveMessage('Location saved');
+    window.setTimeout(() => setSaveMessage(null), 3000);
+    if (onSave) onSave('Location saved');
+  };
 
   const updateAddress = (fields: Partial<SalonAddress>) => {
     const updated = { ...address, ...fields };
@@ -84,30 +113,6 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
 
   const markSundayClosed = () => {
     updateDayHours('sunday', { open: false });
-  };
-
-  const handleUseCurrentLocation = () => {
-    setIsLocating(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        () => {
-          setIsLocating(false);
-          updateAddress({
-            fullAddress: 'Shop 14, Linking Road, Bandra West, Mumbai, Maharashtra 400050',
-            city: 'Mumbai',
-            area: 'Bandra West',
-            state: 'Maharashtra',
-            pinCode: '400050'
-          });
-        },
-        () => {
-          setIsLocating(false);
-          updateAddress(DEFAULT_ADDRESS);
-        }
-      );
-    } else {
-      setIsLocating(false);
-    }
   };
 
   const daysList: { key: keyof SalonOpeningHours; label: string }[] = [
@@ -159,8 +164,8 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
           <p className="text-sm text-[#5f5e5e]">Add your address and opening hours. Customers will see this on your website.</p>
         </div>
 
-        {/* Address Section */}
-        <div className="space-y-6 bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs">
+        {/* Address Section — single source of truth: fullAddress + latitude + longitude */}
+        <div className="space-y-5 bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <h2 className="text-lg font-bold text-[#1a1c1c] flex items-center gap-2">
               <Building2 className="w-5 h-5 text-[#ac0053]" /> Business Address
@@ -179,51 +184,41 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleUseCurrentLocation}
-              disabled={isLocating}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-[#ac0053] bg-[#ffd9e1]/40 hover:bg-[#ffd9e1]/70 font-semibold text-xs transition-colors border border-[#ffd9e1]"
-            >
-              <Crosshair className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-              <span>{isLocating ? 'Locating...' : 'Use Current Location'}</span>
-            </button>
-            <button
-              onClick={() => updateAddress(DEFAULT_ADDRESS)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 font-semibold text-xs hover:bg-gray-50 transition-colors"
-            >
-              <Search className="w-3.5 h-3.5 text-gray-400" />
-              <span>Search Address</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ac0053] text-white font-semibold text-xs hover:bg-[#ba005b] transition-colors shadow-xs"
+          >
+            <Navigation className="w-3.5 h-3.5" />
+            <span>{hasCoordinates ? 'Edit map location' : 'Set location on map'}</span>
+          </button>
 
-          {/* Map Embedded Interactive Card */}
-          <div className="relative w-full h-64 rounded-xl overflow-hidden border border-gray-200 group shadow-inner bg-gray-100">
-            <img
-              src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=800&auto=format&fit=crop"
-              alt="Salon Location Map"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            {/* Animated Location Pin */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-              <div className="w-12 h-12 bg-[#ac0053]/20 rounded-full flex items-center justify-center animate-pulse">
-                <MapPin className="w-8 h-8 text-[#ac0053] fill-[#ac0053]" />
+          {/* Saved location summary */}
+          {hasCoordinates ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Location confirmed
+              </div>
+              <div className="text-sm text-[#1a1c1c]">{address.fullAddress}</div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs font-mono text-gray-600">
+                <span>Lat: {Number(address.latitude).toFixed(6)}</span>
+                <span>Lng: {Number(address.longitude).toFixed(6)}</span>
               </div>
             </div>
-
-            {/* Address Badge Overlay */}
-            <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-lg shadow-sm text-xs font-semibold text-gray-800 flex items-center gap-1.5 border border-gray-200/60">
-              <MapPin className="w-3.5 h-3.5 text-[#ac0053]" />
-              <span className="truncate max-w-[200px]">{address.city || 'Mumbai'}, {address.state || 'Maharashtra'}</span>
+          ) : (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/70 p-4 text-xs text-gray-500 flex items-start gap-2">
+              <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" />
+              <span>
+                No map location set yet. Customers searching nearby will not find your
+                salon until you confirm it on the map.
+              </span>
             </div>
+          )}
 
-            {/* Hover Action Button */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button className="bg-[#ac0053] text-white font-semibold text-xs px-5 py-2 rounded-xl shadow-md hover:bg-[#ba005b] transition-colors flex items-center gap-1.5">
-                <Navigation className="w-3.5 h-3.5" /> Set Pin Location
-              </button>
+          {saveMessage && (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+              <CheckCircle2 className="w-3.5 h-3.5" /> {saveMessage}
             </div>
-          </div>
+          )}
 
           {/* Granular Fields Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
@@ -456,6 +451,16 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
           <ArrowRight className="w-4 h-4" />
         </button>
       </footer>
+
+      {/* Owner location editor — map + Nominatim. No browser geolocation here. */}
+      <LocationPickerModal
+        open={pickerOpen}
+        initialAddress={address.fullAddress}
+        initialLatitude={savedCoords?.latitude}
+        initialLongitude={savedCoords?.longitude}
+        onCancel={() => setPickerOpen(false)}
+        onConfirm={handleConfirmLocation}
+      />
     </div>
   );
 }

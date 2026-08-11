@@ -25,6 +25,108 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', screens: 25, timestamp: new Date().toISOString() });
 });
 
+/* ------------------------------------------------------------------ *
+ * Nominatim geocoding proxy
+ *
+ * Nominatim's usage policy requires (a) at most 1 request/second and
+ * (b) a valid User-Agent / Referer identifying the application. Browsers
+ * forbid setting User-Agent, so all geocoding is proxied through here where
+ * the header can legitimately be set. Results are cached, as the policy asks.
+ * Policy: https://operations.osmfoundation.org/policies/nominatim/
+ * ------------------------------------------------------------------ */
+
+// Configurable so the geocoding service can be switched without a code change,
+// as the Nominatim usage policy requires.
+const NOMINATIM_BASE =
+  process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org';
+const NOMINATIM_APP =
+  process.env.NOMINATIM_APP_IDENTIFIER ||
+  'NexoraSalonWebsiteBuilder/1.0 (salon location picker; contact: support@nexora.example)';
+const NOMINATIM_REFERER =
+  process.env.NOMINATIM_REFERER || 'https://nexora.example';
+
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+const NOMINATIM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const geocodeCache = new Map<string, { at: number; body: unknown }>();
+let nominatimLastRequestAt = 0;
+let nominatimQueue: Promise<unknown> = Promise.resolve();
+
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Server-side global rate guard: one in-flight request at a time, >= 1.1s apart.
+function nominatimRateLimited<T>(task: () => Promise<T>): Promise<T> {
+  const run = nominatimQueue.then(async () => {
+    const waitFor = nominatimLastRequestAt + NOMINATIM_MIN_INTERVAL_MS - Date.now();
+    if (waitFor > 0) await delay(waitFor);
+    nominatimLastRequestAt = Date.now();
+    return task();
+  });
+  nominatimQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+async function callNominatim(pathAndQuery: string): Promise<unknown> {
+  const cached = geocodeCache.get(pathAndQuery);
+  if (cached && Date.now() - cached.at < NOMINATIM_CACHE_TTL_MS) {
+    return cached.body;
+  }
+
+  const body = await nominatimRateLimited(async () => {
+    const response = await fetch(`${NOMINATIM_BASE}${pathAndQuery}`, {
+      headers: {
+        'User-Agent': NOMINATIM_APP,
+        Referer: NOMINATIM_REFERER,
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Nominatim responded ${response.status}`);
+    }
+    return response.json();
+  });
+
+  geocodeCache.set(pathAndQuery, { at: Date.now(), body });
+  return body;
+}
+
+// Forward geocoding: address -> coordinates. Triggered only by "Find Location".
+app.get('/api/geocode/search', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (q.length < 3) {
+    return res.status(400).json({ error: 'A longer address is required.' });
+  }
+  try {
+    const data = await callNominatim(
+      `/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`,
+    );
+    res.json(data);
+  } catch (error) {
+    console.error('Nominatim search failed:', error);
+    res.status(502).json({ error: 'Could not look up that address right now.' });
+  }
+});
+
+// Reverse geocoding: coordinates -> address. Triggered only by marker dragend.
+app.get('/api/geocode/reverse', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+  const validLat = Number.isFinite(lat) && lat >= -90 && lat <= 90;
+  const validLon = Number.isFinite(lon) && lon >= -180 && lon <= 180;
+  if (!validLat || !validLon) {
+    return res.status(400).json({ error: 'Invalid coordinates.' });
+  }
+  try {
+    const data = await callNominatim(
+      `/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lon}`,
+    );
+    res.json(data);
+  } catch (error) {
+    console.error('Nominatim reverse failed:', error);
+    res.status(502).json({ error: 'Could not look up that pin right now.' });
+  }
+});
+
 // API route for generating team member bio using Gemini API with offline fallback
 app.post('/api/generate-bio', async (req, res) => {
   try {

@@ -90,6 +90,14 @@ export interface SalonAddress {
   state: string;
   pinCode: string;
   landmark?: string;
+  /**
+   * Canonical salon coordinates. Written by the owner location editor
+   * (StepLocation) and read by the customer nearby search. Stored as
+   * numbers; `undefined` means "not yet confirmed on the map".
+   */
+  latitude?: number;
+  longitude?: number;
+  locationConfirmedAt?: string;
 }
 
 export interface DaySchedule {
