@@ -51,6 +51,7 @@ export default function LocationPickerModal({
   const [isSearching, setIsSearching] = useState(false);
   const [isReversing, setIsReversing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -62,6 +63,7 @@ export default function LocationPickerModal({
     setResolvedAddress(initialAddress);
     setCoords(normalizeCoordinates(initialLatitude, initialLongitude));
     setError(null);
+    setShowSaveDialog(false);
   }, [open, initialAddress, initialLatitude, initialLongitude]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -72,7 +74,7 @@ export default function LocationPickerModal({
   const handleFindLocation = async () => {
     const q = query.trim();
     if (q.length < 3) {
-      setError('Enter a more complete address to search.');
+      setError('Please enter your business address.');
       return;
     }
     abortRef.current?.abort();
@@ -84,7 +86,7 @@ export default function LocationPickerModal({
     try {
       const result = await geocodeAddress(q, controller.signal);
       if (!result) {
-        setError('No match found for that address. Try adding the city or PIN code.');
+        setError('Location not found. Please enter a more complete address.');
         return;
       }
       setCoords({ latitude: result.latitude, longitude: result.longitude });
@@ -92,7 +94,7 @@ export default function LocationPickerModal({
       setQuery(result.displayName);
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      setError('Address lookup is unavailable right now. Please try again.');
+      setError('Location not found. Please enter a more complete address.');
     } finally {
       setIsSearching(false);
     }
@@ -122,29 +124,44 @@ export default function LocationPickerModal({
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       // Coordinates are still valid; only the label lookup failed.
-      setError('Pin moved, but the address label could not be refreshed.');
+      // Reverse geocoding is optional: the dragged coordinates remain valid
+      // and saveable, so the owner's manual choice is never discarded.
+      setError('Pin position saved. The address label could not be refreshed.');
     } finally {
       setIsReversing(false);
     }
   };
 
-  const handleConfirm = async () => {
+  /** Step 1: open the "SAVE YOUR SHOP LOCATION?" confirmation dialog. */
+  const handleConfirm = () => {
     if (!coords) {
       setError('Find your location on the map before confirming.');
       return;
     }
+    setError(null);
+    setShowSaveDialog(true);
+  };
+
+  /** Step 2: the owner pressed [ Save Shop Location ]. */
+  const handleSaveShopLocation = async () => {
+    if (!coords) return;
     setIsSaving(true);
     setError(null);
     try {
-      // The parent persists to Supabase and closes the modal on success.
+      // The parent verifies the session, resolves the owner's salon, persists
+      // to Supabase and closes the modal on success.
       await onConfirm({
         address: (resolvedAddress || query).trim(),
         latitude: coords.latitude,
         longitude: coords.longitude,
       });
+      setShowSaveDialog(false);
     } catch (err) {
+      setShowSaveDialog(false);
       setError(
-        err instanceof Error ? err.message : 'Could not save the location.',
+        err instanceof Error
+          ? err.message
+          : 'Unable to save shop location. Please try again.',
       );
     } finally {
       setIsSaving(false);
@@ -271,19 +288,76 @@ export default function LocationPickerModal({
             Cancel
           </button>
           <button
-            onClick={() => void handleConfirm()}
+            onClick={handleConfirm}
             disabled={!coords || busy || isSaving}
             className="flex items-center gap-2 rounded-xl bg-[#ac0053] px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#ba005b] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Check className="h-3.5 w-3.5" />
-            )}
-            {isSaving ? 'Saving...' : 'Confirm location'}
+            <Check className="h-3.5 w-3.5" /> Confirm Location
           </button>
         </div>
       </div>
+
+      {/* Save confirmation dialog */}
+      {showSaveDialog && coords && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-[#1a1c1c]">
+              Save your shop location?
+            </h3>
+
+            <dl className="mt-4 space-y-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm">
+              <div>
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                  Address
+                </dt>
+                <dd className="mt-0.5 text-[#1a1c1c]">
+                  {resolvedAddress || query}
+                </dd>
+              </div>
+              <div className="flex gap-8">
+                <div>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                    Latitude
+                  </dt>
+                  <dd className="mt-0.5 font-mono text-xs text-[#1a1c1c]">
+                    {coords.latitude.toFixed(6)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                    Longitude
+                  </dt>
+                  <dd className="mt-0.5 font-mono text-xs text-[#1a1c1c]">
+                    {coords.longitude.toFixed(6)}
+                  </dd>
+                </div>
+              </div>
+            </dl>
+
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowSaveDialog(false)}
+                disabled={isSaving}
+                className="rounded-xl border border-gray-300 px-5 py-2.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleSaveShopLocation()}
+                disabled={isSaving}
+                className="flex items-center gap-2 rounded-xl bg-[#ac0053] px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#ba005b] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+                {isSaving ? 'Saving...' : 'Save Shop Location'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

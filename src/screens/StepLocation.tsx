@@ -4,6 +4,7 @@ import PreviewPane from '../components/PreviewPane';
 import LocationPickerModal, { ConfirmedLocation } from '../components/LocationPickerModal';
 import { normalizeCoordinates } from '../lib/location';
 import { fetchSalonLocation, saveSalonLocation } from '../lib/salonLocationService';
+import { resolveOwnerSalonId, ownerSalonMessage } from '../lib/ownerSalon';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { 
   MapPin, 
@@ -60,11 +61,45 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
   const savedCoords = normalizeCoordinates(address.latitude, address.longitude);
   const hasCoordinates = savedCoords !== null;
 
-  const salonId = data.salonId;
+  /**
+   * The salon id is resolved from the authenticated session only — never from
+   * client input, localStorage or a hardcoded value. Until it resolves, the
+   * editor is read-only and cannot write to any salon row.
+   */
+  const [salonId, setSalonId] = useState<string | null>(null);
+
+  // The editor may only be opened once the authenticated owner's salon is known.
+  const canEditLocation = salonId !== null && isSupabaseConfigured;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    resolveOwnerSalonId()
+      .then(resolution => {
+        if (cancelled) return;
+        if (resolution.status === 'resolved') {
+          setSalonId(resolution.salonId);
+          setLocationError(null);
+        } else {
+          setSalonId(null);
+          setLocationError(ownerSalonMessage(resolution));
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSalonId(null);
+        setLocationError('Unable to determine your shop.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * Load the saved location from the existing Supabase salon record so the
    * editor always reopens with the persisted address + coordinates.
+   * Supabase is the source of truth for the saved location.
    */
   useEffect(() => {
     if (!salonId || !isSupabaseConfigured) return;
@@ -84,11 +119,9 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
           }
         }));
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (cancelled) return;
-        setLocationError(
-          err instanceof Error ? err.message : 'Could not load the saved location.'
-        );
+        setLocationError('Unable to load your saved shop location.');
       });
 
     return () => {
@@ -111,23 +144,19 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
 
     setLocationError(null);
 
-    if (!salonId) {
-      setLocationError(
-        'No salon record is linked to this session, so the location could not be saved to Supabase.'
-      );
-      return;
-    }
-    if (!isSupabaseConfigured) {
-      setLocationError(
-        'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
-      );
-      return;
+    // Re-verify session + salon ownership at save time; never trust stale state.
+    const resolution = await resolveOwnerSalonId();
+    if (resolution.status !== 'resolved') {
+      const message = ownerSalonMessage(resolution);
+      setLocationError(message);
+      throw new Error(message);
     }
 
     setIsSaving(true);
     try {
+      // Scoped to the freshly resolved, authenticated owner's salon row.
       const saved = await saveSalonLocation({
-        salonId,
+        salonId: resolution.salonId,
         address: location.address,
         latitude: coords.latitude,
         longitude: coords.longitude
@@ -145,13 +174,16 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
       }));
 
       setPickerOpen(false);
-      setSaveMessage('Location saved');
-      window.setTimeout(() => setSaveMessage(null), 3000);
-      if (onSave) onSave('Location saved');
+      setSaveMessage('Shop location saved successfully.');
+      window.setTimeout(() => setSaveMessage(null), 4000);
+      if (onSave) onSave('Shop location saved successfully.');
     } catch (err: unknown) {
-      setLocationError(
-        err instanceof Error ? err.message : 'Could not save the location.'
-      );
+      // Technical detail goes to the console; the UI stays user-friendly and
+      // never exposes database internals.
+      console.error('Failed to save shop location:', err);
+      const message = 'Unable to save shop location. Please try again.';
+      setLocationError(message);
+      throw new Error(message);
     } finally {
       setIsSaving(false);
     }
@@ -264,7 +296,9 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
 
           <button
             onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ac0053] text-white font-semibold text-xs hover:bg-[#ba005b] transition-colors shadow-xs"
+            disabled={!canEditLocation}
+            title={canEditLocation ? undefined : 'Unable to determine your shop.'}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ac0053] text-white font-semibold text-xs hover:bg-[#ba005b] transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Navigation className="w-3.5 h-3.5" />
             <span>{hasCoordinates ? 'Edit map location' : 'Set location on map'}</span>

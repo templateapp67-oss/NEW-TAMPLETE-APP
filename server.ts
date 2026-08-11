@@ -35,15 +35,19 @@ app.get('/api/health', (_req, res) => {
  * Policy: https://operations.osmfoundation.org/policies/nominatim/
  * ------------------------------------------------------------------ */
 
-// Configurable so the geocoding service can be switched without a code change,
-// as the Nominatim usage policy requires.
+// Official Nominatim endpoint. Configurable via env so the service can be
+// switched without a code change, as the usage policy requires.
 const NOMINATIM_BASE =
   process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org';
-const NOMINATIM_APP =
-  process.env.NOMINATIM_APP_IDENTIFIER ||
-  'NexoraSalonWebsiteBuilder/1.0 (salon location picker; contact: support@nexora.example)';
-const NOMINATIM_REFERER =
-  process.env.NOMINATIM_REFERER || 'https://nexora.example';
+
+// Nominatim requires a User-Agent/Referer that identifies the application with
+// a real contact. Browsers cannot set User-Agent, which is why geocoding is
+// proxied through this existing Express server. There is no placeholder
+// fallback: if the identifier is not configured, geocoding is disabled rather
+// than sending an unidentified request.
+const NOMINATIM_APP = process.env.NOMINATIM_APP_IDENTIFIER;
+const NOMINATIM_REFERER = process.env.NOMINATIM_REFERER;
+const NOMINATIM_CONFIGURED = Boolean(NOMINATIM_APP);
 
 const NOMINATIM_MIN_INTERVAL_MS = 1100;
 const NOMINATIM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -73,13 +77,13 @@ async function callNominatim(pathAndQuery: string): Promise<unknown> {
   }
 
   const body = await nominatimRateLimited(async () => {
-    const response = await fetch(`${NOMINATIM_BASE}${pathAndQuery}`, {
-      headers: {
-        'User-Agent': NOMINATIM_APP,
-        Referer: NOMINATIM_REFERER,
-        Accept: 'application/json',
-      },
-    });
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': NOMINATIM_APP as string,
+    };
+    if (NOMINATIM_REFERER) headers.Referer = NOMINATIM_REFERER;
+
+    const response = await fetch(`${NOMINATIM_BASE}${pathAndQuery}`, { headers });
     if (!response.ok) {
       throw new Error(`Nominatim responded ${response.status}`);
     }
@@ -92,6 +96,10 @@ async function callNominatim(pathAndQuery: string): Promise<unknown> {
 
 // Forward geocoding: address -> coordinates. Triggered only by "Find Location".
 app.get('/api/geocode/search', async (req, res) => {
+  if (!NOMINATIM_CONFIGURED) {
+    console.error('NOMINATIM_APP_IDENTIFIER is not set; refusing to send an unidentified request.');
+    return res.status(503).json({ error: 'Address lookup is unavailable right now.' });
+  }
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (q.length < 3) {
     return res.status(400).json({ error: 'A longer address is required.' });
@@ -109,6 +117,10 @@ app.get('/api/geocode/search', async (req, res) => {
 
 // Reverse geocoding: coordinates -> address. Triggered only by marker dragend.
 app.get('/api/geocode/reverse', async (req, res) => {
+  if (!NOMINATIM_CONFIGURED) {
+    console.error('NOMINATIM_APP_IDENTIFIER is not set; refusing to send an unidentified request.');
+    return res.status(503).json({ error: 'Address lookup is unavailable right now.' });
+  }
   const lat = Number(req.query.lat);
   const lon = Number(req.query.lon);
   const validLat = Number.isFinite(lat) && lat >= -90 && lat <= 90;
