@@ -1,5 +1,7 @@
-import { Sparkles, CheckCircle2, Users, LayoutDashboard, Loader2, ChevronDown, MapPin, Calendar, CreditCard, Share2, Settings, Scissors, Camera, Clock } from 'lucide-react';
+import { Sparkles, CheckCircle2, Users, LayoutDashboard, Loader2, ChevronDown, MapPin, Calendar, CreditCard, Share2, Settings, Scissors, Camera, Clock, LogIn, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import LoginModal from './LoginModal';
+import { useAuth, signOut } from '../lib/useAuth';
 
 export const SCREENS = [
   { id: 1, label: '01 — Landing / Welcome', group: 'WIZARD (01-16)' },
@@ -39,6 +41,8 @@ interface Props {
 }
 
 export default function TopBar({ step, activeModule, setActiveModule, saveStatus = 'saved', currentScreen, onNavigate }: Props) {
+  const [loginOpen, setLoginOpen] = useState(false);
+  const { user, loading: authLoading } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const displayStep = step + 1; 
   const totalSteps = 15;
@@ -166,6 +170,31 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
           {activeModule === 'wizard' ? 'Staff' : activeModule === 'staff-management' ? 'Dashboard' : 'Builder'}
         </button>
 
+        {/* Account — available on every screen */}
+        {authLoading ? null : user ? (
+          <div className="flex items-center gap-2">
+            <span
+              className="hidden lg:inline max-w-[160px] truncate text-xs font-medium text-gray-600"
+              title={user.email ?? ''}
+            >
+              {user.email}
+            </span>
+            <button
+              onClick={() => void signOut()}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Log Out
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setLoginOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-[#ac0053] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#ba005b]"
+          >
+            <LogIn className="h-3.5 w-3.5" /> Log In
+          </button>
+        )}
+
         <div className="hidden md:flex items-center gap-2 text-[#ac0053] text-sm font-medium bg-[#ffd9e1]/30 px-3 py-1.5 rounded-lg border border-[#ffd9e1]/60">
           {saveStatus === 'saving' ? (
             <>
@@ -192,6 +221,8 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
           </div>
         )}
       </div>
+
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </header>
   );
 }

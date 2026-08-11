@@ -1,7 +1,17 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+
+// Load .env.local (gitignored) in addition to .env, matching Vite's convention
+// so server-side config such as NOMINATIM_APP_IDENTIFIER is picked up.
+const envLocalPath = path.join(process.cwd(), '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath });
+}
 
 const app = express();
 const PORT = 3000;
@@ -23,6 +33,115 @@ app.use((req, res, next) => {
 // Health check endpoint for verification
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', screens: 25, timestamp: new Date().toISOString() });
+});
+
+/* ------------------------------------------------------------------ *
+ * Nominatim geocoding proxy
+ *
+ * Nominatim's usage policy requires (a) at most 1 request/second and
+ * (b) a valid User-Agent / Referer identifying the application. Browsers
+ * forbid setting User-Agent, so all geocoding is proxied through here where
+ * the header can legitimately be set. Results are cached, as the policy asks.
+ * Policy: https://operations.osmfoundation.org/policies/nominatim/
+ * ------------------------------------------------------------------ */
+
+// Official Nominatim endpoint. Configurable via env so the service can be
+// switched without a code change, as the usage policy requires.
+const NOMINATIM_BASE =
+  process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org';
+
+// Nominatim requires a User-Agent/Referer that identifies the application with
+// a real contact. Browsers cannot set User-Agent, which is why geocoding is
+// proxied through this existing Express server.
+//
+// This identifier is public information (not a secret), so it ships with a
+// genuine built-in default and can still be overridden by environment config.
+const NOMINATIM_APP =
+  process.env.NOMINATIM_APP_IDENTIFIER ||
+  'NexoraSalonWebsiteBuilder/1.0 (+mailto:hello@nexorabeauty.com)';
+const NOMINATIM_REFERER =
+  process.env.NOMINATIM_REFERER || 'https://nexorabeauty.com';
+
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+const NOMINATIM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const geocodeCache = new Map<string, { at: number; body: unknown }>();
+let nominatimLastRequestAt = 0;
+let nominatimQueue: Promise<unknown> = Promise.resolve();
+
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Server-side global rate guard: one in-flight request at a time, >= 1.1s apart.
+function nominatimRateLimited<T>(task: () => Promise<T>): Promise<T> {
+  const run = nominatimQueue.then(async () => {
+    const waitFor = nominatimLastRequestAt + NOMINATIM_MIN_INTERVAL_MS - Date.now();
+    if (waitFor > 0) await delay(waitFor);
+    nominatimLastRequestAt = Date.now();
+    return task();
+  });
+  nominatimQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+async function callNominatim(pathAndQuery: string): Promise<unknown> {
+  const cached = geocodeCache.get(pathAndQuery);
+  if (cached && Date.now() - cached.at < NOMINATIM_CACHE_TTL_MS) {
+    return cached.body;
+  }
+
+  const body = await nominatimRateLimited(async () => {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': NOMINATIM_APP as string,
+    };
+    if (NOMINATIM_REFERER) headers.Referer = NOMINATIM_REFERER;
+
+    const response = await fetch(`${NOMINATIM_BASE}${pathAndQuery}`, { headers });
+    if (!response.ok) {
+      throw new Error(`Nominatim responded ${response.status}`);
+    }
+    return response.json();
+  });
+
+  geocodeCache.set(pathAndQuery, { at: Date.now(), body });
+  return body;
+}
+
+// Forward geocoding: address -> coordinates. Triggered only by "Find Location".
+app.get('/api/geocode/search', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (q.length < 3) {
+    return res.status(400).json({ error: 'A longer address is required.' });
+  }
+  try {
+    const data = await callNominatim(
+      `/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`,
+    );
+    res.json(data);
+  } catch (error) {
+    console.error('Nominatim search failed:', error);
+    res.status(502).json({ error: 'Could not look up that address right now.' });
+  }
+});
+
+// Reverse geocoding: coordinates -> address. Triggered only by marker dragend.
+app.get('/api/geocode/reverse', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+  const validLat = Number.isFinite(lat) && lat >= -90 && lat <= 90;
+  const validLon = Number.isFinite(lon) && lon >= -180 && lon <= 180;
+  if (!validLat || !validLon) {
+    return res.status(400).json({ error: 'Invalid coordinates.' });
+  }
+  try {
+    const data = await callNominatim(
+      `/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lon}`,
+    );
+    res.json(data);
+  } catch (error) {
+    console.error('Nominatim reverse failed:', error);
+    res.status(502).json({ error: 'Could not look up that pin right now.' });
+  }
 });
 
 // API route for generating team member bio using Gemini API with offline fallback
@@ -196,7 +315,27 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+
+    // Unknown /api/* paths must return JSON 404, never the SPA shell.
+    app.all('/api/*', (req, res) => {
+      res.status(404).json({ error: 'Not found' });
+    });
+
+    // Missing/renamed static assets must 404 rather than serve HTML, so a
+    // broken build fails loudly instead of causing a MIME/parse error.
+    // express.static already served anything that exists.
+    const STATIC_PREFIXES = ['/assets/'];
+    const STATIC_FILE = /\.[a-zA-Z0-9]+$/;
+
+    // SPA fallback for real client routes (e.g. /nearby). Express 4 uses '*'
+    // ('*all' is Express 5 syntax and never matched here, which 404'd
+    // client-side routes).
+    app.get('*', (req, res) => {
+      const isStaticPath = STATIC_PREFIXES.some((p) => req.path.startsWith(p));
+      const looksLikeFile = STATIC_FILE.test(req.path);
+      if (isStaticPath || looksLikeFile) {
+        return res.status(404).type('text/plain').send('Not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
