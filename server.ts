@@ -1,7 +1,17 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+
+// Load .env.local (gitignored) in addition to .env, matching Vite's convention
+// so server-side config such as NOMINATIM_APP_IDENTIFIER is picked up.
+const envLocalPath = path.join(process.cwd(), '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath });
+}
 
 const app = express();
 const PORT = 3000;
