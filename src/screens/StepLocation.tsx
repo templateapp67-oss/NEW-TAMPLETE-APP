@@ -6,6 +6,7 @@ import { normalizeCoordinates } from '../lib/location';
 import { fetchSalonLocation, saveSalonLocation } from '../lib/salonLocationService';
 import { resolveOwnerSalonId, ownerSalonMessage } from '../lib/ownerSalon';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { useAuth } from '../lib/useAuth';
 import { 
   MapPin, 
   Clock, 
@@ -67,12 +68,22 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
    * editor is read-only and cannot write to any salon row.
    */
   const [salonId, setSalonId] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
   // The editor may only be opened once the authenticated owner's salon is known.
   const canEditLocation = salonId !== null && isSupabaseConfigured;
 
   useEffect(() => {
     let cancelled = false;
+
+    // Wait for the session check to settle before deciding anything.
+    if (authLoading) return;
+
+    if (!user) {
+      setSalonId(null);
+      setLocationError('Please log in to manage your shop.');
+      return;
+    }
 
     resolveOwnerSalonId()
       .then(resolution => {
@@ -94,7 +105,7 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user, authLoading]);
 
   /**
    * Load the saved location from the existing Supabase salon record so the

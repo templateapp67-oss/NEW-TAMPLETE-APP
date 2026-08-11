@@ -310,7 +310,9 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    // SPA fallback. Express 4 uses '*' ('*all' is Express 5 syntax and never
+    // matched here, which 404'd client-side routes such as /nearby).
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

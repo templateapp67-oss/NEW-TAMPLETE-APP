@@ -1,7 +1,12 @@
+import { useState } from 'react';
 import { Sparkles, ArrowRight, CheckCircle2, Smartphone, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
+import LoginModal from '../components/LoginModal';
+import { useAuth, signOut } from '../lib/useAuth';
 
 export default function HeroSplit({ onNext }: { onNext: () => void }) {
+  const [loginOpen, setLoginOpen] = useState(false);
+  const { user } = useAuth();
   return (
     <div className="min-h-screen bg-[#f9f8f6] flex flex-col font-sans overflow-hidden">
       <header className="h-16 px-8 border-b border-gray-200/50 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-50">
@@ -10,8 +15,15 @@ export default function HeroSplit({ onNext }: { onNext: () => void }) {
           <span className="font-semibold text-xl tracking-tight">Nexora</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500">Already have a website?</span>
-          <button className="border border-[#ac0053] text-[#ac0053] px-4 py-1.5 rounded-lg font-semibold text-sm hover:bg-pink-50 transition-colors">Log In</button>
+          <span className="text-sm text-gray-500">
+            {user ? user.email : 'Already have a website?'}
+          </span>
+          <button
+            onClick={() => (user ? void signOut() : setLoginOpen(true))}
+            className="border border-[#ac0053] text-[#ac0053] px-4 py-1.5 rounded-lg font-semibold text-sm hover:bg-pink-50 transition-colors"
+          >
+            {user ? 'Log Out' : 'Log In'}
+          </button>
         </div>
       </header>
 
@@ -137,6 +149,8 @@ export default function HeroSplit({ onNext }: { onNext: () => void }) {
           </motion.div>
         </div>
       </main>
+
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </div>
   );
 }
