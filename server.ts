@@ -52,12 +52,15 @@ const NOMINATIM_BASE =
 
 // Nominatim requires a User-Agent/Referer that identifies the application with
 // a real contact. Browsers cannot set User-Agent, which is why geocoding is
-// proxied through this existing Express server. There is no placeholder
-// fallback: if the identifier is not configured, geocoding is disabled rather
-// than sending an unidentified request.
-const NOMINATIM_APP = process.env.NOMINATIM_APP_IDENTIFIER;
-const NOMINATIM_REFERER = process.env.NOMINATIM_REFERER;
-const NOMINATIM_CONFIGURED = Boolean(NOMINATIM_APP);
+// proxied through this existing Express server.
+//
+// This identifier is public information (not a secret), so it ships with a
+// genuine built-in default and can still be overridden by environment config.
+const NOMINATIM_APP =
+  process.env.NOMINATIM_APP_IDENTIFIER ||
+  'NexoraSalonWebsiteBuilder/1.0 (+mailto:hello@nexorabeauty.com)';
+const NOMINATIM_REFERER =
+  process.env.NOMINATIM_REFERER || 'https://nexorabeauty.com';
 
 const NOMINATIM_MIN_INTERVAL_MS = 1100;
 const NOMINATIM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -106,10 +109,6 @@ async function callNominatim(pathAndQuery: string): Promise<unknown> {
 
 // Forward geocoding: address -> coordinates. Triggered only by "Find Location".
 app.get('/api/geocode/search', async (req, res) => {
-  if (!NOMINATIM_CONFIGURED) {
-    console.error('NOMINATIM_APP_IDENTIFIER is not set; refusing to send an unidentified request.');
-    return res.status(503).json({ error: 'Address lookup is unavailable right now.' });
-  }
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (q.length < 3) {
     return res.status(400).json({ error: 'A longer address is required.' });
@@ -127,10 +126,6 @@ app.get('/api/geocode/search', async (req, res) => {
 
 // Reverse geocoding: coordinates -> address. Triggered only by marker dragend.
 app.get('/api/geocode/reverse', async (req, res) => {
-  if (!NOMINATIM_CONFIGURED) {
-    console.error('NOMINATIM_APP_IDENTIFIER is not set; refusing to send an unidentified request.');
-    return res.status(503).json({ error: 'Address lookup is unavailable right now.' });
-  }
   const lat = Number(req.query.lat);
   const lon = Number(req.query.lon);
   const validLat = Number.isFinite(lat) && lat >= -90 && lat <= 90;
