@@ -320,9 +320,27 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    // SPA fallback. Express 4 uses '*' ('*all' is Express 5 syntax and never
-    // matched here, which 404'd client-side routes such as /nearby).
+
+    // Unknown /api/* paths must return JSON 404, never the SPA shell.
+    app.all('/api/*', (req, res) => {
+      res.status(404).json({ error: 'Not found' });
+    });
+
+    // Missing/renamed static assets must 404 rather than serve HTML, so a
+    // broken build fails loudly instead of causing a MIME/parse error.
+    // express.static already served anything that exists.
+    const STATIC_PREFIXES = ['/assets/'];
+    const STATIC_FILE = /\.[a-zA-Z0-9]+$/;
+
+    // SPA fallback for real client routes (e.g. /nearby). Express 4 uses '*'
+    // ('*all' is Express 5 syntax and never matched here, which 404'd
+    // client-side routes).
     app.get('*', (req, res) => {
+      const isStaticPath = STATIC_PREFIXES.some((p) => req.path.startsWith(p));
+      const looksLikeFile = STATIC_FILE.test(req.path);
+      if (isStaticPath || looksLikeFile) {
+        return res.status(404).type('text/plain').send('Not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
