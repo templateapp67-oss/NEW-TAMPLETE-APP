@@ -45,6 +45,7 @@ npm run build        # vite build + esbuild bundle of server.ts -> dist/
 npm run start        # run the production build (node dist/server.cjs)
 npm run preview      # vite preview on http://0.0.0.0:4173
 npm run lint         # type-check only: tsc --noEmit
+npm run validate:migrations # PGlite: apply M01–M15 twice + run tests A–L
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
@@ -105,12 +106,15 @@ node verify-22-screens.js   # static verification of all 25 screens/features
 ### Docs
 
 - `docs/nexora-database-spec.md` — the 90-point Nexora Supabase master
-  specification. **Status: collection complete, awaiting user approval. NO SQL
-  has been run and no migrations applied.** Do not run SQL from it until the
-  user approves ("APPROVED — GENERATE FINAL SQL").
-- `docs/owner-location-setup.sql` — manual setup for owner location (grants /
-  policies / membership checks). **Run manually in the Supabase SQL editor;
-  the app never executes it.**
+  specification and source for migration order §5.25.
+- `docs/database-migrations-plan.md` + `supabase/migrations/` — **DRAFT** M01–M15.
+  They pass clean replay x2 plus tests A–L in PGlite, but have **not been applied
+  to any database**. M02 is deliberately a fail-closed preflight and must be
+  regenerated after read-only live Supabase introspection. Never execute the
+  migration set without a separate explicit go-ahead.
+- `docs/owner-location-setup.sql` — earlier manual setup notes for owner
+  location. Reconcile it with the finalized M02/RLS plan before any future SQL
+  execution; the app itself never executes it.
 
 ## Environment variables
 
@@ -135,15 +139,17 @@ loads). All `.env*` files are gitignored except `.env.example`.
   without an API key.
 - **Server-side secrets stay server-side** — `GEMINI_API_KEY` etc. must never
   reach the browser; Supabase uses only the anon key.
-- **No destructive DB work** — no DROP TABLE, no schema changes without
-  explicit approval; the 90-point spec is not executed until approved.
+- **No destructive DB work** — no `DROP TABLE` and no database execution without
+  explicit approval. Drafting/testing migration files locally is not permission
+  to apply them. Live introspection and a regenerated M02 come first.
 - **Preview compatibility**: the server must bind `0.0.0.0`, allow all hosts,
   and keep CORS open (`vite.config.ts` and `server.ts` already do this — do
   not regress it).
 - **Don't touch `vite.config.ts` HMR/watch settings** — they are intentionally
   tuned for agent editing (`DISABLE_HMR` env).
 - **Verification**: after UI/feature changes, run
-  `node verify-22-screens.js` and `npm run lint`.
+  `node verify-22-screens.js` and `npm run lint`. After migration changes, also
+  run `npm run validate:migrations` and keep the 15/15 x2 + 12/12 result.
 
 ## Git workflow
 

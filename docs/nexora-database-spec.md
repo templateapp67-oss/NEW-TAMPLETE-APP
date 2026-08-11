@@ -1,17 +1,18 @@
 # Nexora — Master Database Specification (Points 1–90)
 
 > **STATUS: COLLECTION COMPLETE — all 90 points received (90/90).**
-> Now in: **FINAL CONSOLIDATED SPECIFICATION — AWAITING USER APPROVAL ("APPROVED — GENERATE FINAL SQL").**
-> No SQL has been run. No migrations applied. No schema changes. No RLS changes.
+> M01–M15 now exist as **DRAFT migration files** for local review/validation.
+> They have been exercised only in disposable PGlite; **nothing has been applied
+> to local, staging, or live Supabase**. M02 must be regenerated after read-only
+> live-schema inspection, and database execution requires a separate go-ahead.
 >
-> No SQL has been run. No migrations applied. No schema changes. No RLS changes.
 > This document is the single cumulative specification; all 90 points belong to ONE Nexora Supabase architecture.
 
 ---
 
 ## 0. Standing Guardrails (applied to every point)
 
-1. **No SQL execution** until user says "APPROVED — GENERATE FINAL SQL" after Point 90.
+1. **No SQL execution against a Supabase environment** without a separate explicit go-ahead after live introspection and finalized M02. Disposable local PostgreSQL validation of draft files is allowed and does not count as deployment approval.
 2. **Preserve the existing Nexora Supabase schema & data** — no DROP TABLE, no destructive operations; use ALTER / IF EXISTS / IF NOT EXISTS, backfill before new constraints, preserve current IDs and relationships.
 3. **No duplicate data models** — ONE salon record, ONE service source, ONE staff source, ONE booking source, ONE payment source. Onboarding, dashboard, live preview, and published website must share the same business data.
 4. **INR / paise** for all money fields where required.
@@ -1618,7 +1619,7 @@ Before ANY migration is generated (post-approval), introspect the actual Supabas
 
 ## 5. FINAL CONSOLIDATED DATABASE SPECIFICATION (Points 1–90)
 
-*Generated from ALL 90 points. Awaiting user approval before any SQL is produced or executed.*
+*Generated from ALL 90 points. Draft M01–M15 SQL now exists for local validation; no Supabase execution is approved. See `database-migrations-plan.md`.*
 
 ### 5.1 Final Table List (38 tables)
 
@@ -1813,4 +1814,4 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 14. **M14** indexes/constraints (final CHECKs, UNIQUEs, indexes)
 15. **M15** backfill/data migration (localStorage → DB, owner memberships, defaults) — dev seed script separate (P82)
 
-**Execution gate:** after approval, migrations generated as safe ordered files (P81) and applied to the actual Supabase project (P90); results reported per P89.
+**Execution gate:** M01–M15 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
