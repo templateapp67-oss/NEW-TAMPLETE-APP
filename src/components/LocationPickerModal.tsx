@@ -28,7 +28,8 @@ interface Props {
   initialLatitude?: number;
   initialLongitude?: number;
   onCancel: () => void;
-  onConfirm: (location: ConfirmedLocation) => void;
+  /** May be async (e.g. a Supabase write); the modal awaits it. */
+  onConfirm: (location: ConfirmedLocation) => void | Promise<void>;
 }
 
 // Used only as an initial map view when nothing has been saved yet.
@@ -49,6 +50,7 @@ export default function LocationPickerModal({
   );
   const [isSearching, setIsSearching] = useState(false);
   const [isReversing, setIsReversing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -126,16 +128,27 @@ export default function LocationPickerModal({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!coords) {
       setError('Find your location on the map before confirming.');
       return;
     }
-    onConfirm({
-      address: (resolvedAddress || query).trim(),
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-    });
+    setIsSaving(true);
+    setError(null);
+    try {
+      // The parent persists to Supabase and closes the modal on success.
+      await onConfirm({
+        address: (resolvedAddress || query).trim(),
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not save the location.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const view = coords ?? FALLBACK_VIEW;
@@ -258,11 +271,16 @@ export default function LocationPickerModal({
             Cancel
           </button>
           <button
-            onClick={handleConfirm}
-            disabled={!coords || busy}
+            onClick={() => void handleConfirm()}
+            disabled={!coords || busy || isSaving}
             className="flex items-center gap-2 rounded-xl bg-[#ac0053] px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#ba005b] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Check className="h-3.5 w-3.5" /> Confirm location
+            {isSaving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+            {isSaving ? 'Saving...' : 'Confirm location'}
           </button>
         </div>
       </div>

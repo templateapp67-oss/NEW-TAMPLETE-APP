@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SalonData, SalonAddress, SalonOpeningHours, DaySchedule } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import LocationPickerModal, { ConfirmedLocation } from '../components/LocationPickerModal';
 import { normalizeCoordinates } from '../lib/location';
+import { fetchSalonLocation, saveSalonLocation } from '../lib/salonLocationService';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { 
   MapPin, 
   Clock, 
@@ -12,7 +14,9 @@ import {
   Navigation, 
   Copy, 
   Building2, 
-  CheckCircle2 
+  CheckCircle2,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 interface Props {
@@ -46,6 +50,8 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
   const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const address = data.address || DEFAULT_ADDRESS;
   const hours = data.openingHours || DEFAULT_HOURS;
@@ -54,29 +60,101 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
   const savedCoords = normalizeCoordinates(address.latitude, address.longitude);
   const hasCoordinates = savedCoords !== null;
 
+  const salonId = data.salonId;
+
   /**
-   * Persists the confirmed address + coordinates onto the single existing
-   * salon address record. Coordinates are validated before saving.
+   * Load the saved location from the existing Supabase salon record so the
+   * editor always reopens with the persisted address + coordinates.
    */
-  const handleConfirmLocation = (location: ConfirmedLocation) => {
+  useEffect(() => {
+    if (!salonId || !isSupabaseConfigured) return;
+    let cancelled = false;
+
+    fetchSalonLocation(salonId)
+      .then(record => {
+        if (cancelled || !record) return;
+        setData(prev => ({
+          ...prev,
+          address: {
+            ...(prev.address || DEFAULT_ADDRESS),
+            fullAddress: record.address ?? (prev.address?.fullAddress ?? ''),
+            latitude: record.latitude ?? undefined,
+            longitude: record.longitude ?? undefined,
+            locationConfirmedAt: record.locationConfirmedAt ?? undefined
+          }
+        }));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLocationError(
+          err instanceof Error ? err.message : 'Could not load the saved location.'
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [salonId, setData]);
+
+  /**
+   * Persists the confirmed address + coordinates to the existing
+   * `public.salons` record (address, latitude, longitude,
+   * location_confirmed, location_confirmed_at). Coordinates are validated
+   * before saving; local state mirrors the row after a successful write.
+   */
+  const handleConfirmLocation = async (location: ConfirmedLocation) => {
     const coords = normalizeCoordinates(location.latitude, location.longitude);
-    if (!coords) return;
+    if (!coords) {
+      setLocationError('Invalid coordinates — location was not saved.');
+      return;
+    }
 
-    setData(prev => ({
-      ...prev,
-      address: {
-        ...(prev.address || DEFAULT_ADDRESS),
-        fullAddress: location.address,
+    setLocationError(null);
+
+    if (!salonId) {
+      setLocationError(
+        'No salon record is linked to this session, so the location could not be saved to Supabase.'
+      );
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      setLocationError(
+        'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+      );
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const saved = await saveSalonLocation({
+        salonId,
+        address: location.address,
         latitude: coords.latitude,
-        longitude: coords.longitude,
-        locationConfirmedAt: new Date().toISOString()
-      }
-    }));
+        longitude: coords.longitude
+      });
 
-    setPickerOpen(false);
-    setSaveMessage('Location saved');
-    window.setTimeout(() => setSaveMessage(null), 3000);
-    if (onSave) onSave('Location saved');
+      setData(prev => ({
+        ...prev,
+        address: {
+          ...(prev.address || DEFAULT_ADDRESS),
+          fullAddress: saved.address ?? location.address,
+          latitude: saved.latitude ?? coords.latitude,
+          longitude: saved.longitude ?? coords.longitude,
+          locationConfirmedAt: saved.locationConfirmedAt ?? undefined
+        }
+      }));
+
+      setPickerOpen(false);
+      setSaveMessage('Location saved');
+      window.setTimeout(() => setSaveMessage(null), 3000);
+      if (onSave) onSave('Location saved');
+    } catch (err: unknown) {
+      setLocationError(
+        err instanceof Error ? err.message : 'Could not save the location.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateAddress = (fields: Partial<SalonAddress>) => {
@@ -214,9 +292,22 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
             </div>
           )}
 
+          {isSaving && (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving location...
+            </div>
+          )}
+
           {saveMessage && (
             <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
               <CheckCircle2 className="w-3.5 h-3.5" /> {saveMessage}
+            </div>
+          )}
+
+          {locationError && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>{locationError}</span>
             </div>
           )}
 

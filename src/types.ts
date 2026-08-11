@@ -145,6 +145,11 @@ export type PublishState = 'draft' | 'publishing' | 'published';
 
 export interface SalonData {
   templateId?: 'hair' | 'barber' | 'wellness';
+  /**
+   * Primary key of the existing `public.salons` row this builder session
+   * edits. Required for reading/writing the salon's location in Supabase.
+   */
+  salonId?: string;
   salonName: string;
   tagline: string;
   ownerName: string;

@@ -1,16 +1,17 @@
 /**
- * Customer nearby-salon search.
+ * Customer nearby-salon search, against the LIVE existing schema.
  *
- * Reads the SAME canonical location values the owner editor writes:
- *   address + latitude + longitude.
+ * Reads the SAME canonical columns the owner editor writes on public.salons:
+ *   address + latitude + longitude (+ location_confirmed)
  *
- * The data source is intentionally injected (`fetchSalons`) because this repo
- * has no Supabase client or salon table yet. When the salon data source is
- * connected, pass a loader that selects ONLY the fields below — the card
- * fields plus the coordinate/address fields needed for distance — and, if a
- * location-confirmed column exists in the real schema, filters on it there.
+ * Only coordinate-bearing, confirmed salons are fetched, and only the columns
+ * the salon cards plus the distance calculation actually need. Distance is a
+ * JavaScript Haversine calculation — no routing API, no PostGIS, no RPC, and
+ * no per-salon geocoding request.
  */
 
+import { requireSupabase } from './supabaseClient';
+import { SALON_TABLE } from './salonLocationService';
 import {
   findNearbySalons,
   normalizeCoordinates,
@@ -19,30 +20,46 @@ import {
 } from './location';
 
 /**
- * The minimal salon shape the nearby list needs.
- * Coordinates are typed `unknown` on input because a database may return
- * numeric columns as numbers or as strings depending on the driver; they are
- * normalised before any arithmetic.
+ * Minimal shape the nearby list needs. Coordinates are `unknown` on input
+ * because PostgREST may return numeric columns as numbers or strings; they
+ * are normalised before any arithmetic.
  */
 export interface NearbySalonRecord {
   id: string;
-  name: string;
-  address: string;
+  name: string | null;
+  address: string | null;
+  city: string | null;
+  slug: string | null;
   latitude: unknown;
   longitude: unknown;
-  /** Optional card fields — only what the salon card already displays. */
-  imageUrl?: string;
-  tagline?: string;
 }
 
 export type NearbySalon = WithDistance<NearbySalonRecord>;
 
-/** Loader supplied by the caller once a salon data source exists. */
-export type SalonLoader = () => Promise<NearbySalonRecord[]>;
+/** Only the fields the cards/search UI and the distance maths require. */
+const NEARBY_COLUMNS = 'id, name, address, city, slug, latitude, longitude';
+
+/**
+ * Fetch only salons that can actually take part in a distance search:
+ * coordinates present, and location confirmed (the live schema has a
+ * `location_confirmed` column, so it is used here).
+ */
+export async function fetchLocatableSalons(): Promise<NearbySalonRecord[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from(SALON_TABLE)
+    .select(NEARBY_COLUMNS)
+    .eq('location_confirmed', true)
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as NearbySalonRecord[];
+}
 
 /**
  * Drop records that can never take part in a distance calculation.
- * Runs before Haversine so NaN/null coordinates are never compared.
+ * Runs before Haversine so NaN/null coordinates never reach the comparator.
  */
 export function withValidCoordinates(
   salons: readonly NearbySalonRecord[],
@@ -53,20 +70,21 @@ export function withValidCoordinates(
 }
 
 /**
- * Full nearby search: load salons, discard invalid coordinates, compute
- * straight-line Haversine distance in km, apply the radius, sort nearest
- * first. No routing API, and no per-salon geocoding request — salon
- * coordinates are already stored by the owner editor.
+ * Full nearby search: load confirmed salons, discard invalid coordinates,
+ * compute straight-line Haversine distance in km, apply the radius
+ * (1.5 / 2 / 5 km) and sort nearest first.
+ *
+ * `loader` is injectable for testing; it defaults to the live query.
  */
 export async function searchNearbySalons(
   customer: { latitude: unknown; longitude: unknown },
   radiusKm: RadiusKm | number,
-  fetchSalons: SalonLoader,
+  loader: () => Promise<NearbySalonRecord[]> = fetchLocatableSalons,
 ): Promise<NearbySalon[]> {
   const origin = normalizeCoordinates(customer.latitude, customer.longitude);
   if (!origin) return [];
 
-  const salons = await fetchSalons();
+  const salons = await loader();
   const usable = withValidCoordinates(salons);
 
   return findNearbySalons(origin, usable, radiusKm);
