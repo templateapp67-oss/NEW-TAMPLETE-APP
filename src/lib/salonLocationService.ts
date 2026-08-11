@@ -1,18 +1,29 @@
 /**
  * Data access for salon location, against the LIVE existing schema.
  *
- * Table (verified to exist in the live project): public.salons
- * Columns used (all verified to exist — none created by this feature):
- *   id
- *   address                 text
- *   latitude                numeric/double precision
- *   longitude               numeric/double precision
- *   location_confirmed      boolean
+ * AUTHORITATIVE LOCATION COLUMNS (public.salons):
+ *   address                 text          <- legacy group
+ *   latitude                numeric       <- ONLY coordinate columns that exist
+ *   longitude               numeric
+ *   location_confirmed      boolean       <- newer group (confirmation only)
  *   location_confirmed_at   timestamptz
  *
- * This is the single source of truth: the owner editor writes these columns,
- * the customer nearby search reads them. No migrations, no new tables or
- * columns, no RLS changes.
+ * Why this set:
+ *   - `location_latitude` / `location_longitude` DO NOT EXIST in the live
+ *     schema (verified: 42703). `latitude`/`longitude` are the only
+ *     coordinate columns, and they belong to the legacy group.
+ *   - The application's own salon address model (src/types.ts SalonAddress:
+ *     fullAddress/area/city/state/pinCode) maps to the legacy group, and the
+ *     public catalogue reads `address`/`city`.
+ *   - `location_confirmed` / `location_confirmed_at` have no legacy
+ *     equivalent, so they are used for confirmation state only.
+ *
+ * The newer descriptive columns (location_address, location_city,
+ * location_area, location_zone, location_landmark, location_pincode,
+ * location_accuracy_m, location_source) are intentionally NOT written, so
+ * two parallel location systems are never maintained.
+ *
+ * No migrations, no new tables or columns, no RLS changes.
  */
 
 import { requireSupabase } from './supabaseClient';
@@ -63,9 +74,13 @@ export async function fetchSalonLocation(
     .from(SALON_TABLE)
     .select(LOCATION_COLUMNS)
     .eq('id', salonId)
+    .is('deleted_at', null)
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('Failed to load saved shop location:', error);
+    throw new Error('Unable to load your saved shop location.');
+  }
   if (!data) return null;
   return mapRow(data as unknown as SalonLocationRow);
 }
@@ -109,14 +124,18 @@ export async function saveSalonLocation(
       location_confirmed_at: new Date().toISOString(),
     })
     .eq('id', input.salonId)
+    .is('deleted_at', null)
     .select(LOCATION_COLUMNS)
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Technical detail to the console only; RLS/permission errors must not
+    // leak database internals into the UI.
+    console.error('Failed to save shop location:', error);
+    throw new Error('Unable to save shop location. Please try again.');
+  }
   if (!data) {
-    throw new Error(
-      'The salon record could not be updated. It may not exist, or your account may not have permission.',
-    );
+    throw new Error('Unable to save shop location. Please try again.');
   }
   return mapRow(data as unknown as SalonLocationRow);
 }

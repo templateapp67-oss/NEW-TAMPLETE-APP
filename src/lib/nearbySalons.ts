@@ -58,9 +58,15 @@ const NEARBY_COLUMNS = 'id, name, address, city, slug, latitude, longitude';
  */
 export async function fetchLocatableSalons(): Promise<NearbySalonRecord[]> {
   const client = requireSupabase();
+  // Mirrors the existing `salons_anon_catalogue_select` policy conditions
+  // (is_active = true AND deleted_at IS NULL) so the query matches what the
+  // policy already permits. The policy remains the security boundary; this
+  // filter is not a substitute for it.
   const { data, error } = await client
     .from(SALON_TABLE)
     .select(NEARBY_COLUMNS)
+    .eq('is_active', true)
+    .is('deleted_at', null)
     .eq('location_confirmed', true)
     .not('latitude', 'is', null)
     .not('longitude', 'is', null);
