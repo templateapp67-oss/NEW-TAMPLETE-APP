@@ -9,8 +9,7 @@ import type { SalonData } from '../types';
  */
 export type ThemeId = Exclude<NonNullable<SalonData['templateId']>, 'family-salon'>;
 export type LegacyThemeId = 'family-salon';
-/** Nail & Lash is UI-only in this phase and intentionally has no service catalogue key. */
-export type CatalogueThemeId = Exclude<ThemeId, 'nail_lash_studio'> | LegacyThemeId;
+export type CatalogueThemeId = ThemeId | LegacyThemeId;
 
 /** All currently selectable themes, in display order. */
 export const THEME_IDS: ThemeId[] = [
@@ -76,6 +75,7 @@ export const THEME_CATEGORIES: Record<CatalogueThemeId, string[]> = {
   hair_studio_color_bar: ['Styling & Cuts', 'Hair Color', 'Treatments'],
   beauty_skin_spa: ['Facial & Skincare', 'Spa & Body', 'Waxing & Threading', 'Makeup'],
   family_full_service: ["Men's Services", "Women's Services", 'Kids Special', 'Combos'],
+  nail_lash_studio: ['Nail Art & Gel', 'Pedicure & Manicure', 'Lash & Brow'],
   'family-salon': ['Hair', 'Beauty', 'Skin', 'Grooming', 'Spa', 'Kids'],
 };
 
@@ -183,8 +183,8 @@ export const NAIL_LASH_STUDIO_THEME = {
 
 /**
  * The full, professionally-curated service catalogue for each theme.
- * Existing theme entries remain unchanged; the family_full_service block is
- * the only service data added in Phase 5.2.
+ * Existing theme entries remain unchanged; family_full_service and
+ * nail_lash_studio blocks are maintained as their own theme datasets.
  */
 export const SERVICES_BY_THEME: Record<CatalogueThemeId, PredefinedService[]> = {
   hair: [
@@ -325,6 +325,27 @@ export const SERVICES_BY_THEME: Record<CatalogueThemeId, PredefinedService[]> = 
     { name: 'Express Grooming', category: 'Combos', description: 'A quick, polished grooming refresh for busy days and last-minute plans.', price: 700, duration: 45 },
   ],
 
+  nail_lash_studio: [
+    // Nail Art & Gel
+    { name: 'Gel Polish Overlay', category: 'Nail Art & Gel', description: 'A sheer or statement gel colour layered over your natural nails for a smooth, chip-resistant glass finish.', price: 900, duration: 60 },
+    { name: 'Acrylic Nail Extensions', category: 'Nail Art & Gel', description: 'Custom sculpted acrylic extensions shaped to your preferred length, profile and finish.', price: 1800, duration: 120 },
+    { name: 'Chrome Nail Art', category: 'Nail Art & Gel', description: 'Reflective chrome pigment and precision detailing for a high-shine, camera-ready nail look.', price: 1400, duration: 90 },
+    { name: 'French Manicure', category: 'Nail Art & Gel', description: 'A timeless sheer base and clean French tip, finished with a glossy salon seal.', price: 750, duration: 60 },
+    { name: 'Nail Removal & Repair', category: 'Nail Art & Gel', description: 'Safe product removal, gentle repair and restorative prep before your next set.', price: 500, duration: 45 },
+
+    // Pedicure & Manicure
+    { name: 'Luxury Spa Pedicure', category: 'Pedicure & Manicure', description: 'Soak, exfoliation, cuticle care, massage and polish for completely refreshed feet.', price: 1200, duration: 75 },
+    { name: 'Ice Cream Manicure', category: 'Pedicure & Manicure', description: 'A playful, creamy manicure ritual with softening care, massage and a sweet glossy finish.', price: 850, duration: 60 },
+    { name: 'Cuticle Care & Polish', category: 'Pedicure & Manicure', description: 'Neat cuticle care, natural nail shaping and your choice of polished colour.', price: 550, duration: 40 },
+    { name: 'Paraffin Wax Care', category: 'Pedicure & Manicure', description: 'Warm paraffin treatment to deeply soften dry hands or feet after your care ritual.', price: 650, duration: 35 },
+
+    // Lash & Brow
+    { name: 'Eyelash Extensions (Classic/Volume)', category: 'Lash & Brow', description: 'Lightweight, customised lash extensions ranging from clean classic definition to soft volume.', price: 2200, duration: 120 },
+    { name: 'Lash Lift & Tint', category: 'Lash & Brow', description: 'A lifted, curled and tinted lash look that opens the eyes without extensions.', price: 1500, duration: 75 },
+    { name: 'Microblading', category: 'Lash & Brow', description: 'Fine, hair-like brow strokes mapped to your features for a naturally fuller arch.', price: 4500, duration: 150 },
+    { name: 'Brow Lamination', category: 'Lash & Brow', description: 'Smooth, set and softly lifted brows with a clean brushed-up finish.', price: 1000, duration: 60 },
+  ],
+
   'family-salon': [
     // Hair
     { name: "Women's Cut & Style", category: 'Hair', description: 'Flattering cut shaped to your face, finished with a relaxing wash and blow-dry.', price: 400, duration: 45 },
@@ -414,6 +435,14 @@ export const SUGGESTED_SERVICE_NAMES: Record<CatalogueThemeId, string[]> = {
     'Deep Cleansing Facial',
     'Kids Haircut',
   ],
+  nail_lash_studio: [
+    'Acrylic Extensions',
+    'Gel Polish Overlay',
+    'Luxury Spa Pedicure',
+    'Classic Lash Extensions',
+    'Nail Art Per Nail',
+    'Brow Lamination',
+  ],
   'family-salon': [
     "Women's Cut & Style",
     "Men's Classic Cut",
@@ -449,6 +478,11 @@ export const SUGGESTED_SERVICE_ALIASES: Partial<Record<CatalogueThemeId, Record<
   family_full_service: {
     'Deep Cleansing Facial': 'Facial',
   },
+  nail_lash_studio: {
+    'Acrylic Extensions': 'Acrylic Nail Extensions',
+    'Classic Lash Extensions': 'Eyelash Extensions (Classic/Volume)',
+    'Nail Art Per Nail': 'Chrome Nail Art',
+  },
 };
 
 /** Returns the categories available to the service editor for a theme. */
@@ -466,9 +500,10 @@ export function getSuggestedServices(theme: ThemeId): PredefinedService[] {
       const resolved = all.find((service) => service.name === suggestedName)
         || all.find((service) => service.name === aliases[suggestedName]);
       if (!resolved) return undefined;
-      // Keep the requested family-facing chip label while adding the canonical
-      // predefined service behind it (e.g. Deep Cleansing Facial → Facial).
-      return theme === 'family_full_service' && resolved.name !== suggestedName
+      // Keep the requested customer-facing chip label while adding the
+      // canonical predefined service behind it (e.g. Acrylic Extensions →
+      // Acrylic Nail Extensions).
+      return (theme === 'family_full_service' || theme === 'nail_lash_studio') && resolved.name !== suggestedName
         ? { ...resolved, suggestedLabel: suggestedName }
         : resolved;
     })
@@ -485,7 +520,7 @@ export function findPredefinedService(theme: ThemeId, name: string): PredefinedS
   const q = name.trim().toLowerCase();
   const all = SERVICES_BY_THEME[theme as CatalogueThemeId] || [];
   const directMatch = all.find((service) => service.name.toLowerCase() === q);
-  if (directMatch || theme !== 'family_full_service') return directMatch;
+  if (directMatch || (theme !== 'family_full_service' && theme !== 'nail_lash_studio')) return directMatch;
 
   const suggestedName = Object.entries(SUGGESTED_SERVICE_ALIASES[theme] || {})
     .find(([displayName]) => displayName.toLowerCase() === q)?.[1];
@@ -493,7 +528,7 @@ export function findPredefinedService(theme: ThemeId, name: string): PredefinedS
 }
 
 /** Theme-aware "Suggest with AI" starter services. */
-export const AI_SUGGESTION_NAMES: Record<Exclude<CatalogueThemeId, 'family_full_service'>, [string, string]> = {
+export const AI_SUGGESTION_NAMES: Record<Exclude<CatalogueThemeId, 'family_full_service' | 'nail_lash_studio'>, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
   barber_mens_grooming: ['Skin Fade', 'Hot Towel Classic Shave'],
   hair_studio_color_bar: ['Balayage / Ombre', 'Olaplex Bond Repair'],
@@ -502,7 +537,7 @@ export const AI_SUGGESTION_NAMES: Record<Exclude<CatalogueThemeId, 'family_full_
 };
 
 /** Theme-aware spoken-input example service. */
-export const VOICE_SERVICE_BY_THEME: Record<Exclude<CatalogueThemeId, 'family_full_service'>, PredefinedService> = {
+export const VOICE_SERVICE_BY_THEME: Record<Exclude<CatalogueThemeId, 'family_full_service' | 'nail_lash_studio'>, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
   barber_mens_grooming: { name: 'The Executive Cut & Shave', category: 'Grooming & Treatments', description: 'Signature cut with hot-towel shave and scalp massage finish.', price: 750, duration: 60 },
   hair_studio_color_bar: { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
