@@ -1,6 +1,7 @@
 import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { getReadableTextColor, withHexAlpha } from '../lib/websiteCustomization';
+import OwnerAvatar from './OwnerAvatar';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -205,11 +206,11 @@ export default function TemplateRenderer({ data, mode }: Props) {
           <div id="section-owner" className={`px-6 py-10 border-y ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-50 border-gray-100'}`}>
             <div className="max-w-xl mx-auto flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
               <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md shrink-0">
-                <img 
-                  src={data.team?.[0]?.imageUrl || "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop"} 
-                  alt="Founder" 
-                  className="w-full h-full object-cover" 
-                  referrerPolicy="no-referrer"
+                <OwnerAvatar
+                  photoUrl={data.ownerPhotoUrl}
+                  name={data.ownerName}
+                  className="w-full h-full text-2xl"
+                  alt="Founder"
                 />
               </div>
               <div>

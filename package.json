@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit",
     "test:auth": "tsx scripts/test-auth-modal.mjs",
     "test:customization": "tsx scripts/test-website-customization.mjs",
+    "test:owner": "tsx scripts/test-owner-profile.mjs",
     "validate:migrations": "node scripts/validate-migrations.mjs"
   },
   "dependencies": {

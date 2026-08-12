@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import CustomerBookingPreview from './CustomerBookingPreview';
+import OwnerAvatar from './OwnerAvatar';
 
 export default function PreviewPane({ data, step, activeStaffId }: { data: SalonData, step: number, activeStaffId?: string }) {
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
@@ -246,7 +247,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             {(step >= 2 || data.ownerName) && (
                <div className="px-6 py-12 flex flex-col items-center text-center max-w-xl mx-auto">
                  <div className="w-32 h-32 bg-gray-100 rounded-full mb-6 overflow-hidden border-4 border-white shadow-xl">
-                    <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop" className="w-full h-full object-cover" alt="Founder" />
+                    <OwnerAvatar photoUrl={data.ownerPhotoUrl} name={data.ownerName} className="w-full h-full text-3xl" alt="Founder" />
                  </div>
                  <h2 className="text-xs font-bold uppercase tracking-widest text-[#ac0053] mb-2">Meet the Founder</h2>
                  <h3 className="text-2xl font-serif font-bold text-gray-900 mb-1">{data.ownerName || 'Owner Name'}</h3>
