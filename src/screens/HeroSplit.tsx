@@ -19,7 +19,11 @@ export default function HeroSplit({ onNext }: { onNext: () => void }) {
             {user ? user.email : 'Already have a website?'}
           </span>
           <button
+            type="button"
+            data-testid="hero-login-btn"
             onClick={() => (user ? void signOut() : setLoginOpen(true))}
+            aria-haspopup="dialog"
+            aria-expanded={loginOpen}
             className="border border-[#ac0053] text-[#ac0053] px-4 py-1.5 rounded-lg font-semibold text-sm hover:bg-pink-50 transition-colors"
           >
             {user ? 'Log Out' : 'Log In'}

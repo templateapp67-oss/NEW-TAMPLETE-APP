@@ -357,7 +357,11 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
               <span className="flex-1">{locationError}</span>
               {!user && !authLoading && (
                 <button
+                  type="button"
+                  data-testid="location-login-btn"
                   onClick={() => setLoginOpen(true)}
+                  aria-haspopup="dialog"
+                  aria-expanded={loginOpen}
                   className="shrink-0 rounded-lg bg-[#ac0053] px-3 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#ba005b]"
                 >
                   Log In
