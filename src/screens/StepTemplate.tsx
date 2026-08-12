@@ -11,11 +11,12 @@ interface Props {
   onNext: () => void;
   onPrev: () => void;
   onSave?: (msg?: string) => void;
+  onThemeChange?: (id: ThemeChoice) => void;
 }
 
 type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family_full_service';
 
-export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: Props) {
+export default function StepTemplate({ data, setData, onNext, onPrev, onSave, onThemeChange }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
   const [isSwitching, setIsSwitching] = useState(false);
@@ -26,7 +27,13 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
     if (id === currentTemplate) return;
     setIsSwitching(true);
     setSaveStatus('saving');
-    setData(prev => ({ ...prev, templateId: id }));
+    if (onThemeChange) {
+      onThemeChange(id);
+    } else {
+      // Keep direct/test renders safe too: a theme without a snapshot starts
+      // with a clean service workspace instead of inheriting another theme.
+      setData(prev => ({ ...prev, templateId: id, services: [], packages: [] }));
+    }
     if (onSave) onSave(`Template switched to ${id}`);
     setTimeout(() => {
       setIsSwitching(false);

@@ -23,6 +23,7 @@ import BookingConfirmation from './components/BookingConfirmation';
 import StaffManagementModule from './components/StaffManagementModule';
 import TopBar from './components/TopBar';
 import { initialData, SalonData } from './types';
+import { normalizeThemeId, type ThemeId } from './lib/themeServices';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
 
@@ -34,6 +35,8 @@ const MAX_STEP_INDEX = 15; // 0-based: 0..15 => 1..16
 // Dashboard tab mapping for screens 18-25
 type DashboardTab = 'overview' | 'website' | 'bookings' | 'payments' | 'share' | 'settings' | 'referral' | 'branding';
 const DASHBOARD_TABS: DashboardTab[] = ['overview', 'website', 'bookings', 'payments', 'share', 'settings', 'referral', 'branding'];
+
+type ThemeServiceSnapshot = Pick<SalonData, 'services' | 'packages'>;
 
 export default function App() {
   const [step, setStep] = useState<number>(() => {
@@ -103,6 +106,13 @@ export default function App() {
   });
 
   const isInitialMount = useRef(true);
+  /**
+   * Services and packages are workspace state, not global cross-theme state.
+   * Keep one in-memory snapshot per theme so switching themes clears the
+   * active workspace while returning to a theme restores only that theme's
+   * own edits. This deliberately stays outside SalonData persistence/DB work.
+   */
+  const themeServiceSnapshots = useRef<Partial<Record<ThemeId, ThemeServiceSnapshot>>>({});
 
   // Persist dashboard tab
   useEffect(() => {
@@ -147,6 +157,24 @@ export default function App() {
 
     return () => clearTimeout(timer);
   }, [step, data, activeModule, dashboardTab]);
+
+  const handleThemeChange = (nextTheme: ThemeId) => {
+    setData(prev => {
+      const currentTheme = normalizeThemeId(prev.templateId);
+      themeServiceSnapshots.current[currentTheme] = {
+        services: prev.services.map(service => ({ ...service })),
+        packages: prev.packages.map(pkg => ({ ...pkg })),
+      };
+
+      const nextSnapshot = themeServiceSnapshots.current[nextTheme];
+      return {
+        ...prev,
+        templateId: nextTheme,
+        services: nextSnapshot ? nextSnapshot.services.map(service => ({ ...service })) : [],
+        packages: nextSnapshot ? nextSnapshot.packages.map(pkg => ({ ...pkg })) : [],
+      };
+    });
+  };
 
   const nextStep = () => setStep(s => {
     const next = Math.min(MAX_STEP_INDEX, s + 1);
@@ -429,7 +457,7 @@ export default function App() {
       
       <main className="flex-1 flex overflow-hidden">
         <>
-          {step === 2 && <StepTemplate data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
+          {step === 2 && <StepTemplate data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} onThemeChange={handleThemeChange} />}
           {step === 3 && <StepDetails data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
           {step === 4 && <StepServices data={data} setData={setData} onNext={nextStep} onPrev={prevStep} onSave={handleSave} />}
           {step === 5 && (

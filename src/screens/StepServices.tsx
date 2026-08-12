@@ -122,6 +122,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
   const [customService, setCustomService] = useState(false);
   const serviceComboRef = useRef<HTMLDivElement>(null);
+  const speechTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // New Package Form state
   const [newPackageName, setNewPackageName] = useState('');
@@ -137,6 +138,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   //   - temporary service + package form buffers
   //   - any open form/action state
   useEffect(() => {
+    if (speechTimerRef.current) {
+      clearTimeout(speechTimerRef.current);
+      speechTimerRef.current = null;
+    }
+
     // Suggested-services selection buffers
     setSelectedSuggested([]);
     setSuggestedFilter('All');
@@ -167,6 +173,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     // Intentionally only depends on [theme]; the individual setState calls above
     // cover every piece of theme-scoped state, so no other deps are needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (speechTimerRef.current) {
+        clearTimeout(speechTimerRef.current);
+        speechTimerRef.current = null;
+      }
+    };
   }, [theme]);
 
   // Close the service combobox when clicking outside it.
@@ -252,7 +264,8 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const handleSpeechInput = () => {
     if (isFamilyFullService) return;
     setIsSpeaking(true);
-    setTimeout(() => {
+    speechTimerRef.current = setTimeout(() => {
+      speechTimerRef.current = null;
       setIsSpeaking(false);
       const v = VOICE_SERVICE_BY_THEME[theme as keyof typeof VOICE_SERVICE_BY_THEME];
       if (!v) return;
