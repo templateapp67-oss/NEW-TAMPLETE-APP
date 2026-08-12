@@ -1,11 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SalonData, Service, Package, TeamMember, StaffStatus } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import TemplateRenderer from '../components/TemplateRenderer';
 import ShareReferralPremium from '../components/ShareReferralPremium';
 import BrandingWhiteLabel from '../components/BrandingWhiteLabel';
+import OwnerAvatar from '../components/OwnerAvatar';
 import { SALON_NAME_FONTS, SALON_NAME_COLORS } from '../lib/brandIdentity';
 import { BRAND_COLORS, TAGLINE_CATEGORIES, TAGLINE_SUBCATEGORIES } from '../lib/websiteCustomization';
+import {
+  OWNER_ROLES,
+  OWNER_PHOTO_ACCEPT,
+  getCustomOwnerRoleText,
+  getOwnerRoleSelectValue,
+  readOwnerPhotoAsDataUrl,
+  resolveOwnerRoleFromSelect,
+  validateOwnerPhoto,
+} from '../lib/ownerProfile';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -51,7 +61,8 @@ import {
   Grid,
   Pencil,
   Download,
-  Palette
+  Palette,
+  ImagePlus
 } from 'lucide-react';
 
 interface Props {
@@ -271,12 +282,41 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
 
   const [polishingField, setPolishingField] = useState<'tagline' | 'about' | 'bio' | null>(null);
   const [polishingStatus, setPolishingStatus] = useState<string>('');
+  const ownerPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [ownerPhotoError, setOwnerPhotoError] = useState<string | null>(null);
+  const [ownerPhotoBusy, setOwnerPhotoBusy] = useState(false);
   const [taglineCategory, setTaglineCategory] = useState('Salon');
   const [taglineSubcategory, setTaglineSubcategory] = useState('Hair Salon');
   const taglineOptions = useMemo(
     () => TAGLINE_CATEGORIES[taglineCategory]?.[taglineSubcategory] || TAGLINE_CATEGORIES.Salon['Hair Salon'],
     [taglineCategory, taglineSubcategory],
   );
+
+  const handleOwnerPhotoFile = async (file: File | undefined) => {
+    if (!file) return;
+    const error = validateOwnerPhoto(file);
+    if (error) {
+      setOwnerPhotoError(error);
+      return;
+    }
+    setOwnerPhotoBusy(true);
+    setOwnerPhotoError(null);
+    try {
+      const url = await readOwnerPhotoAsDataUrl(file);
+      setData(prev => ({ ...prev, ownerPhotoUrl: url }));
+    } catch {
+      setOwnerPhotoError('Could not read that photo. Try another image.');
+    } finally {
+      setOwnerPhotoBusy(false);
+      if (ownerPhotoInputRef.current) ownerPhotoInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveOwnerPhoto = () => {
+    setData(prev => ({ ...prev, ownerPhotoUrl: '' }));
+    setOwnerPhotoError(null);
+    if (ownerPhotoInputRef.current) ownerPhotoInputRef.current.value = '';
+  };
 
   const updateTagline = (tagline: string) => {
     setData(prev => ({
@@ -1113,11 +1153,7 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
             </button>
 
             <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-              <img 
-                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop" 
-                alt="Profile" 
-                className="w-full h-full object-cover" 
-              />
+              <OwnerAvatar photoUrl={data.ownerPhotoUrl} name={data.ownerName} className="w-full h-full text-[10px]" alt="Profile" />
             </div>
           </div>
         </header>
@@ -1791,6 +1827,49 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                         <span className="text-[10px] bg-[#ffd9e1]/40 text-[#ac0053] px-2 py-0.5 rounded font-bold uppercase tracking-wider">Dynamic signature banner</span>
                       </div>
 
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Owner Photo <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span></label>
+                        <input
+                          ref={ownerPhotoInputRef}
+                          type="file"
+                          accept={OWNER_PHOTO_ACCEPT}
+                          className="hidden"
+                          onChange={e => handleOwnerPhotoFile(e.target.files?.[0])}
+                        />
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#ffd9e1] shrink-0 bg-gray-50">
+                            <OwnerAvatar photoUrl={data.ownerPhotoUrl} name={data.ownerName} className="w-full h-full text-lg" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => ownerPhotoInputRef.current?.click()}
+                                disabled={ownerPhotoBusy}
+                                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] font-bold text-gray-700 hover:border-[#ac0053] hover:text-[#ac0053] transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                              >
+                                <ImagePlus className="w-3.5 h-3.5" />
+                                {ownerPhotoBusy ? 'Uploading…' : data.ownerPhotoUrl ? 'Change Photo' : 'Add Photo'}
+                              </button>
+                              {data.ownerPhotoUrl && (
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveOwnerPhoto}
+                                  disabled={ownerPhotoBusy}
+                                  className="text-[11px] font-bold text-red-600 hover:underline disabled:opacity-50"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-1.5">JPG, PNG, WEBP or GIF · max 2MB</p>
+                            {ownerPhotoError && (
+                              <p className="text-[11px] text-red-600 font-semibold mt-1">{ownerPhotoError}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Owner / Founder Name</label>
@@ -1804,14 +1883,26 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Professional Role</label>
-                          <input 
-                            type="text" 
-                            value={data.ownerRole}
-                            onChange={(e) => setData(prev => ({ ...prev, ownerRole: e.target.value }))}
-                            placeholder="e.g. Founder & Master Stylist"
-                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold focus:border-[#ac0053]"
-                          />
+                          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Professional Role <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span></label>
+                          <select
+                            value={getOwnerRoleSelectValue(data.ownerRole)}
+                            onChange={(e) => setData(prev => ({ ...prev, ownerRole: resolveOwnerRoleFromSelect(e.target.value, prev.ownerRole) }))}
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold bg-white outline-none focus:border-[#ac0053]"
+                          >
+                            <option value="">Select role</option>
+                            {OWNER_ROLES.map(role => (
+                              <option key={role} value={role}>{role}</option>
+                            ))}
+                          </select>
+                          {getOwnerRoleSelectValue(data.ownerRole) === 'Other' && (
+                            <input
+                              type="text"
+                              value={getCustomOwnerRoleText(data.ownerRole)}
+                              onChange={(e) => setData(prev => ({ ...prev, ownerRole: e.target.value.trim() ? e.target.value : 'Other' }))}
+                              placeholder="Enter your role"
+                              className="w-full mt-2 px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold focus:border-[#ac0053]"
+                            />
+                          )}
                         </div>
                       </div>
 

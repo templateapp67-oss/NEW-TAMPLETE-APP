@@ -1,7 +1,17 @@
-import { Sparkles, Mic, ImagePlus, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Sparkles, Mic, ImagePlus, ArrowLeft, ArrowRight, X } from 'lucide-react';
 import { SalonData } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import { motion } from 'motion/react';
+import {
+  OWNER_ROLES,
+  OWNER_PHOTO_ACCEPT,
+  getCustomOwnerRoleText,
+  getOwnerRoleSelectValue,
+  readOwnerPhotoAsDataUrl,
+  resolveOwnerRoleFromSelect,
+  validateOwnerPhoto,
+} from '../lib/ownerProfile';
 
 interface Props {
   data: SalonData;
@@ -12,6 +22,48 @@ interface Props {
 }
 
 export default function StepDetails({ data, setData, onNext, onPrev, onSave }: Props) {
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const persist = (next: SalonData) => {
+    setData(next);
+    onSave?.();
+  };
+
+  const handleOwnerPhotoFile = async (file: File | undefined) => {
+    if (!file) return;
+    const error = validateOwnerPhoto(file);
+    if (error) {
+      setPhotoError(error);
+      return;
+    }
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      const url = await readOwnerPhotoAsDataUrl(file);
+      persist({ ...data, ownerPhotoUrl: url });
+    } catch {
+      setPhotoError('Could not read that photo. Try another image.');
+    } finally {
+      setPhotoBusy(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveOwnerPhoto = () => {
+    persist({ ...data, ownerPhotoUrl: '' });
+    setPhotoError(null);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  const handleRoleSelect = (value: string) => {
+    persist({ ...data, ownerRole: resolveOwnerRoleFromSelect(value, data.ownerRole) });
+  };
+
+  const roleSelectValue = getOwnerRoleSelectValue(data.ownerRole);
+  const customRoleText = getCustomOwnerRoleText(data.ownerRole);
+
   return (
     <div className="flex-1 flex w-full h-full">
       <div className="w-full md:w-[55%] h-full flex flex-col relative bg-white">
@@ -72,22 +124,83 @@ export default function StepDetails({ data, setData, onNext, onPrev, onSave }: P
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Owner Photo <span className="text-gray-400 font-normal">(Optional)</span></label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors group">
-                      <span className="text-sm font-semibold text-gray-500 group-hover:text-[#ac0053] flex items-center gap-2">
-                        <ImagePlus className="w-4 h-4" /> Add Photo
-                      </span>
-                    </div>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept={OWNER_PHOTO_ACCEPT}
+                      className="hidden"
+                      onChange={e => handleOwnerPhotoFile(e.target.files?.[0])}
+                    />
+                    {data.ownerPhotoUrl ? (
+                      <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 flex items-center gap-4 bg-gray-50">
+                        <img
+                          src={data.ownerPhotoUrl}
+                          alt={data.ownerName ? `${data.ownerName} photo` : 'Owner photo preview'}
+                          className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-800">Photo added</p>
+                          <p className="text-[11px] text-gray-400 mb-1.5">JPG, PNG, WEBP or GIF · max 2MB</p>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => photoInputRef.current?.click()}
+                              disabled={photoBusy}
+                              className="text-xs font-semibold text-[#ac0053] hover:opacity-80 disabled:opacity-50"
+                            >
+                              {photoBusy ? 'Uploading…' : 'Change'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRemoveOwnerPhoto}
+                              disabled={photoBusy}
+                              className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+                            >
+                              <X className="w-3 h-3" /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={photoBusy}
+                        className="w-full border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors group disabled:opacity-60"
+                      >
+                        <span className="text-sm font-semibold text-gray-500 group-hover:text-[#ac0053] flex items-center gap-2">
+                          <ImagePlus className="w-4 h-4" /> {photoBusy ? 'Uploading…' : 'Add Photo'}
+                        </span>
+                        <span className="text-[11px] text-gray-400 mt-1">JPG, PNG, WEBP or GIF · max 2MB</span>
+                      </button>
+                    )}
+                    {photoError && (
+                      <p className="text-xs text-red-600 mt-2 font-medium">{photoError}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Owner Role <span className="text-gray-400 font-normal">(Optional)</span></label>
-                    <input 
-                      type="text" 
-                      value={data.ownerRole}
-                      onChange={e => setData({...data, ownerRole: e.target.value})}
+                    <select
+                      value={roleSelectValue}
+                      onChange={e => handleRoleSelect(e.target.value)}
                       onBlur={onSave}
-                      className="w-full h-[72px] px-4 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-[#d9006b] focus:ring-2 focus:ring-pink-100 outline-none transition-all"
-                      placeholder="e.g. Founder & Stylist"
-                    />
+                      className="w-full h-[72px] px-4 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-[#d9006b] focus:ring-2 focus:ring-pink-100 outline-none transition-all text-gray-800"
+                    >
+                      <option value="">Select role</option>
+                      {OWNER_ROLES.map(role => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                    </select>
+                    {roleSelectValue === 'Other' && (
+                      <input
+                        type="text"
+                        value={customRoleText}
+                        onChange={e => persist({ ...data, ownerRole: e.target.value.trim() ? e.target.value : 'Other' })}
+                        onBlur={onSave}
+                        placeholder="Enter your role"
+                        className="w-full mt-2 px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-[#d9006b] focus:ring-2 focus:ring-pink-100 outline-none transition-all text-sm"
+                      />
+                    )}
                   </div>
                 </div>
               </div>

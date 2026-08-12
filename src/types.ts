@@ -149,6 +149,8 @@ export interface SalonData {
   tagline: string;
   ownerName: string;
   ownerRole: string;
+  /** Optional owner/founder portrait. Data URL or remote URL; persisted with salon draft. */
+  ownerPhotoUrl?: string;
   about: string;
   phone: string;
   email: string;
@@ -213,6 +215,7 @@ export const initialData: SalonData = {
   tagline: 'Premium Hair, Beauty & Spa Care in Indore',
   ownerName: 'Rahul Sharma',
   ownerRole: 'Founder & Master Stylist',
+  ownerPhotoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
   about: 'Welcome to Royal Hair & Beauty Studio. We offer professional haircutting, hair spa, organic coloring, HD bridal makeup, and relaxing skin treatments.',
   phone: '+91 98765 43210',
   whatsappPhone: '+91 98765 43210',

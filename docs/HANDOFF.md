@@ -1,11 +1,25 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-12** (session `arena/019ff535-new-tamplete-app`).
+> Last updated: **2026-08-12** (session `arena/019ff622-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
 
+- **Owner Photo + Owner Role (Step 03 / dashboard edit)**:
+  - `SalonData.ownerPhotoUrl` added and persisted through the existing
+    `nexora_onboarding_state` localStorage flow (same pattern as `logoUrl`).
+  - Step Details "Add Photo" is a real file picker: preview, change, remove,
+    image-type + 2MB validation. Dashboard → Website → Owner Profile can edit
+    the same fields after publish.
+  - Owner Role is a select list (Founder, Co-Founder, Owner, Managing Director,
+    Creative Director, Master Stylist, Senior Stylist, Salon Manager, Director,
+    Founder & Master Stylist, Other). "Other" reveals a custom title field.
+  - Both fields stay optional. Live preview / published site use the saved
+    photo (initials fallback) instead of a hardcoded stock portrait.
+  - No database/storage schema change. Maps conceptually to draft
+    `business_owners.photo_url` / `role_title`.
+  - Regression: `npm run test:owner`.
 - **Brand Identity → Salon Name font & color**:
   - New shared presets in `src/lib/brandIdentity.ts`: **5 salon-name fonts**
     (Elegant Serif / Playfair, Modern Sans / Inter, Luxury Script / Great Vibes,
