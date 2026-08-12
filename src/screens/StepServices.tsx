@@ -1,15 +1,26 @@
-import { Sparkles, Mic, ArrowLeft, ArrowRight, Plus, Check, Edit2, Copy, Trash2, GripVertical, Info, Volume2, X } from 'lucide-react';
+import { Sparkles, Mic, ArrowLeft, ArrowRight, Plus, Check, Copy, Trash2, GripVertical, Info, Volume2, X, Search, ChevronDown, List } from 'lucide-react';
 import { SalonData, Service, Package } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect, useRef } from 'react';
+import {
+  THEME_LABELS,
+  THEME_CATEGORIES,
+  getSuggestedServices,
+  getServicesForThemeCategory,
+  findPredefinedService,
+  AI_SUGGESTION_NAMES,
+  VOICE_SERVICE_BY_THEME,
+  type ThemeId,
+  type PredefinedService,
+} from '../lib/themeServices';
 
 // Generates a professional, customer-friendly, category-specific service description.
 // Kept offline (rule-based) so it works without any API key, consistent with the app's
-// convention that all AI/copy features keep their offline fallbacks.
+// convention that all AI/copy features keep their offline fallbacks. Used for custom
+// (non-predefined) services where we don't already have a curated description.
 function suggestServiceDescription(category: string, serviceName: string): string {
   const name = serviceName.trim();
-  // Prefixing the service name keeps each description service-specific.
   const withName = (base: string) => (name ? `${name} — ${base}` : base);
 
   switch (category) {
@@ -22,9 +33,25 @@ function suggestServiceDescription(category: string, serviceName: string): strin
     case 'Treatment':
       return withName('Deep-nourishing treatment that repairs, hydrates and restores your hair and scalp.');
     case 'Barbering':
-      return withName('Precision men\u2019s grooming with clean lines and a sharp, confident finish.');
+      return withName('Precision men’s grooming with clean lines and a sharp, confident finish.');
+    case 'Makeup & Beauty':
+      return withName('Professional beauty service delivered by our experienced artists.');
+    case 'Beard & Shave':
+      return withName('Precision beard and shave work for a clean, confident finish.');
+    case 'Grooming':
+      return withName('Complete men’s grooming for a sharp, well-kept look.');
+    case 'Massage':
+      return withName('Therapeutic massage to release tension and restore balance.');
+    case 'Facials':
+      return withName('Reviving facial treatment for healthy, glowing skin.');
+    case 'Nails':
+      return withName('Expert nail care and finishing for hands and feet.');
+    case 'Hair Removal':
+      return withName('Hygienic, comfortable hair removal with soothing aftercare.');
+    case 'Spa Packages':
+      return withName('Curated spa experience combining our most-loved treatments.');
     default:
-      return withName('Professional salon service delivered by our experienced stylists.');
+      return withName('Professional salon service delivered by our experienced team.');
   }
 }
 
@@ -37,17 +64,14 @@ interface Props {
 }
 
 export default function StepServices({ data, setData, onNext, onPrev, onSave }: Props) {
-  const suggestedList = [
-    { name: 'Haircut', category: 'Haircut', price: 300, duration: 30, description: 'Classic and modern haircut tailored to your style.' },
-    { name: 'Hair Styling', category: 'Styling', price: 250, duration: 30, description: 'Blowout and professional heat styling.' },
-    { name: 'Hair Color', category: 'Color', price: 1200, duration: 90, description: 'Full gray coverage or single process vibrant color treatment.' },
-    { name: 'Highlights', category: 'Color', price: 1800, duration: 120, description: 'Dimensional foil highlights for natural brightness.' },
-    { name: 'Keratin', category: 'Treatment', price: 3500, duration: 120, description: 'Smoothing treatment for frizz-free, silky hair.' },
-    { name: 'Hair Spa', category: 'Treatment', price: 850, duration: 45, description: 'Deep conditioning treatment to restore moisture and shine.' },
-    { name: 'Beard Grooming', category: 'Barbering', price: 200, duration: 25, description: 'Precision beard trim, shaping, and hot towel finish.' },
-  ];
+  const theme = (data.templateId || 'hair') as ThemeId;
+  const categories = THEME_CATEGORIES[theme];
 
-  const [selectedSuggested, setSelectedSuggested] = useState<string[]>(['Hair Styling']);
+  // Theme-driven suggested services (genuinely different per theme).
+  const suggestedList = getSuggestedServices(theme);
+
+  const [selectedSuggested, setSelectedSuggested] = useState<string[]>(['Hair Styling'].filter(n => suggestedList.some(s => s.name === n)));
+  const [suggestedFilter, setSuggestedFilter] = useState<'All' | string>('All');
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingPackage, setIsAddingPackage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -64,71 +88,111 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [pendingDescSuggestion, setPendingDescSuggestion] = useState('');
   const [showDescConfirm, setShowDescConfirm] = useState(false);
 
+  // Service Name combobox state
+  const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
+  const [customService, setCustomService] = useState(false);
+  const serviceComboRef = useRef<HTMLDivElement>(null);
+
   // New Package Form state
   const [newPackageName, setNewPackageName] = useState('');
   const [newPackagePrice, setNewPackagePrice] = useState(95);
   const [newPackageDuration, setNewPackageDuration] = useState(60);
   const [newPackageDesc, setNewPackageDesc] = useState('');
 
+  // When the theme changes, clear any stale selections and normalise the
+  // category so the form/data always reflects the current salon type.
+  useEffect(() => {
+    setSelectedSuggested([]);
+    setSuggestedFilter('All');
+    setServiceDropdownOpen(false);
+    if (!THEME_CATEGORIES[theme].includes(newServiceCategory)) {
+      const first = THEME_CATEGORIES[theme][0];
+      setNewServiceCategory(first);
+      setNewServiceName('');
+      setNewServicePrice(50);
+      setNewServiceDuration(30);
+      setNewServiceDesc(suggestServiceDescription(first, ''));
+      setNewServiceDescTouched(false);
+      setCustomService(false);
+    }
+    // Intentionally only depends on [theme]; category changes are handled separately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme]);
+
+  // Close the service combobox when clicking outside it.
+  useEffect(() => {
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (serviceComboRef.current && !serviceComboRef.current.contains(e.target as Node)) {
+        setServiceDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, []);
+
+  const visibleSuggested =
+    suggestedFilter === 'All'
+      ? suggestedList
+      : suggestedList.filter((s) => s.category === suggestedFilter);
+
+  const allVisibleSelected =
+    visibleSuggested.length > 0 && visibleSuggested.every((s) => selectedSuggested.includes(s.name));
+
   const toggleSuggested = (name: string) => {
-    setSelectedSuggested(prev => 
-      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    setSelectedSuggested((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
     );
   };
 
   const selectAllSuggested = () => {
-    if (selectedSuggested.length === suggestedList.length) {
-      setSelectedSuggested([]);
+    if (allVisibleSelected) {
+      setSelectedSuggested((prev) => prev.filter((n) => !visibleSuggested.some((s) => s.name === n)));
     } else {
-      setSelectedSuggested(suggestedList.map(s => s.name));
+      setSelectedSuggested((prev) =>
+        Array.from(new Set([...prev, ...visibleSuggested.map((s) => s.name)]))
+      );
     }
   };
 
   const handleAddSelected = () => {
     if (selectedSuggested.length === 0) return;
-    const newServices: Service[] = selectedSuggested.map(sName => {
-      const found = suggestedList.find(s => s.name === sName);
+    const newServices: Service[] = selectedSuggested.map((sName) => {
+      const found = suggestedList.find((s) => s.name === sName);
       return {
         id: 's-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
         name: found ? found.name : sName,
         category: found ? found.category : 'General',
         description: found ? found.description : 'Professional service provided by experienced stylists.',
         price: found ? found.price : 50,
-        duration: found ? found.duration : 30
+        duration: found ? found.duration : 30,
       };
     });
 
     setData({
       ...data,
-      services: [...data.services, ...newServices]
+      services: [...data.services, ...newServices],
     });
     setSelectedSuggested([]);
     if (onSave) onSave();
   };
 
   const handleAISuggest = () => {
-    const aiAdded: Service[] = [
-      {
-        id: 'ai-1',
-        name: 'Organic Scalp Detox',
-        category: 'Treatment',
-        description: 'Exfoliating botanical treatment for ultimate scalp health.',
-        price: 850,
-        duration: 45,
-        featured: true
-      },
-      {
-        id: 'ai-2',
-        name: 'Express Gloss & Shine',
-        category: 'Color',
-        description: 'Instant demi-permanent glaze for high-gloss tone.',
-        price: 650,
-        duration: 30
-      }
-    ];
+    const names = AI_SUGGESTION_NAMES[theme];
+    const aiAdded: Service[] = names.map((n, i) => {
+      const found = findPredefinedService(theme, n);
+      return {
+        id: 'ai-' + Date.now() + '-' + i,
+        name: found ? found.name : n,
+        category: found ? found.category : categories[0],
+        description: found ? found.description : 'AI-suggested premium service for your salon.',
+        price: found ? found.price : 50,
+        duration: found ? found.duration : 30,
+        featured: i === 0,
+      };
+    });
     setData({
       ...data,
-      services: [...data.services, ...aiAdded]
+      services: [...data.services, ...aiAdded],
     });
     if (onSave) onSave();
   };
@@ -137,17 +201,18 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setIsSpeaking(true);
     setTimeout(() => {
       setIsSpeaking(false);
+      const v = VOICE_SERVICE_BY_THEME[theme];
       const voiceService: Service = {
         id: 'v-' + Date.now(),
-        name: 'Gentlemen\'s Royal Cut',
-        category: 'Barbering',
-        description: 'Custom haircut with scalp massage and hot towel treatment.',
-        price: 400,
-        duration: 40
+        name: v.name,
+        category: v.category,
+        description: v.description,
+        price: v.price,
+        duration: v.duration,
       };
       setData({
         ...data,
-        services: [...data.services, voiceService]
+        services: [...data.services, voiceService],
       });
       if (onSave) onSave();
     }, 1500);
@@ -155,38 +220,78 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
   const handleOpenAddService = () => {
     setIsAddingService(true);
-    // Pre-fill a suggested description for the current category so the field is
-    // never empty and gives a professional starting point.
-    setNewServiceDesc(suggestServiceDescription(newServiceCategory, newServiceName));
+    setCustomService(false);
+    setServiceDropdownOpen(false);
+    setNewServiceName('');
+    setNewServiceDesc(suggestServiceDescription(newServiceCategory, ''));
     setNewServiceDescTouched(false);
     setShowDescConfirm(false);
     setPendingDescSuggestion('');
   };
 
-  const handleServiceNameChange = (name: string) => {
-    setNewServiceName(name);
-    // Keep the auto-suggestion in sync with the service name, but only while the
-    // user hasn't hand-written their own description.
-    if (!newServiceDescTouched && newServiceDesc.trim()) {
-      setNewServiceDesc(suggestServiceDescription(newServiceCategory, name));
+  const handleServiceNameInput = (value: string) => {
+    setNewServiceName(value);
+    if (!serviceDropdownOpen) setServiceDropdownOpen(true);
+    if (customService) return;
+    const match = findPredefinedService(theme, value);
+    if (match) {
+      // Exact predefined match → auto-fill everything.
+      setNewServiceCategory(match.category);
+      setNewServicePrice(match.price);
+      setNewServiceDuration(match.duration);
+      setNewServiceDesc(match.description);
+      setNewServiceDescTouched(false);
+    } else if (!newServiceDescTouched) {
+      // Still typing → keep a live, relevant description suggestion.
+      setNewServiceDesc(suggestServiceDescription(newServiceCategory, value));
     }
+  };
+
+  const selectPredefined = (s: PredefinedService) => {
+    setNewServiceName(s.name);
+    setNewServiceCategory(s.category);
+    setNewServicePrice(s.price);
+    setNewServiceDuration(s.duration);
+    setNewServiceDesc(s.description);
+    setNewServiceDescTouched(false);
+    setCustomService(false);
+    setServiceDropdownOpen(false);
+    setShowDescConfirm(false);
+    setPendingDescSuggestion('');
+  };
+
+  const enableCustom = () => {
+    setCustomService(true);
+    setNewServiceName('');
+    setNewServiceDesc(suggestServiceDescription(newServiceCategory, ''));
+    setNewServiceDescTouched(false);
+    setNewServicePrice(50);
+    setNewServiceDuration(30);
+    setServiceDropdownOpen(false);
+  };
+
+  const backToPredefined = () => {
+    setCustomService(false);
+    setNewServiceName('');
+    setServiceDropdownOpen(true);
   };
 
   const handleCategoryChange = (cat: string) => {
     setNewServiceCategory(cat);
-    const suggested = suggestServiceDescription(cat, newServiceName.trim());
-    const isBlank = !newServiceDesc.trim();
-    if (!newServiceDescTouched || isBlank) {
-      // Auto-update: description wasn't hand-written (or is empty) — safe to replace.
-      setNewServiceDesc(suggested);
+    setServiceDropdownOpen(true);
+    if (!customService) {
+      // Service names differ per category — reset the selection.
+      setNewServiceName('');
+      setNewServicePrice(50);
+      setNewServiceDuration(30);
+      setNewServiceDesc(suggestServiceDescription(cat, ''));
       setNewServiceDescTouched(false);
-      setShowDescConfirm(false);
-      setPendingDescSuggestion('');
     } else {
-      // User hand-wrote a description — ask before overwriting it.
-      setPendingDescSuggestion(suggested);
-      setShowDescConfirm(true);
+      setNewServiceDesc(suggestServiceDescription(cat, newServiceName));
+      setNewServiceDescTouched(false);
     }
+    setShowDescConfirm(false);
+    setPendingDescSuggestion('');
   };
 
   const handleServiceDescChange = (value: string) => {
@@ -212,15 +317,17 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       category: newServiceCategory || 'General',
       description: newServiceDesc || 'Custom salon service.',
       price: Number(newServicePrice) || 0,
-      duration: Number(newServiceDuration) || 30
+      duration: Number(newServiceDuration) || 30,
     };
     setData({
       ...data,
-      services: [...data.services, created]
+      services: [...data.services, created],
     });
     setNewServiceName('');
     setNewServiceDesc('');
     setNewServiceDescTouched(false);
+    setCustomService(false);
+    setServiceDropdownOpen(false);
     setShowDescConfirm(false);
     setPendingDescSuggestion('');
     setIsAddingService(false);
@@ -235,11 +342,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       name: newPackageName,
       description: newPackageDesc || 'Combo package offering maximum savings.',
       price: Number(newPackagePrice) || 0,
-      duration: Number(newPackageDuration) || 60
+      duration: Number(newPackageDuration) || 60,
     };
     setData({
       ...data,
-      packages: [...data.packages, created]
+      packages: [...data.packages, created],
     });
     setNewPackageName('');
     setNewPackageDesc('');
@@ -250,7 +357,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const handleDeleteService = (id: string) => {
     setData({
       ...data,
-      services: data.services.filter(s => s.id !== id)
+      services: data.services.filter((s) => s.id !== id),
     });
     if (onSave) onSave();
   };
@@ -259,11 +366,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     const dup: Service = {
       ...s,
       id: 'dup-' + Date.now(),
-      name: `${s.name} (Copy)`
+      name: `${s.name} (Copy)`,
     };
     setData({
       ...data,
-      services: [...data.services, dup]
+      services: [...data.services, dup],
     });
     if (onSave) onSave();
   };
@@ -271,10 +378,25 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const handleDeletePackage = (id: string) => {
     setData({
       ...data,
-      packages: data.packages.filter(p => p.id !== id)
+      packages: data.packages.filter((p) => p.id !== id),
     });
     if (onSave) onSave();
   };
+
+  // Service-name combobox: the list of selectable names is filtered by the
+  // currently chosen category AND the current theme.
+  const serviceQuery = newServiceName.trim().toLowerCase();
+  const categoryServices = getServicesForThemeCategory(theme, newServiceCategory);
+  const filteredServices = customService
+    ? []
+    : categoryServices.filter((s) => s.name.toLowerCase().includes(serviceQuery));
+
+  const chipClass = (active: boolean) =>
+    `px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+      active
+        ? 'border-[#ac0053] bg-[#ffd9e1] text-[#3f001a]'
+        : 'border-[#eeeeee] bg-[#f9f9f9] text-[#1a1c1c] hover:border-[#ac0053] hover:text-[#ac0053]'
+    }`;
 
   return (
     <div className="flex-1 flex w-full h-full bg-[#f9f9f9]">
@@ -287,27 +409,44 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
               <p className="text-[#5f5e5e] text-base">Choose your services, add prices and your website will update instantly.</p>
             </div>
 
-            {/* Suggested Services */}
+            {/* Suggested Services — theme-specific */}
             <div className="bg-white rounded-lg border border-[#eeeeee] p-6 shadow-sm flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xs font-semibold text-[#1a1c1c] uppercase tracking-wider">SUGGESTED SERVICES</h3>
-                <button 
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                <div>
+                  <h3 className="text-xs font-semibold text-[#1a1c1c] uppercase tracking-wider">Suggested for {THEME_LABELS[theme]}</h3>
+                  <p className="text-xs text-[#5f5e5e] mt-0.5">Curated to match your selected website style.</p>
+                </div>
+                <button
                   onClick={selectAllSuggested}
-                  className="text-xs font-semibold text-[#ac0053] hover:underline"
+                  className="text-xs font-semibold text-[#ac0053] hover:underline self-start sm:self-auto"
                 >
-                  {selectedSuggested.length === suggestedList.length ? 'Deselect All' : 'Select All'}
+                  {allVisibleSelected ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
+
+              {/* Category filter (per theme) */}
               <div className="flex flex-wrap gap-2">
-                {suggestedList.map(s => {
+                <button onClick={() => setSuggestedFilter('All')} className={chipClass(suggestedFilter === 'All')}>
+                  All
+                </button>
+                {categories.map((c) => (
+                  <button key={c} onClick={() => setSuggestedFilter(c)} className={chipClass(suggestedFilter === c)}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {visibleSuggested.map((s) => {
                   const isSelected = selectedSuggested.includes(s.name);
                   return (
                     <button
                       key={s.name}
                       onClick={() => toggleSuggested(s.name)}
+                      title={s.description}
                       className={`px-4 py-2 rounded-full border text-sm font-medium transition-all flex items-center gap-1.5 ${
-                        isSelected 
-                          ? 'border-[#ac0053] bg-[#ffd9e1] text-[#3f001a]' 
+                        isSelected
+                          ? 'border-[#ac0053] bg-[#ffd9e1] text-[#3f001a]'
                           : 'border-[#eeeeee] bg-[#f9f9f9] text-[#1a1c1c] hover:border-[#ac0053] hover:text-[#ac0053]'
                       }`}
                     >
@@ -316,9 +455,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                     </button>
                   );
                 })}
+                {visibleSuggested.length === 0 && (
+                  <p className="text-sm text-[#5f5e5e]">No suggested services in this category.</p>
+                )}
               </div>
               <div className="pt-2">
-                <button 
+                <button
                   onClick={handleAddSelected}
                   disabled={selectedSuggested.length === 0}
                   className="bg-[#ac0053] text-white font-semibold text-sm px-6 py-2.5 rounded-lg hover:bg-[#ba005b] transition-colors disabled:opacity-40"
@@ -330,7 +472,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
             {/* Fast Add */}
             <div className="flex flex-col sm:flex-row gap-4">
-              <button 
+              <button
                 onClick={handleSpeechInput}
                 disabled={isSpeaking}
                 className="flex-1 bg-white border border-[#eeeeee] rounded-lg p-4 flex items-center justify-center gap-2 hover:border-[#ac0053] transition-colors group shadow-sm"
@@ -344,8 +486,8 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   {isSpeaking ? 'Listening...' : 'Speak your services'}
                 </span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={handleAISuggest}
                 className="flex-1 bg-white border border-[#eeeeee] rounded-lg p-4 flex items-center justify-center gap-2 hover:border-[#ac0053] transition-colors group shadow-sm"
               >
@@ -361,14 +503,14 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
             {/* My Services List */}
             <div className="flex flex-col gap-4">
               <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">MY SERVICES ({data.services.length})</h3>
-              
+
               <AnimatePresence>
                 {data.services.map((s) => (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    key={s.id} 
+                    key={s.id}
                     className="bg-white border border-[#eeeeee] rounded-lg p-5 shadow-sm flex flex-col gap-4 group hover:border-[#ac0053]/40 transition-colors"
                   >
                     <div className="flex justify-between items-start">
@@ -389,6 +531,8 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                             <span className="font-semibold text-[#1a1c1c]">₹{s.price.toLocaleString('en-IN')}</span>
                             <span>•</span>
                             <span>{s.duration} min</span>
+                            <span>•</span>
+                            <span className="italic">{s.category}</span>
                           </div>
                           <p className="text-sm text-[#565755] mt-1">{s.description}</p>
                           <p className="text-xs text-[#565755] italic mt-2 flex items-center gap-1">
@@ -400,14 +544,14 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
                       {/* Actions */}
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
+                        <button
                           onClick={() => handleDuplicateService(s)}
                           title="Duplicate"
                           className="p-2 text-[#5f5e5e] hover:text-[#ac0053] hover:bg-[#f9f9f9] rounded-full transition-colors"
                         >
                           <Copy className="w-4 h-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleDeleteService(s.id)}
                           title="Delete"
                           className="p-2 text-[#5f5e5e] hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
@@ -431,47 +575,106 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Service Name</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={newServiceName} 
-                        onChange={e => handleServiceNameChange(e.target.value)}
-                        placeholder="e.g. Balayage Color" 
-                        className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                      />
-                    </div>
-                    <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Category</label>
-                      <select 
-                        value={newServiceCategory} 
-                        onChange={e => handleCategoryChange(e.target.value)}
+                      <select
+                        value={newServiceCategory}
+                        onChange={(e) => handleCategoryChange(e.target.value)}
                         className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                       >
-                        <option value="Haircut">Haircut</option>
-                        <option value="Styling">Styling</option>
-                        <option value="Color">Color</option>
-                        <option value="Treatment">Treatment</option>
-                        <option value="Barbering">Barbering</option>
+                        {categories.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
+                      <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">
+                        Service Name
+                        {customService && <span className="ml-2 text-[10px] font-normal text-[#ac0053]">Custom</span>}
+                      </label>
+                      {/* Searchable predefined service-name combobox */}
+                      <div className="relative" ref={serviceComboRef}>
+                        <div className="relative">
+                          <Search className="w-4 h-4 text-[#5f5e5e] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            required
+                            value={newServiceName}
+                            onChange={(e) => handleServiceNameInput(e.target.value)}
+                            onFocus={() => setServiceDropdownOpen(true)}
+                            placeholder={customService ? 'Type your custom service name' : `Search ${THEME_LABELS[theme]} services…`}
+                            className="w-full pl-9 pr-9 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
+                          />
+                          <ChevronDown
+                            className={`w-4 h-4 text-[#5f5e5e] absolute right-3 top-1/2 -translate-y-1/2 transition-transform ${serviceDropdownOpen ? 'rotate-180' : ''}`}
+                          />
+                        </div>
+
+                        {serviceDropdownOpen && (
+                          <div className="absolute z-30 mt-1 w-full bg-white border border-[#eeeeee] rounded-lg shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                            {customService ? (
+                              <button
+                                type="button"
+                                onClick={backToPredefined}
+                                className="w-full text-left px-3 py-2.5 text-sm text-[#ac0053] hover:bg-[#fff1f4] flex items-center gap-2"
+                              >
+                                <List className="w-4 h-4" /> Choose from predefined list
+                              </button>
+                            ) : (
+                              <>
+                                {filteredServices.length === 0 ? (
+                                  <div className="px-3 py-3 text-sm text-[#5f5e5e]">
+                                    No matching service — add your own via “Other / Custom”.
+                                  </div>
+                                ) : (
+                                  filteredServices.map((s) => (
+                                    <button
+                                      type="button"
+                                      key={s.name}
+                                      onClick={() => selectPredefined(s)}
+                                      className="w-full text-left px-3 py-2.5 hover:bg-[#fff1f4] flex items-center justify-between gap-3 border-b border-[#f3f3f3] last:border-0"
+                                    >
+                                      <span className="text-sm font-medium text-[#1a1c1c]">{s.name}</span>
+                                      <span className="text-xs text-[#5f5e5e] whitespace-nowrap">
+                                        ₹{s.price.toLocaleString('en-IN')} • {s.duration}m
+                                      </span>
+                                    </button>
+                                  ))
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={enableCustom}
+                                  className="w-full text-left px-3 py-2.5 text-sm font-semibold text-[#ac0053] hover:bg-[#fff1f4] flex items-center gap-2"
+                                >
+                                  <Plus className="w-4 h-4" /> Other / Custom Service
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#5f5e5e] mt-1">
+                        Pick from the list — no need to type. Use “Other / Custom” only if your service isn’t listed.
+                      </p>
+                    </div>
+                    <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Price (₹)</label>
-                      <input 
-                        type="number" 
-                        required 
-                        value={newServicePrice} 
-                        onChange={e => setNewServicePrice(Number(e.target.value))}
+                      <input
+                        type="number"
+                        required
+                        value={newServicePrice}
+                        onChange={(e) => setNewServicePrice(Number(e.target.value))}
                         className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Duration (mins)</label>
-                      <input 
-                        type="number" 
-                        required 
-                        value={newServiceDuration} 
-                        onChange={e => setNewServiceDuration(Number(e.target.value))}
+                      <input
+                        type="number"
+                        required
+                        value={newServiceDuration}
+                        onChange={(e) => setNewServiceDuration(Number(e.target.value))}
                         className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                       />
                     </div>
@@ -487,10 +690,10 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                         <Sparkles className="w-3.5 h-3.5" /> Generate suggestion
                       </button>
                     </div>
-                    <textarea 
-                      value={newServiceDesc} 
-                      onChange={e => handleServiceDescChange(e.target.value)}
-                      placeholder="Brief details about the service" 
+                    <textarea
+                      value={newServiceDesc}
+                      onChange={(e) => handleServiceDescChange(e.target.value)}
+                      placeholder="Brief details about the service"
                       rows={2}
                       className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
                     />
@@ -528,7 +731,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   </div>
                 </form>
               ) : (
-                <button 
+                <button
                   onClick={handleOpenAddService}
                   className="flex items-center justify-center gap-2 w-full py-4 border border-dashed border-[#5f5e5e] hover:border-[#ac0053] hover:text-[#ac0053] text-[#5f5e5e] rounded-lg text-sm font-semibold transition-colors bg-white"
                 >
@@ -542,7 +745,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
             {/* Packages List */}
             <div className="flex flex-col gap-4 pb-24">
               <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">PACKAGES</h3>
-              
+
               {data.packages.map((p) => (
                 <div key={p.id} className="bg-white border border-[#eeeeee] rounded-lg p-5 shadow-sm flex flex-col gap-4 group hover:border-[#ac0053]/40 transition-colors">
                   <div className="flex justify-between items-start">
@@ -566,7 +769,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                     </div>
 
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
+                      <button
                         onClick={() => handleDeletePackage(p.id)}
                         className="p-2 text-[#5f5e5e] hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
                       >
@@ -589,42 +792,42 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Package Name</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={newPackageName} 
-                        onChange={e => setNewPackageName(e.target.value)}
-                        placeholder="e.g. Bridal Beauty Special" 
+                      <input
+                        type="text"
+                        required
+                        value={newPackageName}
+                        onChange={(e) => setNewPackageName(e.target.value)}
+                        placeholder="e.g. Bridal Beauty Special"
                         className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Price (₹)</label>
-                      <input 
-                        type="number" 
-                        required 
-                        value={newPackagePrice} 
-                        onChange={e => setNewPackagePrice(Number(e.target.value))}
+                      <input
+                        type="number"
+                        required
+                        value={newPackagePrice}
+                        onChange={(e) => setNewPackagePrice(Number(e.target.value))}
                         className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                       />
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Duration (mins)</label>
-                    <input 
-                      type="number" 
-                      required 
-                      value={newPackageDuration} 
-                      onChange={e => setNewPackageDuration(Number(e.target.value))}
+                    <input
+                      type="number"
+                      required
+                      value={newPackageDuration}
+                      onChange={(e) => setNewPackageDuration(Number(e.target.value))}
                       className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Description</label>
-                    <textarea 
-                      value={newPackageDesc} 
-                      onChange={e => setNewPackageDesc(e.target.value)}
-                      placeholder="e.g. Full hair styling, makeup, and manicures" 
+                    <textarea
+                      value={newPackageDesc}
+                      onChange={(e) => setNewPackageDesc(e.target.value)}
+                      placeholder="e.g. Full hair styling, makeup, and manicures"
                       rows={2}
                       className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
                     />
@@ -639,7 +842,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   </div>
                 </form>
               ) : (
-                <button 
+                <button
                   onClick={() => setIsAddingPackage(true)}
                   className="flex items-center justify-center gap-2 w-full py-4 border border-dashed border-[#5f5e5e] hover:border-[#ac0053] hover:text-[#ac0053] text-[#5f5e5e] rounded-lg text-sm font-semibold transition-colors bg-white"
                 >
@@ -647,20 +850,19 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                 </button>
               )}
             </div>
-
           </motion.div>
         </div>
 
         {/* Bottom Navigation Area */}
         <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-[#eeeeee] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] p-4">
           <div className="max-w-screen-2xl mx-auto flex justify-between items-center px-4 md:px-8">
-            <button 
+            <button
               onClick={onPrev}
               className="text-sm font-semibold text-[#5f5e5e] hover:text-[#1a1c1c] transition-colors flex items-center gap-2 py-2 px-4 rounded-lg border border-transparent hover:border-[#eeeeee]"
             >
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
-            <button 
+            <button
               onClick={onNext}
               className="bg-[#ac0053] hover:bg-[#ba005b] text-white text-sm font-semibold flex items-center gap-2 px-8 py-3 rounded-lg transition-all shadow-sm"
             >
