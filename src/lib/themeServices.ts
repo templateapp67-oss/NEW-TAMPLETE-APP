@@ -7,7 +7,7 @@ export type ThemeId = NonNullable<SalonData['templateId']>;
 export const THEME_IDS: ThemeId[] = [
   'hair',
   'barber_mens_grooming',
-  'hair-studio',
+  'hair_studio_color_bar',
   'wellness',
   'family-salon',
 ];
@@ -15,12 +15,16 @@ export const THEME_IDS: ThemeId[] = [
 /**
  * Normalises a saved `templateId` into a valid ThemeId.
  *
- * `barber` is the legacy id for the Barber & Men's Grooming slot; it has been
- * superseded by `barber_mens_grooming`. Old drafts saved as `barber` are mapped
- * forward so nothing breaks, while new data is always written with the canonical id.
+ * - `barber` is the legacy id for the Barber & Men's Grooming slot (now
+ *   `barber_mens_grooming`).
+ * - `hair-studio` is the legacy id for the Hair Studio & Color Bar slot (now
+ *   `hair_studio_color_bar`).
+ * Old drafts saved with the legacy ids are mapped forward so nothing breaks,
+ * while new data is always written with the canonical id.
  */
 export function normalizeThemeId(id: string | undefined | null): ThemeId {
   if (id === 'barber') return 'barber_mens_grooming';
+  if (id === 'hair-studio') return 'hair_studio_color_bar';
   if (id && (THEME_IDS as string[]).includes(id)) return id as ThemeId;
   return 'hair';
 }
@@ -28,7 +32,7 @@ export function normalizeThemeId(id: string | undefined | null): ThemeId {
 export const THEME_LABELS: Record<ThemeId, string> = {
   hair: 'Hair & Unisex Salon',
   barber_mens_grooming: "Barber & Men's Grooming",
-  'hair-studio': 'Hair Studio & Color Bar',
+  hair_studio_color_bar: 'Hair Studio & Color Bar',
   wellness: 'Beauty, Skin & Spa',
   'family-salon': 'Full-Service Family Salon',
 };
@@ -49,7 +53,7 @@ export interface PredefinedService {
 export const THEME_CATEGORIES: Record<ThemeId, string[]> = {
   hair: ['Haircut', 'Styling', 'Color', 'Treatment', 'Makeup & Beauty'],
   barber_mens_grooming: ['Haircuts', 'Beard & Shave', 'Grooming & Treatments'],
-  'hair-studio': ['Cut & Style', 'Color & Highlights', 'Texture & Perms', 'Treatments', 'Bridal & Events'],
+  hair_studio_color_bar: ['Styling & Cuts', 'Hair Color', 'Treatments'],
   wellness: ['Massage', 'Facials', 'Nails', 'Hair Removal', 'Spa Packages'],
   'family-salon': ['Hair', 'Beauty', 'Skin', 'Grooming', 'Spa', 'Kids'],
 };
@@ -69,6 +73,25 @@ export const BARBER_THEME = {
   goldSoft: '#3a3016',
   cream: '#f5efe0',
   muted: '#a6a49b',
+} as const;
+
+/**
+ * Shared design tokens for the Hair Studio & Color Bar theme.
+ * Modern studio, minimalist monochrome + rose-gold, premium editorial.
+ * Used by both TemplateRenderer (HairStudioTemplateRenderer) and PreviewPane.
+ */
+export const HAIR_STUDIO_THEME = {
+  id: 'hair_studio_color_bar' as const,
+  ink: '#191817',
+  inkSoft: '#2a2826',
+  paper: '#faf8f5',
+  paperDeep: '#f1ede7',
+  rose: '#b76e79',
+  roseBright: '#d8a0a8',
+  roseSoft: '#f4e5e7',
+  roseDeep: '#9d5a63',
+  line: '#e7e0d8',
+  muted: '#8c8782',
 } as const;
 
 /**
@@ -176,38 +199,29 @@ export const SERVICES_BY_THEME: Record<ThemeId, PredefinedService[]> = {
     { name: 'Quick Refresh Package', category: 'Spa Packages', description: 'Express facial and head massage for a midday pick-me-up.', price: 2500, duration: 90 },
   ],
 
-  'hair-studio': [
-    // Cut & Style
-    { name: 'Precision Dry Cut', category: 'Cut & Style', description: 'Expert dry-cutting technique for perfect shape, movement and texture tailored to your hair type.', price: 1200, duration: 45 },
-    { name: 'Signature Blowout & Style', category: 'Cut & Style', description: 'Voluminous salon blowout with round-brush finish for bounce and lasting hold.', price: 800, duration: 40 },
-    { name: 'Creative Crop & Texture', category: 'Cut & Style', description: 'Edgy, fashion-forward short cut with razor texturising and personalised finish.', price: 1500, duration: 50 },
-    { name: 'Long-Layer Transformation', category: 'Cut & Style', description: 'Face-framing long layers with invisible blending for natural movement.', price: 1400, duration: 55 },
-    { name: 'Editorial Upstyle', category: 'Cut & Style', description: 'Red-carpet-worthy updo with intricate braiding, twists and accessory placement.', price: 2500, duration: 75 },
+  hair_studio_color_bar: [
+    // Styling & Cuts
+    { name: 'Signature Cut & Blowdry', category: 'Styling & Cuts', description: 'A precision signature cut shaped to your face and finished with a glossy editorial blowdry.', price: 1800, duration: 60 },
+    { name: 'Layered Cut', category: 'Styling & Cuts', description: 'Face-framing layers cut dry for movement, volume and a soft, lived-in finish.', price: 2000, duration: 60 },
+    { name: 'Bob/Pixie Precision Cut', category: 'Styling & Cuts', description: 'Architectural bob or pixie with razor-sharp lines and weight distribution tailored to you.', price: 2200, duration: 65 },
+    { name: 'Luxury Blowout', category: 'Styling & Cuts', description: 'Round-brush blowout with salon-grade finishing for bounce, shine and lasting hold.', price: 1200, duration: 40 },
+    { name: 'Hollywood Waves', category: 'Styling & Cuts', description: 'Old-Hollywood sculpted waves with glossy, red-carpet finish.', price: 1600, duration: 45 },
+    { name: 'Hair Setting', category: 'Styling & Cuts', description: 'Classic roller or pin-curl setting for soft, structured volume and defined texture.', price: 900, duration: 40 },
 
-    // Color & Highlights
-    { name: 'Root Shadow & Smudge', category: 'Color & Highlights', description: 'Soft shadow-root blending for seamless grow-out and depth dimension.', price: 2800, duration: 90 },
-    { name: 'Hand-Painted Balayage', category: 'Color & Highlights', description: 'French balayage technique for sun-kissed, natural-looking dimension with zero harsh lines.', price: 4500, duration: 150 },
-    { name: 'Foilayage Hybrid', category: 'Color & Highlights', description: 'Best of both worlds — foil precision meets balayage softness for maximum brightness.', price: 5200, duration: 160 },
-    { name: 'Pastel & Fashion Tones', category: 'Color & Highlights', description: 'Creative pastel pinks, lavenders or silvers on pre-lightened hair for a statement look.', price: 4000, duration: 120 },
-    { name: 'Color Correction', category: 'Color & Highlights', description: 'Expert corrective work to fix banding, brassiness or unwanted tones. Consultation required.', price: 6000, duration: 180 },
-
-    // Texture & Perms
-    { name: 'Digital Perm', category: 'Texture & Perms', description: 'Heat-activated digital waves for soft, natural-looking curls with lasting definition.', price: 3500, duration: 150 },
-    { name: 'Keratin Smoothing', category: 'Texture & Perms', description: 'Premium formaldehyde-free keratin therapy to eliminate frizz for up to 12 weeks.', price: 5000, duration: 150 },
-    { name: 'Beach Wave Perm', category: 'Texture & Perms', description: 'Loose, effortless beachy waves with body and movement — low maintenance, high impact.', price: 3800, duration: 140 },
-    { name: 'Japanese Straightening', category: 'Texture & Perms', description: 'Thermal reconditioning for permanently sleek, pin-straight hair with mirror shine.', price: 6500, duration: 200 },
+    // Hair Color
+    { name: 'Balayage / Ombre', category: 'Hair Color', description: 'Hand-painted, sun-kissed balayage or a soft shadow-root ombre — both low-maintenance and dimensional.', price: 5500, duration: 180 },
+    { name: 'Global Hair Color', category: 'Hair Color', description: 'Rich, all-over colour transformation in an even, glossy, long-lasting tone.', price: 3500, duration: 120 },
+    { name: 'Root Touch-Up', category: 'Hair Color', description: 'Seamless root refresh and grey coverage blended into your existing shade.', price: 1500, duration: 60 },
+    { name: 'Highlights & Lowlights', category: 'Hair Color', description: 'Multi-tonal foiling that adds depth, dimension and brightness through the lengths.', price: 4200, duration: 150 },
+    { name: 'Gloss & Tone Treatment', category: 'Hair Color', description: 'Demi-permanent gloss to neutralise brass, refine tone and add glass-like shine.', price: 1800, duration: 45 },
+    { name: 'Fashion Color', category: 'Hair Color', description: 'Bold pastels, vivids and creative colour placements — a true statement look.', price: 6000, duration: 200 },
 
     // Treatments
-    { name: 'Bond Repair Treatment', category: 'Treatments', description: 'Advanced bond-building therapy to reconstruct damaged disulfide bonds from within.', price: 3000, duration: 60 },
-    { name: 'Scalp Microbiome Detox', category: 'Treatments', description: 'Trichologist-inspired scalp reset with exfoliation, steam and probiotic serum infusion.', price: 1800, duration: 50 },
-    { name: 'Liquid Hair Gloss', category: 'Treatments', description: 'Instant glass-like shine treatment that seals cuticles and boosts colour vibrancy.', price: 1500, duration: 35 },
-    { name: 'Collagen Hair Filler', category: 'Treatments', description: 'Injectable-grade collagen complex to plump, thicken and revitalise fine or thinning hair.', price: 2800, duration: 55 },
-
-    // Bridal & Events
-    { name: 'Bridal Hair Trial', category: 'Bridal & Events', description: 'Pre-wedding consultation and trial run of your chosen bridal hairstyle with veil placement.', price: 1800, duration: 60 },
-    { name: 'Bridal Hair & Styling', category: 'Bridal & Events', description: 'Complete wedding-day hair: style, setting, accessory placement and touch-up kit.', price: 5500, duration: 120 },
-    { name: 'Event Styling & Finish', category: 'Bridal & Events', description: 'Glamorous blowout or upstyle for parties, galas, cocktail events and red-carpet moments.', price: 2200, duration: 60 },
-    { name: 'Bridal Party Package', category: 'Bridal & Events', description: 'Coordinated styling for bride + 3 bridesmaids with on-location option available.', price: 12000, duration: 240 },
+    { name: 'Keratin Restoration', category: 'Treatments', description: 'Intensive keratin infusion that rebuilds strength, smooths frizz and restores elasticity.', price: 4500, duration: 120 },
+    { name: 'Hair Botox Treatment', category: 'Treatments', description: 'Deep-filler treatment that plumps each strand for silky, youthful, glass-finish hair.', price: 4000, duration: 90 },
+    { name: 'Smoothening / Rebonding', category: 'Treatments', description: 'Permanent straightening with thermal reconditioning for sleek, frizz-free lengths.', price: 5000, duration: 180 },
+    { name: 'Scalp Detox Spa', category: 'Treatments', description: 'Exfoliating scalp ritual with steam, massage and a balancing botanical mask.', price: 2200, duration: 60 },
+    { name: 'Olaplex Bond Repair', category: 'Treatments', description: 'Patented bond-building therapy that relinks broken bonds for stronger, healthier hair.', price: 3500, duration: 60 },
   ],
 
   'family-salon': [
@@ -275,14 +289,13 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
     'Head Shave',
     'Charcoal Face Mask',
   ],
-  'hair-studio': [
-    'Precision Dry Cut',
-    'Hand-Painted Balayage',
-    'Root Shadow & Smudge',
-    'Bond Repair Treatment',
-    'Digital Perm',
-    'Bridal Hair & Styling',
-    'Editorial Upstyle',
+  hair_studio_color_bar: [
+    'Signature Haircut',
+    'Luxury Blowout',
+    'Balayage',
+    'Global Hair Color',
+    'Hair Botox Treatment',
+    'Olaplex Bond Repair',
   ],
   wellness: [
     'Swedish Relaxation Massage',
@@ -318,6 +331,10 @@ export const SUGGESTED_SERVICE_ALIASES: Partial<Record<ThemeId, Record<string, s
     'Hair & Beard Combo': 'Executive Beard & Hair Combo',
     'Charcoal Face Mask': 'Charcoal Face Detox',
   },
+  hair_studio_color_bar: {
+    'Signature Haircut': 'Signature Cut & Blowdry',
+    'Balayage': 'Balayage / Ombre',
+  },
 };
 
 /** Returns the curated suggested services for a theme (resolved from the catalogue). */
@@ -344,7 +361,7 @@ export function findPredefinedService(theme: ThemeId, name: string): PredefinedS
 export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
   barber_mens_grooming: ['Skin Fade', 'Hot Towel Classic Shave'],
-  'hair-studio': ['Hand-Painted Balayage', 'Bond Repair Treatment'],
+  hair_studio_color_bar: ['Balayage / Ombre', 'Olaplex Bond Repair'],
   wellness: ['Hydra Facial', 'Swedish Relaxation Massage'],
   'family-salon': ['De-Stress Spa Combo', 'Mommy & Me Package'],
 };
@@ -353,7 +370,7 @@ export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
 export const VOICE_SERVICE_BY_THEME: Record<ThemeId, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
   barber_mens_grooming: { name: 'The Executive Cut & Shave', category: 'Grooming & Treatments', description: 'Signature cut with hot-towel shave and scalp massage finish.', price: 750, duration: 60 },
-  'hair-studio': { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
+  hair_studio_color_bar: { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
   wellness: { name: 'Aroma Relaxation Massage', category: 'Massage', description: 'Soothing essential-oil full-body massage.', price: 2000, duration: 60 },
   'family-salon': { name: 'Family Pamper Day Pass', category: 'Spa', description: 'A relaxing head massage and mini facial for the whole family.', price: 2500, duration: 120 },
 };

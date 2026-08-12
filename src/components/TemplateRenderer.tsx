@@ -4,6 +4,7 @@ import { getReadableTextColor, withHexAlpha } from '../lib/websiteCustomization'
 import { normalizeThemeId } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
 import BarberTemplateRenderer from './BarberTemplateRenderer';
+import HairStudioTemplateRenderer from './HairStudioTemplateRenderer';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -14,13 +15,16 @@ interface Props {
 export default function TemplateRenderer({ data, mode }: Props) {
   const templateId = normalizeThemeId(data.templateId);
 
-  // The Barber & Men's Grooming theme is a fully separate renderer — not a
-  // colour variation of the other themes. Render it through its own component.
+  // The Barber and Hair Studio themes are fully separate renderers — not colour
+  // variations of the other themes. Render each through its own component.
   if (templateId === 'barber_mens_grooming') {
     return <BarberTemplateRenderer data={data} mode={mode} />;
   }
+  if (templateId === 'hair_studio_color_bar') {
+    return <HairStudioTemplateRenderer data={data} mode={mode} />;
+  }
 
-  // Template-specific styling configurations (non-barber themes)
+  // Template-specific styling configurations (remaining themes)
   const config = {
     hair: {
       navBg: 'bg-white text-gray-900 border-gray-100',
@@ -29,14 +33,6 @@ export default function TemplateRenderer({ data, mode }: Props) {
       headingFont: 'font-serif',
       cardBg: 'bg-white border-gray-100 text-gray-900',
       footerBg: 'bg-[#1a1c1c] text-white',
-    },
-    'hair-studio': {
-      navBg: 'bg-black text-white border-neutral-800',
-      heroBg: 'bg-neutral-950 text-white',
-      accentColor: '#b76e79',
-      headingFont: 'font-sans font-light tracking-tight',
-      cardBg: 'bg-white border-neutral-200 text-neutral-900',
-      footerBg: 'bg-black text-neutral-400',
     },
     wellness: {
       navBg: 'bg-emerald-950 text-emerald-50 border-emerald-900',
@@ -69,7 +65,6 @@ export default function TemplateRenderer({ data, mode }: Props) {
     const serviceNames = data.services.map(s => (s.name + ' ' + s.category).toLowerCase()).join(' ');
     const salonLower = data.salonName.toLowerCase();
     if (templateId === 'family-salon') return 'Our Wonderful Team';
-    if (templateId === 'hair-studio') return 'Meet Our Artists';
     if (serviceNames.includes('barber') || serviceNames.includes('fade') || serviceNames.includes('beard') || salonLower.includes('barber')) {
       return 'Meet Our Barbers';
     }
@@ -131,35 +126,14 @@ export default function TemplateRenderer({ data, mode }: Props) {
             <img
               src={data.heroImageUrl}
               alt="Hero Banner"
-              className={`absolute inset-0 w-full h-full object-cover ${
-                templateId === 'hair-studio' ? 'opacity-30' : 'opacity-45'
-              } ${
+              className={`absolute inset-0 w-full h-full object-cover opacity-45 ${
                 data.heroPosition === 'Top' ? 'object-top' : data.heroPosition === 'Bottom' ? 'object-bottom' : 'object-center'
               }`}
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
           <div className="relative z-10 max-w-xl mx-auto text-white">
-            {templateId === 'hair-studio' ? (
-              <>
-                <div className="flex items-center justify-center gap-3 mb-4">
-                  <div className="h-px w-8 bg-rose-300/60"></div>
-                  <span className="text-[10px] font-light uppercase tracking-[0.3em] text-rose-300">
-                    Artistry in Every Strand
-                  </span>
-                  <div className="h-px w-8 bg-rose-300/60"></div>
-                </div>
-                <h1 className={`text-3xl md:text-4xl font-light mb-4 tracking-tight ${config.headingFont}`}>
-                  {data.tagline || 'Where Hair Becomes Art'}
-                </h1>
-                <p className="text-xs md:text-sm text-neutral-300 mb-8 max-w-md mx-auto leading-relaxed font-light">
-                  {data.about || 'A curated studio experience blending precision cutting, artistic color, and editorial styling.'}
-                </p>
-                <button className="px-8 py-3 rounded-none font-light text-xs tracking-widest uppercase border border-rose-300/50 text-white hover:bg-rose-300/20 transition-all" style={{ borderColor: config.accentColor }}>
-                  Request an Appointment
-                </button>
-              </>
-            ) : templateId === 'family-salon' ? (
+            {templateId === 'family-salon' ? (
               <>
                 <span
                   className="inline-block px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-4 bg-white/20 text-white border border-white/20"
@@ -211,16 +185,14 @@ export default function TemplateRenderer({ data, mode }: Props) {
         <div id="section-services" className={`px-6 py-12 max-w-3xl mx-auto ${isDark ? 'text-zinc-100' : ''}`}>
           <div className="text-center mb-8">
             <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: brandColor }}>
-              {templateId === 'hair-studio' ? 'The Menu' : templateId === 'family-salon' ? 'Something for Everyone' : 'Our Offerings'}
+              {templateId === 'family-salon' ? 'Something for Everyone' : 'Our Offerings'}
             </span>
             <h2 className={`text-2xl font-bold mt-1 ${config.headingFont}`}>
-              {templateId === 'hair-studio' ? 'Services, Curated' : templateId === 'family-salon' ? 'Services & Pricing' : 'Signature Services & Pricing'}
+              {templateId === 'family-salon' ? 'Services & Pricing' : 'Signature Services & Pricing'}
             </h2>
             <p className="text-xs text-gray-500 mt-1">
               {templateId === 'family-salon'
                 ? 'Every member of the family, covered — all under one bright roof.'
-                : templateId === 'hair-studio'
-                ? 'A considered menu of cuts, colour, and care. Prices are consultation-based.'
                 : 'Transparent pricing with secure advance booking options.'}
             </p>
           </div>
@@ -230,16 +202,13 @@ export default function TemplateRenderer({ data, mode }: Props) {
               <div
                 key={s.id}
                 className={`p-5 border shadow-2xs hover:shadow-md transition-all ${darkCard} ${
-                  templateId === 'hair-studio'
-                    ? 'rounded-none border-l-2 hover:border-l-4'
-                    : templateId === 'family-salon'
+                  templateId === 'family-salon'
                     ? 'rounded-3xl border-2 hover:border-teal-300'
                     : 'rounded-2xl'
                 }`}
-                style={templateId === 'hair-studio' ? { borderLeftColor: config.accentColor } : undefined}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className={`font-bold text-sm ${templateId === 'hair-studio' ? 'font-light tracking-wide' : ''}`}>{s.name}</h4>
+                  <h4 className="font-bold text-sm">{s.name}</h4>
                   <span className="font-bold text-sm" style={accentStyle}>₹{s.price.toLocaleString('en-IN')}</span>
                 </div>
                 <p className="text-xs opacity-75 mb-4 line-clamp-2">{s.description}</p>
@@ -247,15 +216,13 @@ export default function TemplateRenderer({ data, mode }: Props) {
                   <span className="opacity-60 font-medium">{s.duration} mins</span>
                   <button
                     className={`font-bold text-xs transition-colors hover:brightness-90 px-4 py-1.5 ${
-                      templateId === 'hair-studio'
-                        ? 'rounded-none uppercase tracking-wider'
-                        : templateId === 'family-salon'
+                      templateId === 'family-salon'
                         ? 'rounded-full'
                         : 'rounded-lg'
                     }`}
                     style={brandButtonStyle}
                   >
-                    {templateId === 'hair-studio' ? 'Book' : 'Book Slot'}
+                    Book Slot
                   </button>
                 </div>
               </div>

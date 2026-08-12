@@ -55,16 +55,12 @@ function suggestServiceDescription(category: string, serviceName: string): strin
       return withName('Precision barbering with clean lines and a sharp, confident finish.');
     case 'Grooming & Treatments':
       return withName('Deep-cleansing grooming and scalp treatments to refresh and revitalise.');
-    case 'Cut & Style':
-      return withName('Editorial precision cut and styling tailored to your hair type and face shape.');
-    case 'Color & Highlights':
-      return withName('Artistic color and highlights with expert placement for a natural, dimensional finish.');
-    case 'Texture & Perms':
-      return withName('Professional texturising, smoothing and perming for lasting shape and movement.');
+    case 'Styling & Cuts':
+      return withName('Editorial precision cutting and styling shaped to your hair type and face.');
+    case 'Hair Color':
+      return withName('Artistic color with expert placement for a natural, dimensional, glossy finish.');
     case 'Treatments':
       return withName('Advanced repair and gloss treatment to restore strength, shine and vitality.');
-    case 'Bridal & Events':
-      return withName('Complete hair styling for brides and special events, from trial to the big day.');
     case 'Hair':
       return withName('Cut, style and colour services for every member of the family.');
     case 'Beauty':

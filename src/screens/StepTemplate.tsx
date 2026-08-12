@@ -13,7 +13,7 @@ interface Props {
   onSave?: (msg?: string) => void;
 }
 
-type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair-studio' | 'wellness' | 'family-salon';
+type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'wellness' | 'family-salon';
 
 export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -153,10 +153,10 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
 
           {/* Theme 3 — Hair Studio & Color Bar */}
           <div
-            onClick={() => selectTemplate('hair-studio')}
+            onClick={() => selectTemplate('hair_studio_color_bar')}
             className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
-              currentTemplate === 'hair-studio'
-                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+              currentTemplate === 'hair_studio_color_bar'
+                ? 'border-[#b76e79] bg-[#f4e5e7]/50 ring-2 ring-[#b76e79]/25 shadow-xs'
                 : 'border-gray-200/80 hover:border-gray-300'
             }`}
           >
@@ -174,13 +174,13 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start">
                   <h3 className="font-bold text-lg text-gray-900 mb-1">Hair Studio & Color Bar</h3>
-                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'hair-studio' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'hair_studio_color_bar' ? 'text-[#b76e79]' : 'text-gray-300'}`} />
                 </div>
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-bold mb-2 text-[11px]">
-                  Minimalist • Rose-Gold
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#f4e5e7] text-[#9d5a63] font-bold mb-2 text-[11px]">
+                  Monochrome • Rose-Gold • Editorial
                 </span>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  A monochrome, editorial-style studio with rose-gold accents and a premium gallery-forward experience.
+                  A minimalist, gallery-style studio with rose-gold accents, a color showcase and premium editorial feel.
                 </p>
               </div>
             </div>
