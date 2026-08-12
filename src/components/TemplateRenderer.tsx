@@ -141,7 +141,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
         {/* Services Section */}
         <div id="section-services" className="px-6 py-12 max-w-3xl mx-auto">
           <div className="text-center mb-8">
-            <span className={`text-[10px] font-bold uppercase tracking-widest ${config.accentText}`}>Our Offerings</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: brandColor }}>Our Offerings</span>
             <h2 className={`text-2xl font-bold mt-1 ${config.headingFont}`}>Signature Services & Pricing</h2>
             <p className="text-xs text-gray-500 mt-1">Transparent pricing with secure advance booking options.</p>
           </div>
