@@ -5,6 +5,7 @@ import { normalizeThemeId } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
 import BarberTemplateRenderer from './BarberTemplateRenderer';
 import HairStudioTemplateRenderer from './HairStudioTemplateRenderer';
+import BeautySpaTemplateRenderer from './BeautySpaTemplateRenderer';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -15,13 +16,16 @@ interface Props {
 export default function TemplateRenderer({ data, mode }: Props) {
   const templateId = normalizeThemeId(data.templateId);
 
-  // The Barber and Hair Studio themes are fully separate renderers — not colour
-  // variations of the other themes. Render each through its own component.
+  // The Barber, Hair Studio and Beauty/Spa themes are fully separate renderers —
+  // not colour variations of the other themes. Render each through its own component.
   if (templateId === 'barber_mens_grooming') {
     return <BarberTemplateRenderer data={data} mode={mode} />;
   }
   if (templateId === 'hair_studio_color_bar') {
     return <HairStudioTemplateRenderer data={data} mode={mode} />;
+  }
+  if (templateId === 'beauty_skin_spa') {
+    return <BeautySpaTemplateRenderer data={data} mode={mode} />;
   }
 
   // Template-specific styling configurations (remaining themes)
@@ -33,14 +37,6 @@ export default function TemplateRenderer({ data, mode }: Props) {
       headingFont: 'font-serif',
       cardBg: 'bg-white border-gray-100 text-gray-900',
       footerBg: 'bg-[#1a1c1c] text-white',
-    },
-    wellness: {
-      navBg: 'bg-emerald-950 text-emerald-50 border-emerald-900',
-      heroBg: 'bg-emerald-900 text-emerald-50',
-      accentColor: '#059669',
-      headingFont: 'font-serif',
-      cardBg: 'bg-emerald-50/20 border-emerald-100 text-emerald-950',
-      footerBg: 'bg-emerald-950 text-emerald-100',
     },
     'family-salon': {
       navBg: 'bg-white text-slate-800 border-teal-100',
@@ -163,9 +159,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
                   className="inline-block px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider mb-3"
                   style={{ color: brandColor, backgroundColor: withHexAlpha(brandColor, '22'), borderColor: withHexAlpha(brandColor, '55') }}
                 >
-                  {templateId === 'wellness'
-                    ? 'Luxury Spa & Wellness'
-                    : 'Premier Hair & Beauty'}
+                  Premier Hair & Beauty
                 </span>
                 <h1 className={`text-2xl md:text-4xl font-bold mb-3 ${config.headingFont}`}>
                   {data.tagline || 'Elevating your natural beauty and style'}

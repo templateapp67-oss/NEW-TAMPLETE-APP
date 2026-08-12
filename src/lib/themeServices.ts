@@ -8,7 +8,7 @@ export const THEME_IDS: ThemeId[] = [
   'hair',
   'barber_mens_grooming',
   'hair_studio_color_bar',
-  'wellness',
+  'beauty_skin_spa',
   'family-salon',
 ];
 
@@ -19,12 +19,15 @@ export const THEME_IDS: ThemeId[] = [
  *   `barber_mens_grooming`).
  * - `hair-studio` is the legacy id for the Hair Studio & Color Bar slot (now
  *   `hair_studio_color_bar`).
+ * - `wellness` is the legacy id for the Beauty, Skin & Spa slot (now
+ *   `beauty_skin_spa`).
  * Old drafts saved with the legacy ids are mapped forward so nothing breaks,
  * while new data is always written with the canonical id.
  */
 export function normalizeThemeId(id: string | undefined | null): ThemeId {
   if (id === 'barber') return 'barber_mens_grooming';
   if (id === 'hair-studio') return 'hair_studio_color_bar';
+  if (id === 'wellness') return 'beauty_skin_spa';
   if (id && (THEME_IDS as string[]).includes(id)) return id as ThemeId;
   return 'hair';
 }
@@ -33,7 +36,7 @@ export const THEME_LABELS: Record<ThemeId, string> = {
   hair: 'Hair & Unisex Salon',
   barber_mens_grooming: "Barber & Men's Grooming",
   hair_studio_color_bar: 'Hair Studio & Color Bar',
-  wellness: 'Beauty, Skin & Spa',
+  beauty_skin_spa: 'Beauty, Skin & Spa',
   'family-salon': 'Full-Service Family Salon',
 };
 
@@ -54,7 +57,7 @@ export const THEME_CATEGORIES: Record<ThemeId, string[]> = {
   hair: ['Haircut', 'Styling', 'Color', 'Treatment', 'Makeup & Beauty'],
   barber_mens_grooming: ['Haircuts', 'Beard & Shave', 'Grooming & Treatments'],
   hair_studio_color_bar: ['Styling & Cuts', 'Hair Color', 'Treatments'],
-  wellness: ['Massage', 'Facials', 'Nails', 'Hair Removal', 'Spa Packages'],
+  beauty_skin_spa: ['Massage', 'Facials', 'Nails', 'Hair Removal', 'Spa Packages'],
   'family-salon': ['Hair', 'Beauty', 'Skin', 'Grooming', 'Spa', 'Kids'],
 };
 
@@ -92,6 +95,27 @@ export const HAIR_STUDIO_THEME = {
   roseDeep: '#9d5a63',
   line: '#e7e0d8',
   muted: '#8c8782',
+} as const;
+
+/**
+ * Shared design tokens for the Beauty, Skin & Spa theme.
+ * Soft pastel, emerald + beige accents, calm and serene premium wellness.
+ * Used by both TemplateRenderer (BeautySpaTemplateRenderer) and PreviewPane.
+ */
+export const BEAUTY_SPA_THEME = {
+  id: 'beauty_skin_spa' as const,
+  emerald: '#1e7a63',
+  emeraldDeep: '#15594a',
+  emeraldMid: '#4aa88f',
+  emeraldSoft: '#e2f0ea',
+  beige: '#ece4d6',
+  beigeSoft: '#f7f1e8',
+  cream: '#fbf9f5',
+  blush: '#f6ece9',
+  sage: '#eef2e9',
+  text: '#27403a',
+  muted: '#72837c',
+  line: '#ece6dc',
 } as const;
 
 /**
@@ -161,7 +185,7 @@ export const SERVICES_BY_THEME: Record<ThemeId, PredefinedService[]> = {
     { name: 'Hair Loss Scalp Therapy', category: 'Grooming & Treatments', description: 'Targeted scalp therapy to strengthen roots and reduce hair fall.', price: 1200, duration: 45 },
   ],
 
-  wellness: [
+  beauty_skin_spa: [
     // Massage
     { name: 'Swedish Relaxation Massage', category: 'Massage', description: 'Gentle, flowing massage to ease tension and promote calm.', price: 1800, duration: 60 },
     { name: 'Deep Tissue Massage', category: 'Massage', description: 'Firm pressure massage targeting knots and chronic muscle tightness.', price: 2400, duration: 60 },
@@ -297,7 +321,7 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
     'Hair Botox Treatment',
     'Olaplex Bond Repair',
   ],
-  wellness: [
+  beauty_skin_spa: [
     'Swedish Relaxation Massage',
     'Hydra Facial',
     'Classic Manicure',
@@ -362,7 +386,7 @@ export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
   barber_mens_grooming: ['Skin Fade', 'Hot Towel Classic Shave'],
   hair_studio_color_bar: ['Balayage / Ombre', 'Olaplex Bond Repair'],
-  wellness: ['Hydra Facial', 'Swedish Relaxation Massage'],
+  beauty_skin_spa: ['Hydra Facial', 'Swedish Relaxation Massage'],
   'family-salon': ['De-Stress Spa Combo', 'Mommy & Me Package'],
 };
 
@@ -371,6 +395,6 @@ export const VOICE_SERVICE_BY_THEME: Record<ThemeId, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
   barber_mens_grooming: { name: 'The Executive Cut & Shave', category: 'Grooming & Treatments', description: 'Signature cut with hot-towel shave and scalp massage finish.', price: 750, duration: 60 },
   hair_studio_color_bar: { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
-  wellness: { name: 'Aroma Relaxation Massage', category: 'Massage', description: 'Soothing essential-oil full-body massage.', price: 2000, duration: 60 },
+  beauty_skin_spa: { name: 'Aroma Relaxation Massage', category: 'Massage', description: 'Soothing essential-oil full-body massage.', price: 2000, duration: 60 },
   'family-salon': { name: 'Family Pamper Day Pass', category: 'Spa', description: 'A relaxing head massage and mini facial for the whole family.', price: 2500, duration: 120 },
 };

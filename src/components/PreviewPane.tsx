@@ -2,7 +2,7 @@ import { Monitor, Smartphone, Phone, Sparkles, Instagram, Youtube, Facebook, Vid
 import { useState, useEffect, useRef } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
-import { normalizeThemeId, BARBER_THEME, HAIR_STUDIO_THEME } from '../lib/themeServices';
+import { normalizeThemeId, BARBER_THEME, HAIR_STUDIO_THEME, BEAUTY_SPA_THEME } from '../lib/themeServices';
 import CustomerBookingPreview from './CustomerBookingPreview';
 import OwnerAvatar from './OwnerAvatar';
 
@@ -41,6 +41,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   const templateId = normalizeThemeId(data.templateId);
   const isBarber = templateId === 'barber_mens_grooming';
   const isHairStudio = templateId === 'hair_studio_color_bar';
+  const isBeautySpa = templateId === 'beauty_skin_spa';
 
   // Template styles configuration
   const templateConfig = {
@@ -80,16 +81,16 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
       subText: 'text-neutral-500',
       headingFont: 'font-serif',
     },
-    wellness: {
-      navBg: 'bg-emerald-950/90 text-emerald-50 border-emerald-900/50',
-      heroBg: 'bg-emerald-900 text-emerald-50',
-      primaryBtn: 'bg-emerald-600 hover:bg-emerald-700 text-white',
-      accentColor: '#059669',
-      accentText: 'text-emerald-600',
-      badgeBg: 'bg-emerald-100 text-emerald-800',
-      fontFamily: 'font-sans',
-      cardBg: 'bg-emerald-50/30 border-emerald-100 text-emerald-950',
-      subText: 'text-emerald-700/80',
+    beauty_skin_spa: {
+      navBg: 'bg-white text-neutral-800 border-[#ece6dc]',
+      heroBg: 'bg-[#f7f1e8] text-neutral-800',
+      primaryBtn: 'bg-[#1e7a63] hover:brightness-105 text-white',
+      accentColor: BEAUTY_SPA_THEME.emerald,
+      accentText: 'text-[#15594a]',
+      badgeBg: 'bg-[#e2f0ea] text-[#15594a]',
+      fontFamily: 'font-serif',
+      cardBg: 'bg-white border-[#ece6dc] text-neutral-800',
+      subText: 'text-[#72837c]',
       headingFont: 'font-serif',
     },
     'family-salon': {
@@ -107,26 +108,28 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   }[templateId];
 
   // Accent tokens for the step-aware preview. Existing themes keep their exact
-  // current look (pink for Hair); Barber swaps to vintage gold and Hair Studio
-  // to rose-gold.
-  const accentTextCls = isBarber ? 'text-[#c9a227]' : isHairStudio ? 'text-[#9d5a63]' : 'text-[#ac0053]';
-  const accentBgCls = isBarber ? 'bg-[#c9a227]' : isHairStudio ? 'bg-[#b76e79]' : 'bg-[#ac0053]';
-  const accentBg10Cls = isBarber ? 'bg-[#c9a227]/10' : isHairStudio ? 'bg-[#b76e79]/10' : 'bg-[#ac0053]/10';
-  const accentSoftBgCls = isBarber ? 'bg-[#c9a227]/15' : isHairStudio ? 'bg-[#f4e5e7]' : 'bg-[#ffd9e1]';
-  const accentSoftBg10Cls = isBarber ? 'bg-[#c9a227]/10' : isHairStudio ? 'bg-[#f4e5e7]/60' : 'bg-[#ffd9e1]/10';
-  const accentSoftBg30Cls = isBarber ? 'bg-[#c9a227]/15' : isHairStudio ? 'bg-[#f4e5e7]' : 'bg-[#ffd9e1]/30';
-  const accentSoftText800Cls = isBarber ? 'text-[#e8c95c]' : isHairStudio ? 'text-[#9d5a63]' : 'text-[#80003c]';
-  const accentBadgeCls = isBarber ? 'bg-[#3a3016] text-[#e8c95c]' : isHairStudio ? 'bg-[#f4e5e7] text-[#9d5a63]' : 'bg-[#ffd9e1] text-[#ac0053]';
-  const accentBorderCls = isBarber ? 'border-[#c9a227]' : isHairStudio ? 'border-[#b76e79]' : 'border-[#ac0053]';
-  const accentBorder20Cls = isBarber ? 'border-[#c9a227]/20' : isHairStudio ? 'border-[#b76e79]/30' : 'border-[#ac0053]/20';
-  const accentRingCls = isBarber ? 'ring-[#c9a227]/30' : isHairStudio ? 'ring-[#b76e79]/30' : 'ring-[#ac0053]/30';
-  const accentRing40Cls = isBarber ? 'ring-[#c9a227]/40' : isHairStudio ? 'ring-[#b76e79]/40' : 'ring-[#ac0053]/40';
-  const accentBorderHoverCls = isBarber ? 'hover:border-[#c9a227]' : isHairStudio ? 'hover:border-[#b76e79]' : 'hover:border-[#ac0053]';
-  const accentHoverTextCls = isBarber ? 'hover:text-[#c9a227]' : isHairStudio ? 'hover:text-[#b76e79]' : 'hover:text-[#ac0053]';
+  // current look (pink for Hair); Barber swaps to vintage gold, Hair Studio to
+  // rose-gold and Beauty/Spa to emerald.
+  const accentTextCls = isBarber ? 'text-[#c9a227]' : isHairStudio ? 'text-[#9d5a63]' : isBeautySpa ? 'text-[#15594a]' : 'text-[#ac0053]';
+  const accentBgCls = isBarber ? 'bg-[#c9a227]' : isHairStudio ? 'bg-[#b76e79]' : isBeautySpa ? 'bg-[#1e7a63]' : 'bg-[#ac0053]';
+  const accentBg10Cls = isBarber ? 'bg-[#c9a227]/10' : isHairStudio ? 'bg-[#b76e79]/10' : isBeautySpa ? 'bg-[#1e7a63]/10' : 'bg-[#ac0053]/10';
+  const accentSoftBgCls = isBarber ? 'bg-[#c9a227]/15' : isHairStudio ? 'bg-[#f4e5e7]' : isBeautySpa ? 'bg-[#e2f0ea]' : 'bg-[#ffd9e1]';
+  const accentSoftBg10Cls = isBarber ? 'bg-[#c9a227]/10' : isHairStudio ? 'bg-[#f4e5e7]/60' : isBeautySpa ? 'bg-[#e2f0ea]/60' : 'bg-[#ffd9e1]/10';
+  const accentSoftBg30Cls = isBarber ? 'bg-[#c9a227]/15' : isHairStudio ? 'bg-[#f4e5e7]' : isBeautySpa ? 'bg-[#e2f0ea]' : 'bg-[#ffd9e1]/30';
+  const accentSoftText800Cls = isBarber ? 'text-[#e8c95c]' : isHairStudio ? 'text-[#9d5a63]' : isBeautySpa ? 'text-[#15594a]' : 'text-[#80003c]';
+  const accentBadgeCls = isBarber ? 'bg-[#3a3016] text-[#e8c95c]' : isHairStudio ? 'bg-[#f4e5e7] text-[#9d5a63]' : isBeautySpa ? 'bg-[#e2f0ea] text-[#15594a]' : 'bg-[#ffd9e1] text-[#ac0053]';
+  const accentBorderCls = isBarber ? 'border-[#c9a227]' : isHairStudio ? 'border-[#b76e79]' : isBeautySpa ? 'border-[#1e7a63]' : 'border-[#ac0053]';
+  const accentBorder20Cls = isBarber ? 'border-[#c9a227]/20' : isHairStudio ? 'border-[#b76e79]/30' : isBeautySpa ? 'border-[#1e7a63]/30' : 'border-[#ac0053]/20';
+  const accentRingCls = isBarber ? 'ring-[#c9a227]/30' : isHairStudio ? 'ring-[#b76e79]/30' : isBeautySpa ? 'ring-[#1e7a63]/30' : 'ring-[#ac0053]/30';
+  const accentRing40Cls = isBarber ? 'ring-[#c9a227]/40' : isHairStudio ? 'ring-[#b76e79]/40' : isBeautySpa ? 'ring-[#1e7a63]/40' : 'ring-[#ac0053]/40';
+  const accentBorderHoverCls = isBarber ? 'hover:border-[#c9a227]' : isHairStudio ? 'hover:border-[#b76e79]' : isBeautySpa ? 'hover:border-[#1e7a63]' : 'hover:border-[#ac0053]';
+  const accentHoverTextCls = isBarber ? 'hover:text-[#c9a227]' : isHairStudio ? 'hover:text-[#b76e79]' : isBeautySpa ? 'hover:text-[#1e7a63]' : 'hover:text-[#ac0053]';
   const accentTopGradientCls = isBarber
     ? 'from-[#c9a227] to-[#e8c95c]'
     : isHairStudio
     ? 'from-[#b76e79] to-[#d8a0a8]'
+    : isBeautySpa
+    ? 'from-[#1e7a63] to-[#4aa88f]'
     : 'from-[#ac0053] to-[#ffb1c4]';
 
   // Auto-scroll/focus to the relevant section when step or data/activeStaffId changes (Section-Aware Live Preview)
@@ -281,9 +284,9 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                   }`}
                 />
               )}
-              <div className={`relative z-10 max-w-xl mx-auto ${isHairStudio ? 'text-neutral-900' : 'text-white'}`}>
+              <div className={`relative z-10 max-w-xl mx-auto ${isHairStudio || isBeautySpa ? 'text-neutral-900' : 'text-white'}`}>
                 <h1 className={`text-2xl md:text-3xl font-bold mb-2 ${templateConfig.headingFont}`}>{data.tagline || 'Elevating your natural beauty'}</h1>
-                <p className={`text-xs mb-6 max-w-md mx-auto leading-relaxed ${isHairStudio ? 'text-neutral-500' : 'text-gray-200'}`}>{data.about || 'A brief description of your services and ambiance.'}</p>
+                <p className={`text-xs mb-6 max-w-md mx-auto leading-relaxed ${isHairStudio || isBeautySpa ? 'text-neutral-500' : 'text-gray-200'}`}>{data.about || 'A brief description of your services and ambiance.'}</p>
                 <button 
                   onClick={() => setShowBookingWidget(true)}
                   className={`px-6 py-2.5 rounded-lg font-bold text-xs shadow-md transition-all ${templateConfig.primaryBtn}`}

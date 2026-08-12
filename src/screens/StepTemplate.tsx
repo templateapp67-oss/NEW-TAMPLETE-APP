@@ -13,7 +13,7 @@ interface Props {
   onSave?: (msg?: string) => void;
 }
 
-type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'wellness' | 'family-salon';
+type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family-salon';
 
 export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -188,10 +188,10 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
 
           {/* Theme 4 — Beauty, Skin & Spa */}
           <div
-            onClick={() => selectTemplate('wellness')}
+            onClick={() => selectTemplate('beauty_skin_spa')}
             className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
-              currentTemplate === 'wellness'
-                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+              currentTemplate === 'beauty_skin_spa'
+                ? 'border-[#1e7a63] bg-[#e2f0ea]/60 ring-2 ring-[#1e7a63]/25 shadow-xs'
                 : 'border-gray-200/80 hover:border-gray-300'
             }`}
           >
@@ -209,13 +209,13 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start">
                   <h3 className="font-bold text-lg text-gray-900 mb-1">Beauty, Skin & Spa</h3>
-                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'wellness' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'beauty_skin_spa' ? 'text-[#1e7a63]' : 'text-gray-300'}`} />
                 </div>
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold mb-2 text-[11px]">
-                  Soft Pastel • Serene
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#e2f0ea] text-[#15594a] font-bold mb-2 text-[11px]">
+                  Soft Pastel • Emerald &amp; Beige
                 </span>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Soft emerald and beige wellness tones for spas, facials and skincare with a relaxing, serene feel.
+                  A calm, serene wellness sanctuary — soft pastels, emerald and beige accents with a premium spa feel.
                 </p>
               </div>
             </div>
