@@ -1,7 +1,15 @@
 import type { SalonData } from '../types';
 
-/** Theme = the salon website template chosen in Step 2 (Hair / Barber / Hair Studio / Wellness / Family). */
-export type ThemeId = NonNullable<SalonData['templateId']>;
+/**
+ * Theme = the salon website template chosen in Step 2.
+ *
+ * `family-salon` is intentionally retained as a legacy storage id only. It is
+ * never offered as a new choice; saved drafts are normalised to the new,
+ * UI-only Full-Service Family Salon theme.
+ */
+export type ThemeId = Exclude<NonNullable<SalonData['templateId']>, 'family-salon'>;
+export type LegacyThemeId = 'family-salon';
+export type CatalogueThemeId = Exclude<ThemeId, 'family_full_service'> | LegacyThemeId;
 
 /** All currently selectable themes, in display order. */
 export const THEME_IDS: ThemeId[] = [
@@ -9,7 +17,7 @@ export const THEME_IDS: ThemeId[] = [
   'barber_mens_grooming',
   'hair_studio_color_bar',
   'beauty_skin_spa',
-  'family-salon',
+  'family_full_service',
 ];
 
 /**
@@ -21,13 +29,17 @@ export const THEME_IDS: ThemeId[] = [
  *   `hair_studio_color_bar`).
  * - `wellness` is the legacy id for the Beauty, Skin & Spa slot (now
  *   `beauty_skin_spa`).
- * Old drafts saved with the legacy ids are mapped forward so nothing breaks,
- * while new data is always written with the canonical id.
+ * - `family-salon` is the old family slot and now resolves to
+ *   `family_full_service`.
+ *
+ * Old drafts saved with legacy ids are mapped forward so nothing breaks,
+ * while new data is always written with a canonical id.
  */
 export function normalizeThemeId(id: string | undefined | null): ThemeId {
   if (id === 'barber') return 'barber_mens_grooming';
   if (id === 'hair-studio') return 'hair_studio_color_bar';
   if (id === 'wellness') return 'beauty_skin_spa';
+  if (id === 'family-salon') return 'family_full_service';
   if (id && (THEME_IDS as string[]).includes(id)) return id as ThemeId;
   return 'hair';
 }
@@ -37,7 +49,7 @@ export const THEME_LABELS: Record<ThemeId, string> = {
   barber_mens_grooming: "Barber & Men's Grooming",
   hair_studio_color_bar: 'Hair Studio & Color Bar',
   beauty_skin_spa: 'Beauty, Skin & Spa',
-  'family-salon': 'Full-Service Family Salon',
+  family_full_service: 'Full-Service Family Salon',
 };
 
 export interface PredefinedService {
@@ -53,7 +65,7 @@ export interface PredefinedService {
  * Switching theme swaps the whole category set so the data stays relevant
  * to the type of salon the owner actually runs.
  */
-export const THEME_CATEGORIES: Record<ThemeId, string[]> = {
+export const THEME_CATEGORIES: Record<CatalogueThemeId, string[]> = {
   hair: ['Haircut', 'Styling', 'Color', 'Treatment', 'Makeup & Beauty'],
   barber_mens_grooming: ['Haircuts', 'Beard & Shave', 'Grooming & Treatments'],
   hair_studio_color_bar: ['Styling & Cuts', 'Hair Color', 'Treatments'],
@@ -119,12 +131,38 @@ export const BEAUTY_SPA_THEME = {
 } as const;
 
 /**
- * The full, professionally-curated service catalogue for each theme.
- * Every entry is genuinely different per theme — there is no shared/generic
- * list repeated across themes. Categories map cleanly so the Add-Service
- * dropdown can show only the services that belong to the chosen category.
+ * Shared visual tokens for the Full-Service Family Salon UI.
+ *
+ * This theme is deliberately a bright, high-density system: cobalt navigation,
+ * sky surfaces, teal actions, and a small sunny-yellow highlight for kid-first
+ * moments. It has no service catalogue entries in this phase.
  */
-export const SERVICES_BY_THEME: Record<ThemeId, PredefinedService[]> = {
+export const FAMILY_FULL_SERVICE_THEME = {
+  id: 'family_full_service' as const,
+  navy: '#12385b',
+  blue: '#1769d2',
+  blueBright: '#2f8cff',
+  sky: '#eaf6ff',
+  skyDeep: '#cdeaff',
+  teal: '#079f9a',
+  tealDeep: '#087a78',
+  tealSoft: '#d9f5f1',
+  sun: '#ffd166',
+  sunSoft: '#fff4cf',
+  coral: '#ff7b67',
+  ink: '#15324b',
+  muted: '#5d7387',
+  line: '#dcebf4',
+  white: '#ffffff',
+} as const;
+
+/**
+ * The full, professionally-curated service catalogue for each existing theme.
+ * The new Full-Service Family Salon intentionally has no catalogue entry yet;
+ * this phase only wires its visual template. Every existing entry remains
+ * genuinely different per theme and categories map cleanly for the editor.
+ */
+export const SERVICES_BY_THEME: Record<CatalogueThemeId, PredefinedService[]> = {
   hair: [
     // Haircut
     { name: "Women's Haircut & Blow-Dry", category: 'Haircut', description: 'Precision cut tailored to your face shape, finished with a professional wash and blow-dry.', price: 450, duration: 45 },
@@ -285,7 +323,7 @@ export const SERVICES_BY_THEME: Record<ThemeId, PredefinedService[]> = {
  * A hand-picked, theme-appropriate starter set so owners can one-click add
  * the most relevant services for their salon type.
  */
-export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
+export const SUGGESTED_SERVICE_NAMES: Record<CatalogueThemeId, string[]> = {
   hair: [
     "Women's Haircut & Blow-Dry",
     'Global Hair Colour',
@@ -337,7 +375,7 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
  * (e.g. "Beard Sculpting & Lineup"). This maps them together so one-click
  * "Add Selected" always resolves to a real, fully-described service.
  */
-export const SUGGESTED_SERVICE_ALIASES: Partial<Record<ThemeId, Record<string, string>>> = {
+export const SUGGESTED_SERVICE_ALIASES: Partial<Record<CatalogueThemeId, Record<string, string>>> = {
   barber_mens_grooming: {
     'Beard Sculpting': 'Beard Sculpting & Lineup',
     'Hot Towel Shave': 'Hot Towel Classic Shave',
@@ -353,28 +391,43 @@ export const SUGGESTED_SERVICE_ALIASES: Partial<Record<ThemeId, Record<string, s
   },
 };
 
+/**
+ * Returns the categories available to the service editor for a theme.
+ * The family theme deliberately returns an empty list until the service phase
+ * is implemented; keeping this boundary here prevents UI code from inventing
+ * family services as a side effect of selecting the visual theme.
+ */
+export function getThemeCategories(theme: ThemeId): string[] {
+  if (theme === 'family_full_service') return [];
+  return THEME_CATEGORIES[theme as CatalogueThemeId] || [];
+}
+
 /** Returns the curated suggested services for a theme (resolved from the catalogue). */
 export function getSuggestedServices(theme: ThemeId): PredefinedService[] {
-  const all = SERVICES_BY_THEME[theme] || [];
-  const aliases = SUGGESTED_SERVICE_ALIASES[theme] || {};
-  return (SUGGESTED_SERVICE_NAMES[theme] || [])
+  if (theme === 'family_full_service') return [];
+  const catalogueTheme = theme as CatalogueThemeId;
+  const all = SERVICES_BY_THEME[catalogueTheme] || [];
+  const aliases = SUGGESTED_SERVICE_ALIASES[catalogueTheme] || {};
+  return (SUGGESTED_SERVICE_NAMES[catalogueTheme] || [])
     .map((name) => all.find((s) => s.name === name) || all.find((s) => s.name === aliases[name]))
     .filter((s): s is PredefinedService => Boolean(s));
 }
 
 /** All predefined services that belong to a given theme + category. */
 export function getServicesForThemeCategory(theme: ThemeId, category: string): PredefinedService[] {
-  return (SERVICES_BY_THEME[theme] || []).filter((s) => s.category === category);
+  if (theme === 'family_full_service') return [];
+  return (SERVICES_BY_THEME[theme as CatalogueThemeId] || []).filter((s) => s.category === category);
 }
 
 /** Case-insensitive lookup of a predefined service by name within a theme. */
 export function findPredefinedService(theme: ThemeId, name: string): PredefinedService | undefined {
+  if (theme === 'family_full_service') return undefined;
   const q = name.trim().toLowerCase();
-  return (SERVICES_BY_THEME[theme] || []).find((s) => s.name.toLowerCase() === q);
+  return (SERVICES_BY_THEME[theme as CatalogueThemeId] || []).find((s) => s.name.toLowerCase() === q);
 }
 
 /** Theme-aware "Suggest with AI" starter services. */
-export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
+export const AI_SUGGESTION_NAMES: Record<CatalogueThemeId, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
   barber_mens_grooming: ['Skin Fade', 'Hot Towel Classic Shave'],
   hair_studio_color_bar: ['Balayage / Ombre', 'Olaplex Bond Repair'],
@@ -383,7 +436,7 @@ export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
 };
 
 /** Theme-aware spoken-input example service. */
-export const VOICE_SERVICE_BY_THEME: Record<ThemeId, PredefinedService> = {
+export const VOICE_SERVICE_BY_THEME: Record<CatalogueThemeId, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
   barber_mens_grooming: { name: 'The Executive Cut & Shave', category: 'Grooming & Treatments', description: 'Signature cut with hot-towel shave and scalp massage finish.', price: 750, duration: 60 },
   hair_studio_color_bar: { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },

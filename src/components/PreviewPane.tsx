@@ -5,6 +5,7 @@ import { getSalonNameStyle } from '../lib/brandIdentity';
 import { normalizeThemeId, BARBER_THEME, HAIR_STUDIO_THEME, BEAUTY_SPA_THEME } from '../lib/themeServices';
 import CustomerBookingPreview from './CustomerBookingPreview';
 import OwnerAvatar from './OwnerAvatar';
+import FamilyFullServiceTemplateRenderer from './FamilyFullServiceTemplateRenderer';
 
 export default function PreviewPane({ data, step, activeStaffId }: { data: SalonData, step: number, activeStaffId?: string }) {
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
@@ -42,6 +43,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   const isBarber = templateId === 'barber_mens_grooming';
   const isHairStudio = templateId === 'hair_studio_color_bar';
   const isBeautySpa = templateId === 'beauty_skin_spa';
+  const isFamilyFullService = templateId === 'family_full_service';
 
   // Template styles configuration
   const templateConfig = {
@@ -93,17 +95,17 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
       subText: 'text-[#72837c]',
       headingFont: 'font-serif',
     },
-    'family-salon': {
-      navBg: 'bg-white text-slate-800 border-teal-100',
-      heroBg: 'bg-gradient-to-br from-teal-500 to-sky-600 text-white',
-      primaryBtn: 'bg-teal-600 hover:bg-teal-700 text-white',
-      accentColor: '#0d9488',
-      accentText: 'text-teal-600',
-      badgeBg: 'bg-teal-100 text-teal-800',
+    'family_full_service': {
+      navBg: 'bg-white text-[#15324b] border-[#dcebf4]',
+      heroBg: 'bg-[#eaf6ff] text-[#12385b]',
+      primaryBtn: 'bg-[#079f9a] hover:bg-[#087a78] text-white',
+      accentColor: '#1769d2',
+      accentText: 'text-[#1769d2]',
+      badgeBg: 'bg-[#d9f5f1] text-[#087a78]',
       fontFamily: 'font-sans',
-      cardBg: 'bg-white border-teal-100 text-slate-800',
-      subText: 'text-slate-500',
-      headingFont: 'font-sans font-semibold',
+      cardBg: 'bg-white border-[#dcebf4] text-[#15324b]',
+      subText: 'text-[#5d7387]',
+      headingFont: 'font-sans font-extrabold',
     }
   }[templateId];
 
@@ -180,6 +182,14 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
     }
     return 'Meet Our Experts & Stylists';
   };
+
+  if (isFamilyFullService) {
+    return (
+      <div className="w-full h-full bg-[#f3f3f4] flex items-start justify-center overflow-hidden p-2 md:p-4">
+        <FamilyFullServiceTemplateRenderer data={data} mode={mode} />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-[#f3f3f4] flex flex-col border-l border-gray-200 relative">

@@ -13,7 +13,7 @@ interface Props {
   onSave?: (msg?: string) => void;
 }
 
-type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family-salon';
+type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family_full_service';
 
 export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -223,17 +223,17 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
 
           {/* Theme 5 — Full-Service Family Salon */}
           <div
-            onClick={() => selectTemplate('family-salon')}
+            onClick={() => selectTemplate('family_full_service')}
             className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
-              currentTemplate === 'family-salon'
-                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+              currentTemplate === 'family_full_service'
+                ? 'border-[#1769d2] bg-[#eaf6ff]/70 ring-2 ring-[#1769d2]/25 shadow-xs'
                 : 'border-gray-200/80 hover:border-gray-300'
             }`}
           >
             <div className="flex items-start gap-4">
               <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
                 <img
-                  src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&auto=format&fit=crop"
+                  src="https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&auto=format&fit=crop"
                   alt="Full-Service Family Salon Template"
                   className="w-full h-full object-cover absolute inset-0"
                 />
@@ -244,7 +244,7 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start">
                   <h3 className="font-bold text-lg text-gray-900 mb-1">Full-Service Family Salon</h3>
-                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'family-salon' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'family_full_service' ? 'text-[#1769d2]' : 'text-gray-300'}`} />
                 </div>
                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold mb-2 text-[11px]">
                   Bright • Blue/Teal • Family
