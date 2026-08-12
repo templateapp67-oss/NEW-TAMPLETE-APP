@@ -48,6 +48,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
       footerBg: 'bg-emerald-950 text-emerald-100',
     }
   }[templateId];
+  const brandColor = data.brandColor || config.accentColor;
 
   // Dynamic team title
   const getTeamTitle = () => {
@@ -93,7 +94,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
             {data.logoUrl ? (
               <img src={data.logoUrl} alt="Logo" className="h-7 w-auto object-contain max-w-[120px]" />
             ) : (
-              <Sparkles className="w-5 h-5" style={{ color: config.accentColor }} />
+              <Sparkles className="w-5 h-5" style={{ color: brandColor }} />
             )}
             <span className="font-bold text-lg">{data.salonName || 'Your Salon'}</span>
           </div>
@@ -130,7 +131,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
             <p className="text-xs md:text-sm text-gray-200 mb-6 max-w-md mx-auto leading-relaxed opacity-90">
               {data.about || 'Experience world-class care, top-tier styling, and ultimate relaxation in our studio.'}
             </p>
-            <button className={`px-6 py-3 rounded-xl font-bold text-xs shadow-lg transition-transform active:scale-95 ${config.primaryBtn}`}>
+            <button className={`px-6 py-3 rounded-xl font-bold text-xs shadow-lg transition-transform active:scale-95 ${config.primaryBtn}`} style={{ backgroundColor: brandColor }}>
               Book Appointment Now
             </button>
           </div>
@@ -154,7 +155,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
                 <p className="text-xs opacity-75 mb-4 line-clamp-2">{s.description}</p>
                 <div className="flex justify-between items-center pt-2 border-t border-gray-100/20 text-[11px]">
                   <span className="opacity-60 font-medium">{s.duration} mins</span>
-                  <button className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-colors ${config.primaryBtn}`}>
+                  <button className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-colors ${config.primaryBtn}`} style={{ backgroundColor: brandColor }}>
                     Book Slot
                   </button>
                 </div>
@@ -188,7 +189,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
                     </div>
                     <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-0 border-gray-150">
                       <span className={`font-extrabold text-base md:text-lg ${config.accentText}`}>₹{p.price.toLocaleString('en-IN')}</span>
-                      <button className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-colors ${config.primaryBtn}`}>
+                      <button className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-colors ${config.primaryBtn}`} style={{ backgroundColor: brandColor }}>
                         Book Bundle
                       </button>
                     </div>
@@ -258,7 +259,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
                         "{pub.bio}"
                       </p>
                     )}
-                    <button className={`w-full py-2 rounded-xl text-xs font-bold transition-colors mt-auto ${config.primaryBtn}`}>
+                    <button className={`w-full py-2 rounded-xl text-xs font-bold transition-colors mt-auto ${config.primaryBtn}`} style={{ backgroundColor: brandColor }}>
                       Book with {pub.name.split(' ')[0]}
                     </button>
                   </div>
@@ -377,7 +378,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
             <button className="py-3 bg-[#25D366] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2">
               <MessageCircle className="w-4 h-4" /> WhatsApp
             </button>
-            <button className={`py-3 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 ${config.primaryBtn}`}>
+            <button className={`py-3 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 ${config.primaryBtn}`} style={{ backgroundColor: brandColor }}>
               <CalendarCheck className="w-4 h-4" /> Book Online
             </button>
           </div>
