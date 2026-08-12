@@ -4,6 +4,30 @@ import PreviewPane from '../components/PreviewPane';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, FormEvent } from 'react';
 
+// Generates a professional, customer-friendly, category-specific service description.
+// Kept offline (rule-based) so it works without any API key, consistent with the app's
+// convention that all AI/copy features keep their offline fallbacks.
+function suggestServiceDescription(category: string, serviceName: string): string {
+  const name = serviceName.trim();
+  // Prefixing the service name keeps each description service-specific.
+  const withName = (base: string) => (name ? `${name} — ${base}` : base);
+
+  switch (category) {
+    case 'Haircut':
+      return withName('Precision cut tailored to your face shape and hair type for a fresh, polished look.');
+    case 'Styling':
+      return withName('Professional blow-dry, setting and styling with long-lasting hold for a flawless finish.');
+    case 'Color':
+      return withName('Vibrant, long-lasting color with even application for rich, healthy-looking shine.');
+    case 'Treatment':
+      return withName('Deep-nourishing treatment that repairs, hydrates and restores your hair and scalp.');
+    case 'Barbering':
+      return withName('Precision men\u2019s grooming with clean lines and a sharp, confident finish.');
+    default:
+      return withName('Professional salon service delivered by our experienced stylists.');
+  }
+}
+
 interface Props {
   data: SalonData;
   setData: (d: SalonData) => void;
@@ -34,6 +58,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [newServiceDuration, setNewServiceDuration] = useState(30);
   const [newServiceCategory, setNewServiceCategory] = useState('Haircut');
   const [newServiceDesc, setNewServiceDesc] = useState('');
+  // Tracks whether the user hand-wrote the description, so we never silently
+  // overwrite their work when the category (or service name) changes.
+  const [newServiceDescTouched, setNewServiceDescTouched] = useState(false);
+  const [pendingDescSuggestion, setPendingDescSuggestion] = useState('');
+  const [showDescConfirm, setShowDescConfirm] = useState(false);
 
   // New Package Form state
   const [newPackageName, setNewPackageName] = useState('');
@@ -124,6 +153,56 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     }, 1500);
   };
 
+  const handleOpenAddService = () => {
+    setIsAddingService(true);
+    // Pre-fill a suggested description for the current category so the field is
+    // never empty and gives a professional starting point.
+    setNewServiceDesc(suggestServiceDescription(newServiceCategory, newServiceName));
+    setNewServiceDescTouched(false);
+    setShowDescConfirm(false);
+    setPendingDescSuggestion('');
+  };
+
+  const handleServiceNameChange = (name: string) => {
+    setNewServiceName(name);
+    // Keep the auto-suggestion in sync with the service name, but only while the
+    // user hasn't hand-written their own description.
+    if (!newServiceDescTouched && newServiceDesc.trim()) {
+      setNewServiceDesc(suggestServiceDescription(newServiceCategory, name));
+    }
+  };
+
+  const handleCategoryChange = (cat: string) => {
+    setNewServiceCategory(cat);
+    const suggested = suggestServiceDescription(cat, newServiceName.trim());
+    const isBlank = !newServiceDesc.trim();
+    if (!newServiceDescTouched || isBlank) {
+      // Auto-update: description wasn't hand-written (or is empty) — safe to replace.
+      setNewServiceDesc(suggested);
+      setNewServiceDescTouched(false);
+      setShowDescConfirm(false);
+      setPendingDescSuggestion('');
+    } else {
+      // User hand-wrote a description — ask before overwriting it.
+      setPendingDescSuggestion(suggested);
+      setShowDescConfirm(true);
+    }
+  };
+
+  const handleServiceDescChange = (value: string) => {
+    setNewServiceDesc(value);
+    setNewServiceDescTouched(true);
+    setShowDescConfirm(false);
+    setPendingDescSuggestion('');
+  };
+
+  const applyDescSuggestion = (suggestion: string) => {
+    setNewServiceDesc(suggestion);
+    setNewServiceDescTouched(false);
+    setShowDescConfirm(false);
+    setPendingDescSuggestion('');
+  };
+
   const handleCreateService = (e: FormEvent) => {
     e.preventDefault();
     if (!newServiceName.trim()) return;
@@ -141,6 +220,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     });
     setNewServiceName('');
     setNewServiceDesc('');
+    setNewServiceDescTouched(false);
+    setShowDescConfirm(false);
+    setPendingDescSuggestion('');
     setIsAddingService(false);
     if (onSave) onSave();
   };
@@ -354,7 +436,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                         type="text" 
                         required 
                         value={newServiceName} 
-                        onChange={e => setNewServiceName(e.target.value)}
+                        onChange={e => handleServiceNameChange(e.target.value)}
                         placeholder="e.g. Balayage Color" 
                         className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                       />
@@ -363,7 +445,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Category</label>
                       <select 
                         value={newServiceCategory} 
-                        onChange={e => setNewServiceCategory(e.target.value)}
+                        onChange={e => handleCategoryChange(e.target.value)}
                         className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                       >
                         <option value="Haircut">Haircut</option>
@@ -395,14 +477,46 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Description</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-[#1a1c1c]">Description</label>
+                      <button
+                        type="button"
+                        onClick={() => applyDescSuggestion(suggestServiceDescription(newServiceCategory, newServiceName))}
+                        className="flex items-center gap-1 text-xs font-semibold text-[#ac0053] hover:underline"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" /> Generate suggestion
+                      </button>
+                    </div>
                     <textarea 
                       value={newServiceDesc} 
-                      onChange={e => setNewServiceDesc(e.target.value)}
+                      onChange={e => handleServiceDescChange(e.target.value)}
                       placeholder="Brief details about the service" 
                       rows={2}
                       className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
                     />
+                    {showDescConfirm && (
+                      <div className="mt-2 rounded-lg border border-[#ac0053]/30 bg-[#fff1f4] p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <p className="text-xs text-[#5f5e5e]">
+                          Category changed to <span className="font-semibold text-[#1a1c1c]">{newServiceCategory}</span>. Replace your description with a suggested one?
+                        </p>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => applyDescSuggestion(pendingDescSuggestion)}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-[#ac0053] rounded-lg hover:bg-[#ba005b]"
+                          >
+                            Replace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDescConfirm(false)}
+                            className="px-3 py-1.5 text-xs font-semibold text-[#5f5e5e] bg-white border border-[#eeeeee] rounded-lg hover:bg-gray-50"
+                          >
+                            Keep mine
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <button type="button" onClick={() => setIsAddingService(false)} className="px-4 py-2 text-sm text-[#5f5e5e] hover:bg-gray-100 rounded-lg">
@@ -415,7 +529,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                 </form>
               ) : (
                 <button 
-                  onClick={() => setIsAddingService(true)}
+                  onClick={handleOpenAddService}
                   className="flex items-center justify-center gap-2 w-full py-4 border border-dashed border-[#5f5e5e] hover:border-[#ac0053] hover:text-[#ac0053] text-[#5f5e5e] rounded-lg text-sm font-semibold transition-colors bg-white"
                 >
                   <Plus className="w-5 h-5" /> Add Service
