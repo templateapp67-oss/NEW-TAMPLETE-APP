@@ -12,6 +12,8 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   const contactSectionRef = useRef<HTMLDivElement>(null);
 
   const [showBookingWidget, setShowBookingWidget] = useState(step === 8);
+  const [advancePaymentSuccessful, setAdvancePaymentSuccessful] = useState(false);
+  const [lockedActionMessage, setLockedActionMessage] = useState<string | null>(null);
   const lastStepRef = useRef(step);
 
   useEffect(() => {
@@ -123,7 +125,8 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
       {showBookingWidget ? (
         <CustomerBookingPreview 
           data={data} 
-          onBackToWebsite={() => setShowBookingWidget(false)} 
+          onBackToWebsite={() => setShowBookingWidget(false)}
+          onAdvancePaymentSuccess={() => setAdvancePaymentSuccessful(true)}
         />
       ) : (
         <>
@@ -561,27 +564,67 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
               </div>
 
               <div className="max-w-xl mx-auto space-y-6">
-                {/* Contact Action Buttons */}
+                {/* Contact Action Buttons: enabled only after the existing booking payment succeeds. */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {(!data.contactOptions || data.contactOptions.callNow) && (
-                    <button className="w-full py-3 bg-white border border-gray-200 hover:border-[#ac0053] text-gray-900 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!advancePaymentSuccessful) {
+                          setLockedActionMessage('Please pay 25% advance first. These buttons will work after successful payment.');
+                          return;
+                        }
+                        window.location.href = `tel:${data.phone || ''}`;
+                      }}
+                      className={`w-full py-3 bg-white border border-gray-200 text-gray-900 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all ${advancePaymentSuccessful ? 'hover:border-[#ac0053]' : 'opacity-60'}`}
+                    >
                       <Phone className="w-4 h-4 text-[#ac0053]" /> Call Now
                     </button>
                   )}
                   {(!data.contactOptions || data.contactOptions.whatsapp) && (
-                    <button className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!advancePaymentSuccessful) {
+                          setLockedActionMessage('Please pay 25% advance first. These buttons will work after successful payment.');
+                          return;
+                        }
+                        const phone = (data.whatsappPhone || data.phone || '').replace(/\D/g, '');
+                        window.open(phone ? `https://wa.me/${phone}` : 'https://wa.me/', '_blank', 'noopener,noreferrer');
+                      }}
+                      className={`w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all ${advancePaymentSuccessful ? '' : 'opacity-60'}`}
+                    >
                       <MessageCircle className="w-4 h-4" /> WhatsApp
                     </button>
                   )}
                   {(!data.contactOptions || data.contactOptions.bookNow) && (
-                    <button 
-                      onClick={() => setShowBookingWidget(true)}
-                      className="w-full py-3 bg-[#ac0053] hover:bg-[#ba005b] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!advancePaymentSuccessful) {
+                          setLockedActionMessage('Please pay 25% advance first. These buttons will work after successful payment.');
+                          return;
+                        }
+                        setShowBookingWidget(true);
+                      }}
+                      className={`w-full py-3 bg-[#ac0053] hover:bg-[#ba005b] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all ${advancePaymentSuccessful ? '' : 'opacity-60'}`}
                     >
                       <CalendarCheck className="w-4 h-4" /> Book Online
                     </button>
                   )}
                 </div>
+                {!advancePaymentSuccessful && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    <p>{lockedActionMessage || 'Please pay 25% advance first. These buttons will work after successful payment.'}</p>
+                    <button
+                      type="button"
+                      onClick={() => { setLockedActionMessage(null); setShowBookingWidget(true); }}
+                      className="mt-2 rounded-lg bg-[#ac0053] px-3 py-1.5 font-bold text-white hover:bg-[#ba005b]"
+                    >
+                      Pay 25% Advance
+                    </button>
+                  </div>
+                )}
 
                 {/* 25% Deposit Banner Box in Preview */}
                 <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-3">
