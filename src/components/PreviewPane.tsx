@@ -12,7 +12,8 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   const contactSectionRef = useRef<HTMLDivElement>(null);
 
   const [showBookingWidget, setShowBookingWidget] = useState(step === 8);
-  const [advancePaymentSuccessful, setAdvancePaymentSuccessful] = useState(false);
+  // Temporary until the real Razorpay verification is connected: keep appointment actions active.
+  const [advancePaymentSuccessful, setAdvancePaymentSuccessful] = useState(true);
   const [lockedActionMessage, setLockedActionMessage] = useState<string | null>(null);
   const lastStepRef = useRef(step);
 
