@@ -50,6 +50,26 @@ function suggestServiceDescription(category: string, serviceName: string): strin
       return withName('Hygienic, comfortable hair removal with soothing aftercare.');
     case 'Spa Packages':
       return withName('Curated spa experience combining our most-loved treatments.');
+    case 'Cut & Style':
+      return withName('Editorial precision cut and styling tailored to your hair type and face shape.');
+    case 'Color & Highlights':
+      return withName('Artistic color and highlights with expert placement for a natural, dimensional finish.');
+    case 'Texture & Perms':
+      return withName('Professional texturising, smoothing and perming for lasting shape and movement.');
+    case 'Treatments':
+      return withName('Advanced repair and gloss treatment to restore strength, shine and vitality.');
+    case 'Bridal & Events':
+      return withName('Complete hair styling for brides and special events, from trial to the big day.');
+    case 'Hair':
+      return withName('Cut, style and colour services for every member of the family.');
+    case 'Beauty':
+      return withName('Makeup and beauty care delivered by our friendly, experienced artists.');
+    case 'Skin':
+      return withName('Facials and skin care for a healthy, glowing complexion.');
+    case 'Spa':
+      return withName('Relaxing massage and spa therapy to melt away stress and tension.');
+    case 'Kids':
+      return withName('Gentle, fun salon care designed especially for children.');
     default:
       return withName('Professional salon service delivered by our experienced team.');
   }

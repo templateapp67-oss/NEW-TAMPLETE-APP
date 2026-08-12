@@ -12,6 +12,8 @@ interface Props {
   onSave?: (msg?: string) => void;
 }
 
+type ThemeChoice = 'hair' | 'barber' | 'hair-studio' | 'wellness' | 'family-salon';
+
 export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
@@ -19,7 +21,7 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const currentTemplate = data.templateId || 'hair';
 
-  const selectTemplate = (id: 'hair' | 'barber' | 'wellness') => {
+  const selectTemplate = (id: ThemeChoice) => {
     if (id === currentTemplate) return;
     setIsSwitching(true);
     setSaveStatus('saving');
@@ -78,42 +80,7 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
 
         {/* Template Cards List */}
         <div className="space-y-4 pb-20">
-          {/* Barber Template */}
-          <div
-            onClick={() => selectTemplate('barber')}
-            className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
-              currentTemplate === 'barber'
-                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
-                : 'border-gray-200/80 hover:border-gray-300'
-            }`}
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
-                <img
-                  src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=600&auto=format&fit=crop"
-                  alt="Barber Template"
-                  className="w-full h-full object-cover absolute inset-0"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
-                  <span className="text-white text-[10px] font-medium tracking-wide uppercase">Preview</span>
-                </div>
-              </div>
-              <div className="flex-1 pt-1">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-lg text-gray-900 mb-1">Barber</h3>
-                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'barber' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
-                </div>
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-800 font-bold mb-2 text-[11px]">
-                  Bold & Premium
-                </span>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  Best for modern barber shops and men's grooming lounges focusing on sharp aesthetics, dark tones, and clean cuts.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Hair & Unisex Template */}
+          {/* Theme 1 — Existing Theme (Preserved) */}
           <div
             onClick={() => selectTemplate('hair')}
             className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
@@ -126,7 +93,7 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
                 <img
                   src="https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?q=80&w=600&auto=format&fit=crop"
-                  alt="Hair & Unisex Template"
+                  alt="Existing Hair & Unisex Template"
                   className="w-full h-full object-cover absolute inset-0"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
@@ -135,20 +102,90 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               </div>
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-lg text-gray-900 mb-1">Hair & Unisex</h3>
+                  <h3 className="font-bold text-lg text-gray-900 mb-1">Hair & Unisex Salon</h3>
                   <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'hair' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
                 </div>
                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#ffd9e1]/50 text-[#ac0053] font-bold mb-2 text-[11px]">
-                  Modern & Stylish
+                  ✦ Current / Existing Theme
                 </span>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Ideal for unisex salons offering a wide range of premium hair styling, coloring, and styling treatments.
+                  Your original salon theme — preserved exactly as it is. Premium hair, beauty and spa care for a refined unisex audience.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Beauty & Wellness Template */}
+          {/* Theme 2 — Barber & Men's Grooming */}
+          <div
+            onClick={() => selectTemplate('barber')}
+            className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
+              currentTemplate === 'barber'
+                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+                : 'border-gray-200/80 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
+                <img
+                  src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=600&auto=format&fit=crop"
+                  alt="Barber & Men's Grooming Template"
+                  className="w-full h-full object-cover absolute inset-0"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
+                  <span className="text-white text-[10px] font-medium tracking-wide uppercase">Preview</span>
+                </div>
+              </div>
+              <div className="flex-1 pt-1">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-lg text-gray-900 mb-1">Barber & Men's Grooming</h3>
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'barber' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                </div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-800 font-bold mb-2 text-[11px]">
+                  Classic Vintage • Gold Accents
+                </span>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Dark charcoal with sharp gold accents — built for modern barber shops and men's grooming lounges.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Theme 3 — Hair Studio & Color Bar */}
+          <div
+            onClick={() => selectTemplate('hair-studio')}
+            className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
+              currentTemplate === 'hair-studio'
+                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+                : 'border-gray-200/80 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
+                <img
+                  src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&auto=format&fit=crop"
+                  alt="Hair Studio & Color Bar Template"
+                  className="w-full h-full object-cover absolute inset-0"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
+                  <span className="text-white text-[10px] font-medium tracking-wide uppercase">Preview</span>
+                </div>
+              </div>
+              <div className="flex-1 pt-1">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-lg text-gray-900 mb-1">Hair Studio & Color Bar</h3>
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'hair-studio' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                </div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-bold mb-2 text-[11px]">
+                  Minimalist • Rose-Gold
+                </span>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  A monochrome, editorial-style studio with rose-gold accents and a premium gallery-forward experience.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Theme 4 — Beauty, Skin & Spa */}
           <div
             onClick={() => selectTemplate('wellness')}
             className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
@@ -161,7 +198,7 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
                 <img
                   src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?q=80&w=600&auto=format&fit=crop"
-                  alt="Beauty & Wellness Template"
+                  alt="Beauty, Skin & Spa Template"
                   className="w-full h-full object-cover absolute inset-0"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
@@ -170,14 +207,49 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               </div>
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-lg text-gray-900 mb-1">Beauty & Wellness</h3>
+                  <h3 className="font-bold text-lg text-gray-900 mb-1">Beauty, Skin & Spa</h3>
                   <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'wellness' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
                 </div>
                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold mb-2 text-[11px]">
-                  Elegant & Relaxing
+                  Soft Pastel • Serene
                 </span>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Perfect for spas, nail studios, and massage therapy centers looking for a calming, soothing atmosphere.
+                  Soft emerald and beige wellness tones for spas, facials and skincare with a relaxing, serene feel.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Theme 5 — Full-Service Family Salon */}
+          <div
+            onClick={() => selectTemplate('family-salon')}
+            className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
+              currentTemplate === 'family-salon'
+                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+                : 'border-gray-200/80 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
+                <img
+                  src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&auto=format&fit=crop"
+                  alt="Full-Service Family Salon Template"
+                  className="w-full h-full object-cover absolute inset-0"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
+                  <span className="text-white text-[10px] font-medium tracking-wide uppercase">Preview</span>
+                </div>
+              </div>
+              <div className="flex-1 pt-1">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-lg text-gray-900 mb-1">Full-Service Family Salon</h3>
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'family-salon' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                </div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold mb-2 text-[11px]">
+                  Bright • Blue/Teal • Family
+                </span>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Bright teal-and-sky energy with a friendly multi-category layout for the whole family — kids to grandparents.
                 </p>
               </div>
             </div>

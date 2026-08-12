@@ -65,6 +65,18 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
       subText: 'text-gray-500',
       headingFont: 'font-serif',
     },
+    'hair-studio': {
+      navBg: 'bg-black text-white border-neutral-800',
+      heroBg: 'bg-neutral-950 text-white',
+      primaryBtn: 'bg-neutral-900 hover:bg-black text-rose-200 border border-rose-300/40',
+      accentColor: '#b76e79',
+      accentText: 'text-rose-400',
+      badgeBg: 'bg-rose-400/10 text-rose-300 border-rose-400/20',
+      fontFamily: 'font-sans',
+      cardBg: 'bg-white border-neutral-200 text-neutral-900',
+      subText: 'text-neutral-500',
+      headingFont: 'font-sans font-light tracking-tight',
+    },
     wellness: {
       navBg: 'bg-emerald-950/90 text-emerald-50 border-emerald-900/50',
       heroBg: 'bg-emerald-900 text-emerald-50',
@@ -76,6 +88,18 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
       cardBg: 'bg-emerald-50/30 border-emerald-100 text-emerald-950',
       subText: 'text-emerald-700/80',
       headingFont: 'font-serif',
+    },
+    'family-salon': {
+      navBg: 'bg-white text-slate-800 border-teal-100',
+      heroBg: 'bg-gradient-to-br from-teal-500 to-sky-600 text-white',
+      primaryBtn: 'bg-teal-600 hover:bg-teal-700 text-white',
+      accentColor: '#0d9488',
+      accentText: 'text-teal-600',
+      badgeBg: 'bg-teal-100 text-teal-800',
+      fontFamily: 'font-sans',
+      cardBg: 'bg-white border-teal-100 text-slate-800',
+      subText: 'text-slate-500',
+      headingFont: 'font-sans font-semibold',
     }
   }[templateId];
 

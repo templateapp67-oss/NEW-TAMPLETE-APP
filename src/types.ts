@@ -144,7 +144,7 @@ export interface ReviewedContent {
 export type PublishState = 'draft' | 'publishing' | 'published';
 
 export interface SalonData {
-  templateId?: 'hair' | 'barber' | 'wellness';
+  templateId?: 'hair' | 'barber' | 'hair-studio' | 'wellness' | 'family-salon';
   salonName: string;
   tagline: string;
   ownerName: string;

@@ -5,8 +5,10 @@ export type ThemeId = NonNullable<SalonData['templateId']>;
 
 export const THEME_LABELS: Record<ThemeId, string> = {
   hair: 'Hair & Unisex Salon',
-  barber: "Men's Barber & Grooming",
-  wellness: 'Beauty & Wellness Spa',
+  barber: "Barber & Men's Grooming",
+  'hair-studio': 'Hair Studio & Color Bar',
+  wellness: 'Beauty, Skin & Spa',
+  'family-salon': 'Full-Service Family Salon',
 };
 
 export interface PredefinedService {
@@ -25,7 +27,9 @@ export interface PredefinedService {
 export const THEME_CATEGORIES: Record<ThemeId, string[]> = {
   hair: ['Haircut', 'Styling', 'Color', 'Treatment', 'Makeup & Beauty'],
   barber: ['Haircut', 'Beard & Shave', 'Grooming', 'Treatment'],
+  'hair-studio': ['Cut & Style', 'Color & Highlights', 'Texture & Perms', 'Treatments', 'Bridal & Events'],
   wellness: ['Massage', 'Facials', 'Nails', 'Hair Removal', 'Spa Packages'],
+  'family-salon': ['Hair', 'Beauty', 'Skin', 'Grooming', 'Spa', 'Kids'],
 };
 
 /**
@@ -137,6 +141,81 @@ export const SERVICES_BY_THEME: Record<ThemeId, PredefinedService[]> = {
     { name: 'Couple Spa Retreat', category: 'Spa Packages', description: 'Side-by-side massage and spa rituals for two.', price: 6000, duration: 150 },
     { name: 'Quick Refresh Package', category: 'Spa Packages', description: 'Express facial and head massage for a midday pick-me-up.', price: 2500, duration: 90 },
   ],
+
+  'hair-studio': [
+    // Cut & Style
+    { name: 'Precision Dry Cut', category: 'Cut & Style', description: 'Expert dry-cutting technique for perfect shape, movement and texture tailored to your hair type.', price: 1200, duration: 45 },
+    { name: 'Signature Blowout & Style', category: 'Cut & Style', description: 'Voluminous salon blowout with round-brush finish for bounce and lasting hold.', price: 800, duration: 40 },
+    { name: 'Creative Crop & Texture', category: 'Cut & Style', description: 'Edgy, fashion-forward short cut with razor texturising and personalised finish.', price: 1500, duration: 50 },
+    { name: 'Long-Layer Transformation', category: 'Cut & Style', description: 'Face-framing long layers with invisible blending for natural movement.', price: 1400, duration: 55 },
+    { name: 'Editorial Upstyle', category: 'Cut & Style', description: 'Red-carpet-worthy updo with intricate braiding, twists and accessory placement.', price: 2500, duration: 75 },
+
+    // Color & Highlights
+    { name: 'Root Shadow & Smudge', category: 'Color & Highlights', description: 'Soft shadow-root blending for seamless grow-out and depth dimension.', price: 2800, duration: 90 },
+    { name: 'Hand-Painted Balayage', category: 'Color & Highlights', description: 'French balayage technique for sun-kissed, natural-looking dimension with zero harsh lines.', price: 4500, duration: 150 },
+    { name: 'Foilayage Hybrid', category: 'Color & Highlights', description: 'Best of both worlds — foil precision meets balayage softness for maximum brightness.', price: 5200, duration: 160 },
+    { name: 'Pastel & Fashion Tones', category: 'Color & Highlights', description: 'Creative pastel pinks, lavenders or silvers on pre-lightened hair for a statement look.', price: 4000, duration: 120 },
+    { name: 'Color Correction', category: 'Color & Highlights', description: 'Expert corrective work to fix banding, brassiness or unwanted tones. Consultation required.', price: 6000, duration: 180 },
+
+    // Texture & Perms
+    { name: 'Digital Perm', category: 'Texture & Perms', description: 'Heat-activated digital waves for soft, natural-looking curls with lasting definition.', price: 3500, duration: 150 },
+    { name: 'Keratin Smoothing', category: 'Texture & Perms', description: 'Premium formaldehyde-free keratin therapy to eliminate frizz for up to 12 weeks.', price: 5000, duration: 150 },
+    { name: 'Beach Wave Perm', category: 'Texture & Perms', description: 'Loose, effortless beachy waves with body and movement — low maintenance, high impact.', price: 3800, duration: 140 },
+    { name: 'Japanese Straightening', category: 'Texture & Perms', description: 'Thermal reconditioning for permanently sleek, pin-straight hair with mirror shine.', price: 6500, duration: 200 },
+
+    // Treatments
+    { name: 'Bond Repair Treatment', category: 'Treatments', description: 'Advanced bond-building therapy to reconstruct damaged disulfide bonds from within.', price: 3000, duration: 60 },
+    { name: 'Scalp Microbiome Detox', category: 'Treatments', description: 'Trichologist-inspired scalp reset with exfoliation, steam and probiotic serum infusion.', price: 1800, duration: 50 },
+    { name: 'Liquid Hair Gloss', category: 'Treatments', description: 'Instant glass-like shine treatment that seals cuticles and boosts colour vibrancy.', price: 1500, duration: 35 },
+    { name: 'Collagen Hair Filler', category: 'Treatments', description: 'Injectable-grade collagen complex to plump, thicken and revitalise fine or thinning hair.', price: 2800, duration: 55 },
+
+    // Bridal & Events
+    { name: 'Bridal Hair Trial', category: 'Bridal & Events', description: 'Pre-wedding consultation and trial run of your chosen bridal hairstyle with veil placement.', price: 1800, duration: 60 },
+    { name: 'Bridal Hair & Styling', category: 'Bridal & Events', description: 'Complete wedding-day hair: style, setting, accessory placement and touch-up kit.', price: 5500, duration: 120 },
+    { name: 'Event Styling & Finish', category: 'Bridal & Events', description: 'Glamorous blowout or upstyle for parties, galas, cocktail events and red-carpet moments.', price: 2200, duration: 60 },
+    { name: 'Bridal Party Package', category: 'Bridal & Events', description: 'Coordinated styling for bride + 3 bridesmaids with on-location option available.', price: 12000, duration: 240 },
+  ],
+
+  'family-salon': [
+    // Hair
+    { name: "Women's Cut & Style", category: 'Hair', description: 'Flattering cut shaped to your face, finished with a relaxing wash and blow-dry.', price: 400, duration: 45 },
+    { name: "Men's Classic Cut", category: 'Hair', description: 'Sharp scissor-and-clipper cut with neck clean-up and styling product finish.', price: 300, duration: 30 },
+    { name: 'Kids Fun Cut (under 12)', category: 'Hair', description: 'Gentle, friendly haircut in a kid-approved chair with a little surprise at the end.', price: 200, duration: 25 },
+    { name: 'Root Touch-Up Colour', category: 'Hair', description: 'Quick grey coverage or root refresh in under an hour with gentle formula.', price: 800, duration: 50 },
+    { name: 'Global Hair Colour', category: 'Hair', description: 'All-over rich colour transformation with pre-colour scalp protection.', price: 2000, duration: 100 },
+    { name: 'Blow-Dry & Style', category: 'Hair', description: 'Bouncy blow-dry with volume for a polished everyday look.', price: 300, duration: 30 },
+
+    // Beauty
+    { name: 'Party Makeup', category: 'Beauty', description: 'Camera-ready makeup for birthdays, dinners and celebrations.', price: 1800, duration: 75 },
+    { name: 'Bridal Makeup HD', category: 'Beauty', description: 'Flawless high-definition bridal look with airbrush finish and lashes.', price: 7000, duration: 150 },
+    { name: 'Eyebrow Threading', category: 'Beauty', description: 'Precision brow shaping to frame your face perfectly.', price: 100, duration: 15 },
+    { name: 'Upper Lip Threading', category: 'Beauty', description: 'Quick, hygienic upper lip threading.', price: 50, duration: 10 },
+    { name: 'Saree Draping', category: 'Beauty', description: 'Expert saree draping for weddings, parties and festive occasions.', price: 500, duration: 30 },
+
+    // Skin
+    { name: 'Clean-Up Facial', category: 'Skin', description: 'Basic deep-cleansing facial with steam, extraction and soothing mask.', price: 600, duration: 45 },
+    { name: 'Glow Facial', category: 'Skin', description: 'Vitamin C brightening facial for instant radiance and even skin tone.', price: 1200, duration: 60 },
+    { name: 'Anti-Tan Pack', category: 'Skin', description: 'De-tan treatment to reverse sun damage and restore natural complexion.', price: 800, duration: 40 },
+    { name: 'Full Body Waxing', category: 'Skin', description: 'Complete body waxing — arms, legs, underarms and bikini line with soothing gel.', price: 1800, duration: 90 },
+
+    // Grooming
+    { name: 'Beard Trim & Shape', category: 'Grooming', description: 'Precision beard styling with hot-towel prep and beard oil finish.', price: 200, duration: 20 },
+    { name: 'Clean Shave Experience', category: 'Grooming', description: 'Luxurious straight-razor shave with pre-shave oil, hot towel and cooling balm.', price: 350, duration: 30 },
+    { name: "Men's Facial", category: 'Grooming', description: 'Deep-cleansing facial designed for men’s thicker skin with charcoal detox.', price: 700, duration: 45 },
+    { name: 'Haircut + Beard Combo', category: 'Grooming', description: 'Complete grooming: fresh haircut paired with a precision beard trim.', price: 450, duration: 50 },
+
+    // Spa
+    { name: 'Head & Shoulder Massage', category: 'Spa', description: 'Tension-melting massage for scalp, neck and shoulders with warm oil.', price: 600, duration: 30 },
+    { name: 'Foot Reflexology', category: 'Spa', description: 'Pressure-point foot massage to relieve stress and boost circulation.', price: 700, duration: 40 },
+    { name: 'Body Massage', category: 'Spa', description: 'Full-body relaxation massage with aromatic oils to ease tired muscles.', price: 1500, duration: 60 },
+    { name: 'De-Stress Spa Combo', category: 'Spa', description: 'Head massage + foot reflexology + mini facial for total rejuvenation.', price: 1800, duration: 90 },
+
+    // Kids
+    { name: 'Kids Haircut (Girls)', category: 'Kids', description: 'Sweet, gentle haircut for little girls with a fun clip or bow.', price: 200, duration: 25 },
+    { name: 'Kids Haircut (Boys)', category: 'Kids', description: 'Cool kids cut with clippers or scissors — quick and fuss-free.', price: 200, duration: 20 },
+    { name: 'Mommy & Me Package', category: 'Kids', description: 'Matching blow-dry styles for mom and daughter — a fun bonding experience.', price: 900, duration: 60 },
+    { name: 'Teen Glow Facial', category: 'Kids', description: 'Gentle teen-friendly facial for clear, fresh skin — ages 13 to 18.', price: 500, duration: 40 },
+  ],
 };
 
 /**
@@ -163,6 +242,15 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
     "Men's Hair Spa",
     'Scalp Massage',
   ],
+  'hair-studio': [
+    'Precision Dry Cut',
+    'Hand-Painted Balayage',
+    'Root Shadow & Smudge',
+    'Bond Repair Treatment',
+    'Digital Perm',
+    'Bridal Hair & Styling',
+    'Editorial Upstyle',
+  ],
   wellness: [
     'Swedish Relaxation Massage',
     'Hydra Facial',
@@ -171,6 +259,15 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
     'Detox Day Spa Package',
     'Head & Shoulder Massage',
     'Aroma Oil Massage',
+  ],
+  'family-salon': [
+    "Women's Cut & Style",
+    "Men's Classic Cut",
+    'Kids Fun Cut (under 12)',
+    'Party Makeup',
+    'Glow Facial',
+    'Haircut + Beard Combo',
+    'De-Stress Spa Combo',
   ],
 };
 
@@ -197,12 +294,16 @@ export function findPredefinedService(theme: ThemeId, name: string): PredefinedS
 export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
   barber: ['Skin Fade', 'Hot Towel Shave'],
+  'hair-studio': ['Hand-Painted Balayage', 'Bond Repair Treatment'],
   wellness: ['Hydra Facial', 'Swedish Relaxation Massage'],
+  'family-salon': ['De-Stress Spa Combo', 'Mommy & Me Package'],
 };
 
 /** Theme-aware spoken-input example service. */
 export const VOICE_SERVICE_BY_THEME: Record<ThemeId, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
   barber: { name: "Gentlemen's Royal Cut", category: 'Haircut', description: 'Custom cut with scalp massage and hot towel finish.', price: 450, duration: 40 },
+  'hair-studio': { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
   wellness: { name: 'Aroma Relaxation Massage', category: 'Massage', description: 'Soothing essential-oil full-body massage.', price: 2000, duration: 60 },
+  'family-salon': { name: 'Family Pamper Day Pass', category: 'Spa', description: 'A relaxing head massage and mini facial for the whole family.', price: 2500, duration: 120 },
 };
