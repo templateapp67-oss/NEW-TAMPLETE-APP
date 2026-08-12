@@ -11,6 +11,7 @@ import {
   findPredefinedService,
   AI_SUGGESTION_NAMES,
   VOICE_SERVICE_BY_THEME,
+  normalizeThemeId,
   type ThemeId,
   type PredefinedService,
 } from '../lib/themeServices';
@@ -50,6 +51,34 @@ function suggestServiceDescription(category: string, serviceName: string): strin
       return withName('Hygienic, comfortable hair removal with soothing aftercare.');
     case 'Spa Packages':
       return withName('Curated spa experience combining our most-loved treatments.');
+    case 'Haircuts':
+      return withName('Precision barbering with clean lines and a sharp, confident finish.');
+    case 'Grooming & Treatments':
+      return withName('Deep-cleansing grooming and scalp treatments to refresh and revitalise.');
+    case 'Styling & Cuts':
+      return withName('Editorial precision cutting and styling shaped to your hair type and face.');
+    case 'Hair Color':
+      return withName('Artistic color with expert placement for a natural, dimensional, glossy finish.');
+    case 'Treatments':
+      return withName('Advanced repair and gloss treatment to restore strength, shine and vitality.');
+    case 'Facial & Skincare':
+      return withName('Nourishing facial and skincare treatment for healthy, glowing skin.');
+    case 'Spa & Body':
+      return withName('Relaxing body massage and spa therapy to melt away tension.');
+    case 'Waxing & Threading':
+      return withName('Hygienic, comfortable waxing and threading with soothing aftercare.');
+    case 'Makeup':
+      return withName('Professional makeup artistry for a flawless, long-lasting finish.');
+    case 'Hair':
+      return withName('Cut, style and colour services for every member of the family.');
+    case 'Beauty':
+      return withName('Makeup and beauty care delivered by our friendly, experienced artists.');
+    case 'Skin':
+      return withName('Facials and skin care for a healthy, glowing complexion.');
+    case 'Spa':
+      return withName('Relaxing massage and spa therapy to melt away stress and tension.');
+    case 'Kids':
+      return withName('Gentle, fun salon care designed especially for children.');
     default:
       return withName('Professional salon service delivered by our experienced team.');
   }
@@ -64,13 +93,13 @@ interface Props {
 }
 
 export default function StepServices({ data, setData, onNext, onPrev, onSave }: Props) {
-  const theme = (data.templateId || 'hair') as ThemeId;
+  const theme = normalizeThemeId(data.templateId);
   const categories = THEME_CATEGORIES[theme];
 
   // Theme-driven suggested services (genuinely different per theme).
   const suggestedList = getSuggestedServices(theme);
 
-  const [selectedSuggested, setSelectedSuggested] = useState<string[]>(['Hair Styling'].filter(n => suggestedList.some(s => s.name === n)));
+  const [selectedSuggested, setSelectedSuggested] = useState<string[]>([]);
   const [suggestedFilter, setSuggestedFilter] = useState<'All' | string>('All');
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingPackage, setIsAddingPackage] = useState(false);
@@ -80,7 +109,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [newServiceName, setNewServiceName] = useState('');
   const [newServicePrice, setNewServicePrice] = useState(50);
   const [newServiceDuration, setNewServiceDuration] = useState(30);
-  const [newServiceCategory, setNewServiceCategory] = useState('Haircut');
+  const [newServiceCategory, setNewServiceCategory] = useState(categories[0]);
   const [newServiceDesc, setNewServiceDesc] = useState('');
   // Tracks whether the user hand-wrote the description, so we never silently
   // overwrite their work when the category (or service name) changes.
@@ -99,23 +128,43 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [newPackageDuration, setNewPackageDuration] = useState(60);
   const [newPackageDesc, setNewPackageDesc] = useState('');
 
-  // When the theme changes, clear any stale selections and normalise the
-  // category so the form/data always reflects the current salon type.
+  // When the theme changes, clear ALL theme-specific selections and temporary
+  // buffers so nothing from a previous theme leaks into the current one:
+  //   - selected suggested services
+  //   - the suggested category filter
+  //   - the add-service category / predefined service selection
+  //   - temporary service + package form buffers
+  //   - any open form/action state
   useEffect(() => {
+    // Suggested-services selection buffers
     setSelectedSuggested([]);
     setSuggestedFilter('All');
+
+    // Add-service form: category, predefined selection and temporary buffers
+    const firstCategory = THEME_CATEGORIES[theme][0];
+    setNewServiceCategory(firstCategory);
+    setNewServiceName('');
+    setNewServicePrice(50);
+    setNewServiceDuration(30);
+    setNewServiceDesc(suggestServiceDescription(firstCategory, ''));
+    setNewServiceDescTouched(false);
+    setCustomService(false);
     setServiceDropdownOpen(false);
-    if (!THEME_CATEGORIES[theme].includes(newServiceCategory)) {
-      const first = THEME_CATEGORIES[theme][0];
-      setNewServiceCategory(first);
-      setNewServiceName('');
-      setNewServicePrice(50);
-      setNewServiceDuration(30);
-      setNewServiceDesc(suggestServiceDescription(first, ''));
-      setNewServiceDescTouched(false);
-      setCustomService(false);
-    }
-    // Intentionally only depends on [theme]; category changes are handled separately.
+    setShowDescConfirm(false);
+    setPendingDescSuggestion('');
+
+    // Close any open add-forms and reset fast-action state
+    setIsAddingService(false);
+    setIsAddingPackage(false);
+    setIsSpeaking(false);
+
+    // Package form buffers
+    setNewPackageName('');
+    setNewPackagePrice(95);
+    setNewPackageDuration(60);
+    setNewPackageDesc('');
+    // Intentionally only depends on [theme]; the individual setState calls above
+    // cover every piece of theme-scoped state, so no other deps are needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme]);
 

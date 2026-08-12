@@ -2,6 +2,7 @@ import { Monitor, Smartphone, Phone, Sparkles, Instagram, Youtube, Facebook, Vid
 import { useState, useEffect, useRef } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
+import { normalizeThemeId, BARBER_THEME, HAIR_STUDIO_THEME, BEAUTY_SPA_THEME } from '../lib/themeServices';
 import CustomerBookingPreview from './CustomerBookingPreview';
 import OwnerAvatar from './OwnerAvatar';
 
@@ -37,21 +38,24 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
     }
   }, [step]);
 
-  const templateId = data.templateId || 'hair';
+  const templateId = normalizeThemeId(data.templateId);
+  const isBarber = templateId === 'barber_mens_grooming';
+  const isHairStudio = templateId === 'hair_studio_color_bar';
+  const isBeautySpa = templateId === 'beauty_skin_spa';
 
   // Template styles configuration
   const templateConfig = {
-    barber: {
-      navBg: 'bg-zinc-900 text-zinc-100 border-zinc-800',
-      heroBg: 'bg-zinc-950 text-zinc-100',
-      primaryBtn: 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold',
-      accentColor: '#f59e0b',
-      accentText: 'text-amber-500',
-      badgeBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-      fontFamily: 'font-mono',
-      cardBg: 'bg-zinc-900 border-zinc-800 text-zinc-100',
-      subText: 'text-zinc-400',
-      headingFont: 'font-sans uppercase tracking-wider',
+    barber_mens_grooming: {
+      navBg: 'bg-[#0c0c0c] text-neutral-200 border-neutral-800',
+      heroBg: 'bg-[#141414] text-white',
+      primaryBtn: 'bg-[#c9a227] hover:brightness-110 text-[#141414] font-black',
+      accentColor: BARBER_THEME.gold,
+      accentText: 'text-[#c9a227]',
+      badgeBg: 'bg-[#3a3016] text-[#e8c95c] border-[#c9a227]/40',
+      fontFamily: 'font-sans',
+      cardBg: 'bg-[#1a1a1a] border-neutral-800 text-neutral-100',
+      subText: 'text-neutral-400',
+      headingFont: 'font-sans font-black uppercase tracking-wider',
     },
     hair: {
       navBg: 'bg-white text-gray-900 border-gray-100',
@@ -65,19 +69,68 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
       subText: 'text-gray-500',
       headingFont: 'font-serif',
     },
-    wellness: {
-      navBg: 'bg-emerald-950/90 text-emerald-50 border-emerald-900/50',
-      heroBg: 'bg-emerald-900 text-emerald-50',
-      primaryBtn: 'bg-emerald-600 hover:bg-emerald-700 text-white',
-      accentColor: '#059669',
-      accentText: 'text-emerald-600',
-      badgeBg: 'bg-emerald-100 text-emerald-800',
-      fontFamily: 'font-sans',
-      cardBg: 'bg-emerald-50/30 border-emerald-100 text-emerald-950',
-      subText: 'text-emerald-700/80',
+    hair_studio_color_bar: {
+      navBg: 'bg-white text-neutral-900 border-neutral-200',
+      heroBg: 'bg-[#f1ede7] text-neutral-900',
+      primaryBtn: 'bg-[#b76e79] hover:brightness-110 text-white',
+      accentColor: HAIR_STUDIO_THEME.rose,
+      accentText: 'text-[#9d5a63]',
+      badgeBg: 'bg-[#f4e5e7] text-[#9d5a63]',
+      fontFamily: 'font-serif',
+      cardBg: 'bg-white border-neutral-200 text-neutral-900',
+      subText: 'text-neutral-500',
       headingFont: 'font-serif',
+    },
+    beauty_skin_spa: {
+      navBg: 'bg-white text-neutral-800 border-[#ece6dc]',
+      heroBg: 'bg-[#f7f1e8] text-neutral-800',
+      primaryBtn: 'bg-[#1e7a63] hover:brightness-105 text-white',
+      accentColor: BEAUTY_SPA_THEME.emerald,
+      accentText: 'text-[#15594a]',
+      badgeBg: 'bg-[#e2f0ea] text-[#15594a]',
+      fontFamily: 'font-serif',
+      cardBg: 'bg-white border-[#ece6dc] text-neutral-800',
+      subText: 'text-[#72837c]',
+      headingFont: 'font-serif',
+    },
+    'family-salon': {
+      navBg: 'bg-white text-slate-800 border-teal-100',
+      heroBg: 'bg-gradient-to-br from-teal-500 to-sky-600 text-white',
+      primaryBtn: 'bg-teal-600 hover:bg-teal-700 text-white',
+      accentColor: '#0d9488',
+      accentText: 'text-teal-600',
+      badgeBg: 'bg-teal-100 text-teal-800',
+      fontFamily: 'font-sans',
+      cardBg: 'bg-white border-teal-100 text-slate-800',
+      subText: 'text-slate-500',
+      headingFont: 'font-sans font-semibold',
     }
   }[templateId];
+
+  // Accent tokens for the step-aware preview. Existing themes keep their exact
+  // current look (pink for Hair); Barber swaps to vintage gold, Hair Studio to
+  // rose-gold and Beauty/Spa to emerald.
+  const accentTextCls = isBarber ? 'text-[#c9a227]' : isHairStudio ? 'text-[#9d5a63]' : isBeautySpa ? 'text-[#15594a]' : 'text-[#ac0053]';
+  const accentBgCls = isBarber ? 'bg-[#c9a227]' : isHairStudio ? 'bg-[#b76e79]' : isBeautySpa ? 'bg-[#1e7a63]' : 'bg-[#ac0053]';
+  const accentBg10Cls = isBarber ? 'bg-[#c9a227]/10' : isHairStudio ? 'bg-[#b76e79]/10' : isBeautySpa ? 'bg-[#1e7a63]/10' : 'bg-[#ac0053]/10';
+  const accentSoftBgCls = isBarber ? 'bg-[#c9a227]/15' : isHairStudio ? 'bg-[#f4e5e7]' : isBeautySpa ? 'bg-[#e2f0ea]' : 'bg-[#ffd9e1]';
+  const accentSoftBg10Cls = isBarber ? 'bg-[#c9a227]/10' : isHairStudio ? 'bg-[#f4e5e7]/60' : isBeautySpa ? 'bg-[#e2f0ea]/60' : 'bg-[#ffd9e1]/10';
+  const accentSoftBg30Cls = isBarber ? 'bg-[#c9a227]/15' : isHairStudio ? 'bg-[#f4e5e7]' : isBeautySpa ? 'bg-[#e2f0ea]' : 'bg-[#ffd9e1]/30';
+  const accentSoftText800Cls = isBarber ? 'text-[#e8c95c]' : isHairStudio ? 'text-[#9d5a63]' : isBeautySpa ? 'text-[#15594a]' : 'text-[#80003c]';
+  const accentBadgeCls = isBarber ? 'bg-[#3a3016] text-[#e8c95c]' : isHairStudio ? 'bg-[#f4e5e7] text-[#9d5a63]' : isBeautySpa ? 'bg-[#e2f0ea] text-[#15594a]' : 'bg-[#ffd9e1] text-[#ac0053]';
+  const accentBorderCls = isBarber ? 'border-[#c9a227]' : isHairStudio ? 'border-[#b76e79]' : isBeautySpa ? 'border-[#1e7a63]' : 'border-[#ac0053]';
+  const accentBorder20Cls = isBarber ? 'border-[#c9a227]/20' : isHairStudio ? 'border-[#b76e79]/30' : isBeautySpa ? 'border-[#1e7a63]/30' : 'border-[#ac0053]/20';
+  const accentRingCls = isBarber ? 'ring-[#c9a227]/30' : isHairStudio ? 'ring-[#b76e79]/30' : isBeautySpa ? 'ring-[#1e7a63]/30' : 'ring-[#ac0053]/30';
+  const accentRing40Cls = isBarber ? 'ring-[#c9a227]/40' : isHairStudio ? 'ring-[#b76e79]/40' : isBeautySpa ? 'ring-[#1e7a63]/40' : 'ring-[#ac0053]/40';
+  const accentBorderHoverCls = isBarber ? 'hover:border-[#c9a227]' : isHairStudio ? 'hover:border-[#b76e79]' : isBeautySpa ? 'hover:border-[#1e7a63]' : 'hover:border-[#ac0053]';
+  const accentHoverTextCls = isBarber ? 'hover:text-[#c9a227]' : isHairStudio ? 'hover:text-[#b76e79]' : isBeautySpa ? 'hover:text-[#1e7a63]' : 'hover:text-[#ac0053]';
+  const accentTopGradientCls = isBarber
+    ? 'from-[#c9a227] to-[#e8c95c]'
+    : isHairStudio
+    ? 'from-[#b76e79] to-[#d8a0a8]'
+    : isBeautySpa
+    ? 'from-[#1e7a63] to-[#4aa88f]'
+    : 'from-[#ac0053] to-[#ffb1c4]';
 
   // Auto-scroll/focus to the relevant section when step or data/activeStaffId changes (Section-Aware Live Preview)
   useEffect(() => {
@@ -130,7 +183,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
 
   return (
     <div className="w-full h-full bg-[#f3f3f4] flex flex-col border-l border-gray-200 relative">
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#ac0053] to-[#ffb1c4] z-20"></div>
+      <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${accentTopGradientCls} z-20`}></div>
       
       {showBookingWidget ? (
         <CustomerBookingPreview 
@@ -144,17 +197,17 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Live Website Preview</span>
           {step === 4 && (
-            <span className="bg-[#ffd9e1] text-[#ac0053] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className={`${accentBadgeCls} text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1`}>
               <Sparkles className="w-2.5 h-2.5" /> Team Section
             </span>
           )}
           {step === 5 && (
-            <span className="bg-[#ffd9e1] text-[#ac0053] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className={`${accentBadgeCls} text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1`}>
               <Sparkles className="w-2.5 h-2.5" /> Photos & Gallery
             </span>
           )}
           {step === 6 && (
-            <span className="bg-[#ffd9e1] text-[#ac0053] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className={`${accentBadgeCls} text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1`}>
               <Sparkles className="w-2.5 h-2.5" /> Social Connectivity
             </span>
           )}
@@ -231,9 +284,9 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                   }`}
                 />
               )}
-              <div className="relative z-10 max-w-xl mx-auto text-white">
+              <div className={`relative z-10 max-w-xl mx-auto ${isHairStudio || isBeautySpa ? 'text-neutral-900' : 'text-white'}`}>
                 <h1 className={`text-2xl md:text-3xl font-bold mb-2 ${templateConfig.headingFont}`}>{data.tagline || 'Elevating your natural beauty'}</h1>
-                <p className="text-xs text-gray-200 mb-6 max-w-md mx-auto leading-relaxed">{data.about || 'A brief description of your services and ambiance.'}</p>
+                <p className={`text-xs mb-6 max-w-md mx-auto leading-relaxed ${isHairStudio || isBeautySpa ? 'text-neutral-500' : 'text-gray-200'}`}>{data.about || 'A brief description of your services and ambiance.'}</p>
                 <button 
                   onClick={() => setShowBookingWidget(true)}
                   className={`px-6 py-2.5 rounded-lg font-bold text-xs shadow-md transition-all ${templateConfig.primaryBtn}`}
@@ -249,7 +302,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                  <div className="w-32 h-32 bg-gray-100 rounded-full mb-6 overflow-hidden border-4 border-white shadow-xl">
                     <OwnerAvatar photoUrl={data.ownerPhotoUrl} name={data.ownerName} className="w-full h-full text-3xl" alt="Founder" />
                  </div>
-                 <h2 className="text-xs font-bold uppercase tracking-widest text-[#ac0053] mb-2">Meet the Founder</h2>
+                 <h2 className={`text-xs font-bold uppercase tracking-widest ${accentTextCls} mb-2`}>Meet the Founder</h2>
                  <h3 className="text-2xl font-serif font-bold text-gray-900 mb-1">{data.ownerName || 'Owner Name'}</h3>
                  <p className="text-xs font-semibold text-gray-500 tracking-wide">{data.ownerRole || 'Role'}</p>
                </div>
@@ -263,7 +316,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                     <div key={s.id} className="p-5 rounded-xl border border-gray-100 shadow-2xs bg-white hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-1">
                         <h4 className="font-bold text-gray-900 text-sm">{s.name}</h4>
-                        <span className="font-bold text-[#ac0053] text-sm">₹{s.price.toLocaleString('en-IN')}</span>
+                        <span className={`font-bold ${accentTextCls} text-sm`}>₹{s.price.toLocaleString('en-IN')}</span>
                       </div>
                       <p className="text-xs text-gray-500 mb-4">{s.description}</p>
                       <button 
@@ -280,10 +333,10 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             
             {/* Step 4: Focus on Team Section */}
             {(step >= 4 || (data.team && data.team.length > 0)) && (
-              <div id="team-preview-section" ref={teamSectionRef} className="px-6 py-12 bg-gray-50/80 scroll-mt-12 border-t-2 border-[#ac0053]/20">
+              <div id="team-preview-section" ref={teamSectionRef} className={`px-6 py-12 bg-gray-50/80 scroll-mt-12 border-t-2 ${accentBorder20Cls}`}>
                 <div className="max-w-3xl mx-auto">
                   <div className="text-center mb-10">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#ac0053]">Expert Professionals</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${accentTextCls}`}>Expert Professionals</span>
                     <h3 className="text-2xl md:text-3xl font-bold font-serif text-gray-900 mt-1">{getTeamTitle()}</h3>
                     <p className="text-xs text-gray-500 mt-1">Book your tailored experience with our talented specialists.</p>
                   </div>
@@ -298,7 +351,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                           id={`preview-staff-${pub.id}`}
                           className={`bg-white rounded-xl border p-5 transition-all ${
                             isActive 
-                              ? 'border-[#ac0053] ring-2 ring-[#ac0053]/30 shadow-md bg-[#ffd9e1]/10' 
+                              ? `${accentBorderCls} ring-2 ${accentRingCls} shadow-md ${accentSoftBg10Cls}` 
                               : 'border-gray-200/80 shadow-xs hover:shadow-md'
                           } flex flex-col gap-4`}
                         >
@@ -306,11 +359,11 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                             <img 
                               src={pub.imageUrl} 
                               alt={pub.name} 
-                              className="w-16 h-16 rounded-full object-cover border-2 border-[#ffd9e1] shrink-0 shadow-xs" 
+                              className={`w-16 h-16 rounded-full object-cover border-2 ${accentSoftBgCls} shrink-0 shadow-xs`} 
                             />
                             <div className="flex-1 min-w-0">
                               <h4 className="font-bold text-gray-900 text-base leading-tight">{pub.name}</h4>
-                              <p className="text-xs font-bold text-[#ac0053] uppercase tracking-wider mt-0.5">{pub.role}</p>
+                              <p className={`text-xs font-bold ${accentTextCls} uppercase tracking-wider mt-0.5`}>{pub.role}</p>
                               
                               {pub.phone && (
                                 <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-1">
@@ -324,7 +377,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                           {pub.specialties && pub.specialties.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pt-1">
                               {pub.specialties.map((spec, i) => (
-                                <span key={i} className="bg-[#ffd9e1]/30 text-[#80003c] border border-[#ffd9e1] text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                                <span key={i} className={`${accentSoftBg30Cls} ${accentSoftText800Cls} border ${accentSoftBgCls} text-[11px] font-semibold px-2 py-0.5 rounded-full`}>
                                   {spec}
                                 </span>
                               ))}
@@ -352,10 +405,10 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             )}
             
             {/* Gallery Section */}
-            <div ref={gallerySectionRef} className="px-6 py-12 bg-white scroll-mt-12 border-t-2 border-[#ac0053]/20">
+            <div ref={gallerySectionRef} className={`px-6 py-12 bg-white scroll-mt-12 border-t-2 ${accentBorder20Cls}`}>
               <div className="max-w-3xl mx-auto">
                 <div className="text-center mb-8">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#ac0053]">Visual Gallery</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${accentTextCls}`}>Visual Gallery</span>
                   <h3 className="text-2xl font-serif font-bold text-gray-900 mt-1">Our Space & Work</h3>
                   <p className="text-xs text-gray-500 mt-1">Explore our salon interior, styling details, and client transformations.</p>
                 </div>
@@ -370,7 +423,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5 flex flex-col justify-end">
-                          <span className="text-[10px] font-bold text-white bg-[#ac0053] px-2 py-0.5 rounded-md inline-block w-fit">
+                          <span className={`text-[10px] font-bold text-white ${accentBgCls} px-2 py-0.5 rounded-md inline-block w-fit`}>
                             {item.category || 'General'}
                           </span>
                           {item.alt && (
@@ -389,10 +442,10 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             </div>
 
             {/* Social Connectivity Section */}
-            <div ref={socialSectionRef} className="px-6 py-12 bg-gray-50 scroll-mt-12 border-t-2 border-[#ac0053]/20">
+            <div ref={socialSectionRef} className={`px-6 py-12 bg-gray-50 scroll-mt-12 border-t-2 ${accentBorder20Cls}`}>
               <div className="max-w-3xl mx-auto">
                 <div className="text-center mb-8">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#ac0053] flex items-center justify-center gap-1">
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${accentTextCls} flex items-center justify-center gap-1`}>
                     <Video className="w-3 h-3" /> Social Feed & Work
                   </span>
                   <h3 className="text-2xl font-serif font-bold text-gray-900 mt-1">See Our Latest Looks</h3>
@@ -405,7 +458,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                 {data.socialProfiles && (data.socialProfiles.instagram || data.socialProfiles.facebook || data.socialProfiles.youtube || data.socialProfiles.tiktok) && (
                   <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
                     {data.socialProfiles.instagram && (
-                      <a href={data.socialProfiles.instagram} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-800 hover:border-[#ac0053] hover:text-[#ac0053] shadow-2xs transition-colors">
+                      <a href={data.socialProfiles.instagram} target="_blank" rel="noreferrer" className={`flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-800 ${accentBorderHoverCls} ${accentHoverTextCls} shadow-2xs transition-colors`}>
                         <Instagram className="w-3.5 h-3.5 text-pink-600" /> Instagram
                       </a>
                     )}
@@ -479,7 +532,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                       href={data.socialProfiles.instagram}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[#ac0053] text-xs font-bold hover:underline inline-flex items-center gap-1"
+                      className={`${accentTextCls} text-xs font-bold hover:underline inline-flex items-center gap-1`}
                     >
                       View all on Instagram <ExternalLink className="w-3 h-3" />
                     </a>
@@ -492,13 +545,13 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             <div 
               ref={locationSectionRef}
               id="location-section" 
-              className={`pt-12 mt-12 border-t border-gray-100 transition-all ${step === 7 ? 'ring-2 ring-[#ac0053]/40 p-4 rounded-2xl bg-[#ffd9e1]/10' : ''}`}
+              className={`pt-12 mt-12 border-t border-gray-100 transition-all ${step === 7 ? `ring-2 ${accentRing40Cls} p-4 rounded-2xl ${accentSoftBg10Cls}` : ''}`}
             >
               <div className="text-center mb-8">
-                <div className="w-12 h-12 bg-[#ac0053]/10 text-[#ac0053] rounded-full mx-auto flex items-center justify-center mb-3">
+                <div className={`w-12 h-12 ${accentBg10Cls} ${accentTextCls} rounded-full mx-auto flex items-center justify-center mb-3`}>
                   <MapPin className="w-6 h-6" />
                 </div>
-                <span className="text-xs font-bold text-[#ac0053] uppercase tracking-wider">Visit Us</span>
+                <span className={`text-xs font-bold ${accentTextCls} uppercase tracking-wider`}>Visit Us</span>
                 <h3 className="text-2xl font-bold text-gray-900 mt-1">Our Location & Opening Hours</h3>
               </div>
 
@@ -506,7 +559,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                 {/* Address Block */}
                 <div className="space-y-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-[#ac0053]" /> Address
+                    <MapPin className={`w-4 h-4 ${accentTextCls}`} /> Address
                   </h4>
                   <p className="text-sm text-gray-600 leading-relaxed">
                     {data.address?.fullAddress || 'Shop 14, Linking Road, Bandra West, Mumbai, Maharashtra 400050'}
@@ -520,7 +573,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                      <div className="w-8 h-8 bg-[#ac0053] rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white">
+                      <div className={`w-8 h-8 ${accentBgCls} rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white`}>
                         <MapPin className="w-4 h-4" />
                       </div>
                     </div>
@@ -534,7 +587,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                 {/* Hours Block */}
                 <div className="space-y-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-[#ac0053]" /> Opening Hours
+                    <Clock className={`w-4 h-4 ${accentTextCls}`} /> Opening Hours
                   </h4>
                   <div className="space-y-2 text-xs text-gray-600">
                     {data.openingHours ? (
@@ -544,14 +597,14 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                           {schedule.open ? (
                             <span className="font-semibold text-gray-700">{schedule.startTime} – {schedule.endTime}</span>
                           ) : (
-                            <span className="font-bold text-[#ac0053]">Closed</span>
+                            <span className={`font-bold ${accentTextCls}`}>Closed</span>
                           )}
                         </div>
                       ))
                     ) : (
                       <>
                         <div className="flex justify-between border-b border-gray-200/60 pb-2"><span className="font-medium text-gray-900">Monday – Saturday</span><span>10:00 AM – 08:00 PM</span></div>
-                        <div className="flex justify-between border-b border-gray-200/60 pb-2"><span className="font-medium text-gray-900">Sunday</span><span className="text-[#ac0053] font-bold">Closed</span></div>
+                        <div className="flex justify-between border-b border-gray-200/60 pb-2"><span className="font-medium text-gray-900">Sunday</span><span className={`${accentTextCls} font-bold`}>Closed</span></div>
                       </>
                     )}
                   </div>
@@ -563,13 +616,13 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
             <div 
               ref={contactSectionRef}
               id="contact-booking-section"
-              className={`pt-12 mt-12 border-t border-gray-100 transition-all ${step === 8 ? 'ring-2 ring-[#ac0053]/40 p-4 rounded-2xl bg-[#ffd9e1]/10' : ''}`}
+              className={`pt-12 mt-12 border-t border-gray-100 transition-all ${step === 8 ? `ring-2 ${accentRing40Cls} p-4 rounded-2xl ${accentSoftBg10Cls}` : ''}`}
             >
               <div className="text-center mb-8">
-                <div className="w-12 h-12 bg-[#ac0053]/10 text-[#ac0053] rounded-full mx-auto flex items-center justify-center mb-3">
+                <div className={`w-12 h-12 ${accentBg10Cls} ${accentTextCls} rounded-full mx-auto flex items-center justify-center mb-3`}>
                   <CalendarCheck className="w-6 h-6" />
                 </div>
-                <span className="text-xs font-bold text-[#ac0053] uppercase tracking-wider">Contact & Book</span>
+                <span className={`text-xs font-bold ${accentTextCls} uppercase tracking-wider`}>Contact & Book</span>
                 <h3 className="text-2xl font-bold text-gray-900 mt-1">Book Your Appointment</h3>
               </div>
 
@@ -586,9 +639,9 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                         }
                         window.location.href = `tel:${data.phone || ''}`;
                       }}
-                      className={`w-full py-3 bg-white border border-gray-200 text-gray-900 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all ${advancePaymentSuccessful ? 'hover:border-[#ac0053]' : 'opacity-60'}`}
+                      className={`w-full py-3 bg-white border border-gray-200 text-gray-900 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all ${advancePaymentSuccessful ? accentBorderHoverCls : 'opacity-60'}`}
                     >
-                      <Phone className="w-4 h-4 text-[#ac0053]" /> Call Now
+                      <Phone className={`w-4 h-4 ${accentTextCls}`} /> Call Now
                     </button>
                   )}
                   {(!data.contactOptions || data.contactOptions.whatsapp) && (
@@ -617,7 +670,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                         }
                         setShowBookingWidget(true);
                       }}
-                      className={`w-full py-3 bg-[#ac0053] hover:bg-[#ba005b] text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all ${advancePaymentSuccessful ? '' : 'opacity-60'}`}
+                      className={`w-full py-3 ${accentBgCls} hover:brightness-110 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-all ${advancePaymentSuccessful ? '' : 'opacity-60'}`}
                     >
                       <CalendarCheck className="w-4 h-4" /> Book Online
                     </button>
@@ -629,7 +682,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                     <button
                       type="button"
                       onClick={() => { setLockedActionMessage(null); setShowBookingWidget(true); }}
-                      className="mt-2 rounded-lg bg-[#ac0053] px-3 py-1.5 font-bold text-white hover:bg-[#ba005b]"
+                      className={`mt-2 rounded-lg ${accentBgCls} px-3 py-1.5 font-bold text-white hover:brightness-110`}
                     >
                       Pay 25% Advance
                     </button>
@@ -640,9 +693,9 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                 <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-gray-900 flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-[#ac0053]" /> Online Booking Deposit
+                      <CreditCard className={`w-4 h-4 ${accentTextCls}`} /> Online Booking Deposit
                     </span>
-                    <span className="bg-[#ffd9e1] text-[#ac0053] font-bold px-2 py-0.5 rounded-full text-[10px]">
+                    <span className={`${accentSoftBgCls} ${accentTextCls} font-bold px-2 py-0.5 rounded-full text-[10px]`}>
                       25% Deposit
                     </span>
                   </div>
@@ -655,13 +708,13 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                       <span>Example (Signature Haircut):</span>
                       <span className="font-semibold text-gray-800">₹500</span>
                     </div>
-                    <div className="flex justify-between text-[#ac0053] font-bold">
+                    <div className={`flex justify-between ${accentTextCls} font-bold`}>
                       <span>Advance (25%):</span>
                       <span>-₹125</span>
                     </div>
                     <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1.5">
                       <span>Pay at Salon:</span>
-                      <span className="text-[#ac0053]">₹375</span>
+                      <span className={accentTextCls}>₹375</span>
                     </div>
                   </div>
                 </div>
