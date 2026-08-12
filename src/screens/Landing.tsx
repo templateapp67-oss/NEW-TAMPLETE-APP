@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import TemplateRenderer from '../components/TemplateRenderer';
 import ShareReferralPremium from '../components/ShareReferralPremium';
 import BrandingWhiteLabel from '../components/BrandingWhiteLabel';
+import { SALON_NAME_FONTS, SALON_NAME_COLORS } from '../lib/brandIdentity';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -1540,6 +1541,60 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                             placeholder="Enter salon name"
                             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold focus:border-[#ac0053] focus:ring-1 focus:ring-[#ac0053]/20"
                           />
+                        </div>
+
+                        {/* Brand Identity — Salon Name Font & Text Color */}
+                        <div className="rounded-xl border border-[#ffd9e1]/60 bg-[#ffd9e1]/10 p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Palette className="w-4 h-4 text-[#ac0053]" />
+                            <h5 className="text-[11px] font-extrabold text-gray-800 uppercase tracking-wider">Salon Name Style</h5>
+                            <span className="text-[9px] bg-[#ffd9e1]/40 text-[#ac0053] px-2 py-0.5 rounded font-bold uppercase tracking-wider ml-auto">Live preview</span>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Font Style</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {SALON_NAME_FONTS.map(font => {
+                                const isSelected = data.salonNameFont === font.id;
+                                return (
+                                  <button
+                                    key={font.id}
+                                    type="button"
+                                    onClick={() => setData(prev => ({ ...prev, salonNameFont: font.id }))}
+                                    className={`text-left px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                                      isSelected ? 'border-[#ac0053] bg-[#ffd9e1]/20 shadow-xs' : 'border-gray-200 bg-white hover:border-[#ac0053]/40'
+                                    }`}
+                                  >
+                                    <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider">{font.label}</span>
+                                    <span className="block text-sm truncate text-gray-800" style={{ fontFamily: font.fontFamily, fontWeight: font.fontWeight, letterSpacing: font.letterSpacing, textTransform: font.textTransform }}>
+                                      {(data.salonName || 'Royal Salon').slice(0, 20)}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Text Color</label>
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {SALON_NAME_COLORS.map(color => {
+                                const isSelected = (data.salonNameColor || '') === color.value;
+                                return (
+                                  <button
+                                    key={color.value}
+                                    type="button"
+                                    title={color.label}
+                                    aria-label={`Select ${color.label} salon name color`}
+                                    onClick={() => setData(prev => ({ ...prev, salonNameColor: color.value }))}
+                                    className={`h-9 w-9 rounded-full border-2 transition-transform hover:scale-110 cursor-pointer ${isSelected ? 'ring-2 ring-offset-2 ring-[#ffb1c4] border-white' : 'border-transparent'}`}
+                                    style={{ backgroundColor: color.value }}
+                                  />
+                                );
+                              })}
+                              <span className="text-[10px] font-semibold text-gray-400">
+                                {SALON_NAME_COLORS.find(c => c.value === data.salonNameColor)?.label || 'Theme default'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
                         <div>

@@ -1,11 +1,39 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-12** (session `arena/019ff405-new-tamplete-app`).
+> Last updated: **2026-08-12** (session `arena/019ff535-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
 
+- **Brand Identity → Salon Name font & color**:
+  - New shared presets in `src/lib/brandIdentity.ts`: **5 salon-name fonts**
+    (Elegant Serif / Playfair, Modern Sans / Inter, Luxury Script / Great Vibes,
+    Bold Display / Oswald, Editorial Slab / Arvo) and **5 theme-matching text
+    colors** (Charcoal, Nexora Pink, Deep Gold, Emerald, Royal Blue).
+  - New `SalonData` fields `salonNameFont` / `salonNameColor` (persisted in the
+    existing localStorage flow — no schema/DB changes).
+  - Pickers added in **Step 11 Template Appearance** (wizard, Brand Identity
+    card) and the **Dashboard → Website tab** (Business & About Info → "Salon
+    Name Style" box); both update the live preview instantly and auto-save.
+  - The selected font/color is applied to the salon name in the published site
+    renderers: `TemplateRenderer` (nav + footer, used by wizard previews, full
+    website preview, publish setup, dashboard sandbox & live-site modal),
+    `PreviewPane` (wizard live preview), `CustomerBookingPreview` (booking
+    header + confirmation), and Step 11's inline preview.
+- **Tagline category/sub-category picker** (Salon / Beauty / Spa with the exact
+  sub-category lists, 5 professional options each + manual entry) already lived
+  in Step 11 — verified working, saves to `data.tagline`, reflected in previews.
+- **Core services** — "Add Another Service" in Step 11, "Add Service" in
+  Step 05, and the Dashboard services drawer are all functional (name, price,
+  duration, description; instant list + live preview updates).
+- **Appointment payment rule** — advance deposit is fixed at **25%** everywhere
+  (`StepContactBooking` forces `advanceDepositPercentage: 25`, dashboard shows
+  the fixed policy, booking flow hardcodes 25%) with no 0/10/50/100 selector.
+  Mock payment flow kept; no Razorpay/real gateway added. The testing-phase
+  switch is documented at the top of `PreviewPane.tsx` (`advancePaymentSuccessful
+  = true` keeps Call Now / WhatsApp / Book Online active; flip to `false` when
+  the real integration lands).
 - **Auth UI / Login Modal fixed**:
   - The login modal now renders through a React portal (`createPortal(..., document.body)`),
     preventing any clipping or hidden modal issues caused by parent `overflow-hidden`,

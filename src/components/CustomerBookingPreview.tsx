@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SalonData, Service, TeamMember, getPublicStaffData } from '../types';
+import { getSalonNameStyle } from '../lib/brandIdentity';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -158,7 +159,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
           <div className="px-6 py-8 md:px-10 md:py-12 flex flex-col items-center text-center border-b border-gray-150 bg-slate-50/50">
             {/* Brand Logo Placeholder */}
             <div className="mb-6">
-              <span className="font-extrabold text-2xl text-[#ac0053] tracking-tight">
+              <span className="font-extrabold text-2xl text-[#ac0053] tracking-tight" style={getSalonNameStyle(data)}>
                 {data.salonName || 'Nexora Lumina'}
               </span>
             </div>
@@ -323,7 +324,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          <span className="font-bold text-[#ac0053] text-lg tracking-tight">
+          <span className="font-bold text-[#ac0053] text-lg tracking-tight" style={getSalonNameStyle(data)}>
             {data.salonName || 'Nexora Salon'}
           </span>
         </div>
