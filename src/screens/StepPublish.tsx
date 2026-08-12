@@ -63,24 +63,28 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
     [taglineCategory, taglineSubcategory],
   );
 
+  const persistSoon = () => {
+    if (onSave) setTimeout(() => onSave(), 0);
+  };
+
   const selectTagline = (tagline: string) => {
     setData(prev => ({ ...prev, tagline }));
-    if (onSave) onSave();
+    persistSoon();
   };
 
   const selectBrandColor = (brandColor: string) => {
     setData(prev => ({ ...prev, brandColor }));
-    if (onSave) onSave();
+    persistSoon();
   };
 
   const selectSalonNameFont = (fontId: string) => {
     setData(prev => ({ ...prev, salonNameFont: fontId }));
-    if (onSave) onSave();
+    persistSoon();
   };
 
   const selectSalonNameColor = (color: string) => {
     setData(prev => ({ ...prev, salonNameColor: color }));
-    if (onSave) onSave();
+    persistSoon();
   };
 
   const addService = (event: React.FormEvent) => {
@@ -89,7 +93,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
     if (!name) return;
     setData(prev => ({
       ...prev,
-      services: [...prev.services, {
+      services: [...(prev.services || []), {
         id: `custom-${Date.now()}`,
         name,
         category: 'Custom',
@@ -103,7 +107,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
     setNewServicePrice('500');
     setNewServiceDuration('60');
     setShowServiceForm(false);
-    if (onSave) onSave();
+    persistSoon();
   };
 
   const handleContinue = () => {
@@ -263,7 +267,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-[#1a1c1c]">Tagline</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <select value={taglineCategory} onChange={e => { const next = e.target.value; setTaglineCategory(next); setTaglineSubcategory(TAGLINE_SUBCATEGORIES[next][0]); }} className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-3 py-2.5 text-xs text-[#1a1c1c] outline-none focus:border-[#ac0053]">
+                  <select value={taglineCategory} onChange={e => { const next = e.target.value; const firstSub = TAGLINE_SUBCATEGORIES[next][0]; setTaglineCategory(next); setTaglineSubcategory(firstSub); }} className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-3 py-2.5 text-xs text-[#1a1c1c] outline-none focus:border-[#ac0053]">
                     {Object.keys(TAGLINE_CATEGORIES).map(category => <option key={category}>{category}</option>)}
                   </select>
                   <select value={taglineSubcategory} onChange={e => setTaglineSubcategory(e.target.value)} className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-3 py-2.5 text-xs text-[#1a1c1c] outline-none focus:border-[#ac0053]">
@@ -307,7 +311,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
               Core Services
             </h2>
             <div className="bg-white rounded-lg border border-[#eeeeee] p-4 shadow-sm space-y-4">
-              {data.services.map((s) => (
+              {(data.services || []).map((s) => (
                 <div key={s.id} className="flex items-center gap-4 bg-[#eeeeee] rounded-lg p-3 group cursor-pointer border border-transparent hover:border-[#eeeeee] transition-colors">
                   <div className="w-12 h-12 rounded bg-[#f9f9f9] flex items-center justify-center shrink-0">
                     <Sparkles className="w-6 h-6 text-[#ac0053]" />
@@ -320,7 +324,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
                 </div>
               ))}
               
-              <button type="button" onClick={() => setShowServiceForm(prev => !prev)} className="w-full py-3 border border-dashed border-[#eeeeee] rounded-lg text-[#5f5e5e] text-sm font-semibold hover:text-[#ac0053] hover:border-[#ac0053] transition-colors flex items-center justify-center gap-2">
+              <button type="button" onClick={() => { setShowServiceForm(true); setNewServiceName(prev => prev || ''); }} className="w-full py-3 border border-dashed border-[#eeeeee] rounded-lg text-[#5f5e5e] text-sm font-semibold hover:text-[#ac0053] hover:border-[#ac0053] transition-colors flex items-center justify-center gap-2">
                 <Plus className="w-[18px] h-[18px]" /> Add Another Service
               </button>
               {showServiceForm && (
@@ -395,8 +399,8 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
               <div className="grid grid-cols-2 gap-6">
                 {data.services.map((s) => (
                   <div key={s.id} className={`rounded-xl p-8 border hover:shadow-lg transition-shadow ${appearance === 'dark' ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-[#f9f9f9] border-[#e5e2e1]/50'}`}>
-                    <div className="w-12 h-12 rounded-full bg-[#ac0053]/10 flex items-center justify-center mb-6">
-                      <Sparkles className="w-6 h-6 text-[#ac0053]" />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: `${data.brandColor || '#ac0053'}1a` }}>
+                      <Sparkles className="w-6 h-6" style={{ color: data.brandColor || '#ac0053' }} />
                     </div>
                     <h3 className={`text-2xl font-bold mb-2 ${appearance === 'dark' ? 'text-white' : 'text-[#1a1c1c]'}`}>{s.name}</h3>
                     <p className={`text-sm mb-4 ${appearance === 'dark' ? 'text-zinc-400' : 'text-[#5f5e5e]'}`}>{s.description}</p>

@@ -357,6 +357,7 @@ export const initialData: SalonData = {
       duration: 75
     }
   ],
+  brandColor: '#ac0053',
   websiteAppearance: 'light' as const,
   websiteSlug: 'royal-hair-studio',
   publishState: 'draft' as const,
