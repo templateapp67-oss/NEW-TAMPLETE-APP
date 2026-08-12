@@ -60,7 +60,7 @@ export default function StepContactBooking({ data, setData, onNext, onPrev, onSa
   const phone = data.phone || '+91 98765 43210';
   const whatsappPhone = data.whatsappPhone || data.phone || '+91 98765 43210';
   const contactOptions = data.contactOptions || DEFAULT_CONTACT_OPTIONS;
-  const bookingRules = data.bookingRules || DEFAULT_BOOKING_RULES;
+  const bookingRules = { ...DEFAULT_BOOKING_RULES, ...(data.bookingRules || {}), advanceDepositPercentage: 25 };
   const hours = data.openingHours || DEFAULT_HOURS;
 
   const updatePhone = (val: string) => {
@@ -392,19 +392,14 @@ export default function StepContactBooking({ data, setData, onNext, onPrev, onSa
               </select>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Online Advance Deposit Percentage</label>
-              <select
-                value={bookingRules.advanceDepositPercentage ?? 25}
-                onChange={e => updateBookingRule('advanceDepositPercentage', Number(e.target.value))}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2 text-xs text-gray-800 outline-none focus:border-[#ac0053]"
-              >
-                <option value="0">0% (Disabled - Pay at Salon only)</option>
-                <option value="10">10% Deposit</option>
-                <option value="25">25% Deposit (Recommended)</option>
-                <option value="50">50% Deposit</option>
-                <option value="100">100% Full Prepayment</option>
-              </select>
+            <div className="md:col-span-2 rounded-xl border border-[#ac0053]/15 bg-[#ffd9e1]/20 px-3.5 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-gray-700">Online Advance Deposit</p>
+                  <p className="mt-0.5 text-[11px] text-gray-500">Company policy: fixed 25% advance on every online booking.</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#ac0053] px-2.5 py-1 text-[11px] font-bold text-white">25% fixed</span>
+              </div>
             </div>
           </div>
 

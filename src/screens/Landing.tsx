@@ -332,7 +332,7 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
 
     const serv = data.services.find(s => s.id === newSelectedService) || data.services[0];
     const provider = data.team.find(t => t.id === newSelectedStaff) || data.team[0];
-    const depositPct = data.bookingRules?.advanceDepositPercentage || 25;
+    const depositPct = 25;
     const price = serv ? serv.price : 400;
     const deposit = Math.round((price * depositPct) / 100);
 
@@ -1863,7 +1863,7 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                         >
                           <div>
                             <p className="text-xs font-bold text-gray-800">Booking & Pay Rules</p>
-                            <p className="text-[10px] text-gray-400 font-semibold">{data.bookingRules?.advanceDepositPercentage || 25}% advance deposit</p>
+                            <p className="text-[10px] text-gray-400 font-semibold">{25}% advance deposit</p>
                           </div>
                           <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                         </button>
@@ -2701,7 +2701,7 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                   <span className="w-8 h-8 rounded-full bg-[#ac0053]/10 flex items-center justify-center text-[#ac0053] shrink-0">
                     <AlertCircle className="w-4 h-4" />
                   </span>
-                  <p className="text-xs font-semibold text-[#ac0053]">Online bookings collect {data.bookingRules?.advanceDepositPercentage || 25}% advance. Remaining balance is due at the salon.</p>
+                  <p className="text-xs font-semibold text-[#ac0053]">Online bookings collect {25}% advance. Remaining balance is due at the salon.</p>
                 </div>
 
                 {/* 2. SUMMARY CARDS */}
@@ -2761,11 +2761,11 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                       <div className="space-y-4">
                         <div className="flex justify-between items-end">
                           <div>
-                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Advance Collected ({data.bookingRules?.advanceDepositPercentage || 25}%)</span>
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Advance Collected ({25}%)</span>
                             <span className="text-xl font-black text-[#ac0053]">₹{totalAdvanceCollected.toLocaleString()}</span>
                           </div>
                           <div className="text-right">
-                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Due at Salon ({100 - (data.bookingRules?.advanceDepositPercentage || 25)}%)</span>
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Due at Salon ({100 - (25)}%)</span>
                             <span className="text-xl font-black text-gray-900">₹{totalRemainingAtSalon.toLocaleString()}</span>
                           </div>
                         </div>
@@ -3092,19 +3092,10 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Advance Deposit percentage (%)</label>
-                      <input 
-                        type="number" 
-                        value={data.bookingRules?.advanceDepositPercentage || 25}
-                        onChange={(e) => {
-                          setData(prev => ({
-                            ...prev,
-                            bookingRules: { ...prev.bookingRules!, advanceDepositPercentage: Number(e.target.value) }
-                          }));
-                        }}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold"
-                      />
+                    <div className="rounded-xl border border-[#ac0053]/15 bg-[#ffd9e1]/20 px-4 py-3">
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Advance Deposit</label>
+                      <p className="text-xs font-semibold text-[#ac0053]">25% fixed company policy</p>
+                      <p className="mt-1 text-[11px] text-gray-500">Customers pay 25% online; the remaining 75% is paid at the salon.</p>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Allow Staff Selection</label>

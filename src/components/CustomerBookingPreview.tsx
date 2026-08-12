@@ -106,7 +106,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
   const [paymentState, setPaymentState] = useState<'idle' | 'verifying' | 'success'>('idle');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const depositPercentage = data.bookingRules?.advanceDepositPercentage ?? 25;
+  const depositPercentage = 25;
   const depositAmount = Math.round((selectedService.price * depositPercentage) / 100);
   const remainingAmount = selectedService.price - depositAmount;
 
