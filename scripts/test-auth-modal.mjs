@@ -74,27 +74,34 @@ async function runAllTests() {
   const heroSplitSrc = fs.readFileSync('src/screens/HeroSplit.tsx', 'utf8');
   const topBarSrc = fs.readFileSync('src/components/TopBar.tsx', 'utf8');
   const stepLocationSrc = fs.readFileSync('src/screens/StepLocation.tsx', 'utf8');
+  const providerSrc = fs.readFileSync('src/components/AuthModalProvider.tsx', 'utf8');
+  const mainSrc = fs.readFileSync('src/main.tsx', 'utf8');
 
-  await test('HeroSplit (Screen 02) Log In button opens LoginModal reliably', () => {
+  await test('One root-level auth provider owns the modal across every screen', () => {
+    assert.ok(mainSrc.includes('<AuthModalProvider>'), 'App is not wrapped in AuthModalProvider');
+    assert.ok(providerSrc.includes('<LoginModal open={open}'), 'Provider does not render LoginModal');
+    assert.ok(providerSrc.includes('setOpen(true)'), 'Provider cannot open the dialog');
+    assert.ok(providerSrc.includes('setOpen(false)'), 'Provider cannot close the dialog');
+  });
+
+  await test('HeroSplit (Screen 02) Log In button opens the root LoginModal reliably', () => {
     assert.ok(heroSplitSrc.includes('data-testid="hero-login-btn"'), 'Missing hero-login-btn');
     assert.ok(heroSplitSrc.includes('type="button"'), 'Missing type="button" on hero login button');
-    assert.ok(heroSplitSrc.includes('setLoginOpen(true)'), 'Missing setLoginOpen call');
-    assert.ok(heroSplitSrc.includes('<LoginModal open={loginOpen} onClose={() => setLoginOpen(false)}'), 'Missing LoginModal in HeroSplit');
+    assert.ok(heroSplitSrc.includes("openAuth('login')"), 'Hero does not open the root auth dialog');
   });
 
-  await test('TopBar Log In button opens LoginModal reliably and handles loading gracefully', () => {
+  await test('TopBar Log In button opens the root LoginModal and handles loading gracefully', () => {
     assert.ok(topBarSrc.includes('data-testid="topbar-login-btn"'), 'Missing topbar-login-btn');
     assert.ok(topBarSrc.includes('type="button"'), 'Missing type="button" on TopBar buttons');
-    assert.ok(topBarSrc.includes('setLoginOpen(true)'), 'Missing setLoginOpen in TopBar');
+    assert.ok(topBarSrc.includes("openAuth('login')"), 'TopBar does not open the root auth dialog');
     assert.ok(topBarSrc.includes('authLoading ?'), 'Missing auth loading state in TopBar');
     assert.ok(topBarSrc.includes('Checking...'), 'Missing auth loading indicator in TopBar');
-    assert.ok(topBarSrc.includes('<LoginModal open={loginOpen} onClose={() => setLoginOpen(false)}'), 'Missing LoginModal in TopBar');
   });
 
-  await test('StepLocation Log In button has proper type and testid', () => {
+  await test('StepLocation Log In button opens the same root auth dialog', () => {
     assert.ok(stepLocationSrc.includes('data-testid="location-login-btn"'), 'Missing location-login-btn');
     assert.ok(stepLocationSrc.includes('type="button"'), 'Missing type="button" on Location screen login button');
-    assert.ok(stepLocationSrc.includes('<LoginModal open={loginOpen} onClose={() => setLoginOpen(false)}'), 'Missing LoginModal in StepLocation');
+    assert.ok(stepLocationSrc.includes("openAuth('login')"), 'Location does not open the root auth dialog');
   });
 
   // 3. Check useAuth and supabaseClient safety

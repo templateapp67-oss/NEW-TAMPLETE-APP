@@ -1,6 +1,6 @@
 import { Sparkles, CheckCircle2, Users, LayoutDashboard, Loader2, ChevronDown, MapPin, Calendar, CreditCard, Share2, Settings, Scissors, Camera, Clock, LogIn, LogOut } from 'lucide-react';
 import { useState } from 'react';
-import LoginModal from './LoginModal';
+import { useAuthModal } from './AuthModalProvider';
 import { useAuth, signOut } from '../lib/useAuth';
 
 export const SCREENS = [
@@ -41,7 +41,7 @@ interface Props {
 }
 
 export default function TopBar({ step, activeModule, setActiveModule, saveStatus = 'saved', currentScreen, onNavigate }: Props) {
-  const [loginOpen, setLoginOpen] = useState(false);
+  const { openAuth } = useAuthModal();
   const { user, loading: authLoading } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const displayStep = step + 1; 
@@ -197,9 +197,8 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
           <button
             type="button"
             data-testid="topbar-login-btn"
-            onClick={() => setLoginOpen(true)}
+            onClick={() => openAuth('login')}
             aria-haspopup="dialog"
-            aria-expanded={loginOpen}
             className="flex items-center gap-1.5 rounded-lg bg-[#ac0053] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#ba005b]"
           >
             <LogIn className="h-3.5 w-3.5" /> Log In
@@ -232,8 +231,6 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
           </div>
         )}
       </div>
-
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </header>
   );
 }
