@@ -36,10 +36,9 @@ import {
  * FULL-SERVICE FAMILY SALON — independent visual renderer (Theme ID:
  * family_full_service).
  *
- * Presentation-only in Phase 5.1: it reads the owner's existing salon data,
- * but does not create services, suggested services, packages, or persistence.
- * The family menu areas intentionally show setup placeholders until that phase
- * is explicitly implemented.
+ * Presentation renderer: it reads the owner's salon data and the family
+ * catalogue, but does not create records or persist state. Empty menu areas
+ * remain honest when the owner has not configured services yet.
  */
 interface Props {
   data: SalonData;

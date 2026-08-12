@@ -250,6 +250,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   };
 
   const handleSpeechInput = () => {
+    if (isFamilyFullService) return;
     setIsSpeaking(true);
     setTimeout(() => {
       setIsSpeaking(false);
@@ -288,7 +289,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     if (customService) return;
     const match = findPredefinedService(theme, value);
     if (match) {
-      // Exact predefined match → auto-fill everything.
+      // Exact predefined match (or a family suggested alias) → canonicalise
+      // the name and auto-fill the rest of the form.
+      setNewServiceName(match.name);
       setNewServiceCategory(match.category);
       setNewServicePrice(match.price);
       setNewServiceDuration(match.duration);
@@ -462,80 +465,66 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
               <p className="text-[#5f5e5e] text-base">Choose your services, add prices and your website will update instantly.</p>
             </div>
 
-            {/* Suggested Services are intentionally not shown for the visual-only family theme. */}
-            {isFamilyFullService ? (
-              <div className="rounded-lg border border-[#bfe3f4] bg-[#eaf6ff] p-6 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-[#1769d2] shrink-0">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-semibold text-[#15324b] uppercase tracking-wider">Family menu setup is coming next</h3>
-                    <p className="text-xs text-[#5d7387] mt-1 leading-relaxed">This phase only applies the Full-Service Family Salon look. No family services or suggested services have been added yet.</p>
-                  </div>
+            {/* Suggested Services — theme-specific */}
+            <div className="bg-white rounded-lg border border-[#eeeeee] p-6 shadow-sm flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                <div>
+                  <h3 className="text-xs font-semibold text-[#1a1c1c] uppercase tracking-wider">Suggested for {THEME_LABELS[theme]}</h3>
+                  <p className="text-xs text-[#5f5e5e] mt-0.5">Curated to match your selected website style.</p>
                 </div>
+                <button
+                  onClick={selectAllSuggested}
+                  className="text-xs font-semibold text-[#ac0053] hover:underline self-start sm:self-auto"
+                >
+                  {allVisibleSelected ? 'Deselect All' : 'Select All'}
+                </button>
               </div>
-            ) : (
-              <div className="bg-white rounded-lg border border-[#eeeeee] p-6 shadow-sm flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                  <div>
-                    <h3 className="text-xs font-semibold text-[#1a1c1c] uppercase tracking-wider">Suggested for {THEME_LABELS[theme]}</h3>
-                    <p className="text-xs text-[#5f5e5e] mt-0.5">Curated to match your selected website style.</p>
-                  </div>
-                  <button
-                    onClick={selectAllSuggested}
-                    className="text-xs font-semibold text-[#ac0053] hover:underline self-start sm:self-auto"
-                  >
-                    {allVisibleSelected ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
 
-                {/* Category filter (per theme) */}
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => setSuggestedFilter('All')} className={chipClass(suggestedFilter === 'All')}>
-                    All
+              {/* Category filter (per theme) */}
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setSuggestedFilter('All')} className={chipClass(suggestedFilter === 'All')}>
+                  All
+                </button>
+                {categories.map((c) => (
+                  <button key={c} onClick={() => setSuggestedFilter(c)} className={chipClass(suggestedFilter === c)}>
+                    {c}
                   </button>
-                  {categories.map((c) => (
-                    <button key={c} onClick={() => setSuggestedFilter(c)} className={chipClass(suggestedFilter === c)}>
-                      {c}
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {visibleSuggested.map((s) => {
+                  const isSelected = selectedSuggested.includes(s.name);
+                  return (
+                    <button
+                      key={s.name}
+                      onClick={() => toggleSuggested(s.name)}
+                      title={s.description}
+                      className={`px-4 py-2 rounded-full border text-sm font-medium transition-all flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'border-[#ac0053] bg-[#ffd9e1] text-[#3f001a]'
+                          : 'border-[#eeeeee] bg-[#f9f9f9] text-[#1a1c1c] hover:border-[#ac0053] hover:text-[#ac0053]'
+                      }`}
+                    >
+                      {isSelected ? <Check className="w-4 h-4 text-[#ac0053]" /> : <Plus className="w-4 h-4 text-[#5f5e5e]" />}
+                      {s.suggestedLabel || s.name}
                     </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {visibleSuggested.map((s) => {
-                    const isSelected = selectedSuggested.includes(s.name);
-                    return (
-                      <button
-                        key={s.name}
-                        onClick={() => toggleSuggested(s.name)}
-                        title={s.description}
-                        className={`px-4 py-2 rounded-full border text-sm font-medium transition-all flex items-center gap-1.5 ${
-                          isSelected
-                            ? 'border-[#ac0053] bg-[#ffd9e1] text-[#3f001a]'
-                            : 'border-[#eeeeee] bg-[#f9f9f9] text-[#1a1c1c] hover:border-[#ac0053] hover:text-[#ac0053]'
-                        }`}
-                      >
-                        {isSelected ? <Check className="w-4 h-4 text-[#ac0053]" /> : <Plus className="w-4 h-4 text-[#5f5e5e]" />}
-                        {s.name}
-                      </button>
-                    );
-                  })}
-                  {visibleSuggested.length === 0 && (
-                    <p className="text-sm text-[#5f5e5e]">No suggested services in this category.</p>
-                  )}
-                </div>
-                <div className="pt-2">
-                  <button
-                    onClick={handleAddSelected}
-                    disabled={selectedSuggested.length === 0}
-                    className="bg-[#ac0053] text-white font-semibold text-sm px-6 py-2.5 rounded-lg hover:bg-[#ba005b] transition-colors disabled:opacity-40"
-                  >
-                    Add Selected ({selectedSuggested.length})
-                  </button>
-                </div>
+                  );
+                })}
+                {visibleSuggested.length === 0 && (
+                  <p className="text-sm text-[#5f5e5e]">No suggested services in this category.</p>
+                )}
               </div>
-            )}
+              <div className="pt-2">
+                <button
+                  onClick={handleAddSelected}
+                  disabled={selectedSuggested.length === 0}
+                  className="bg-[#ac0053] text-white font-semibold text-sm px-6 py-2.5 rounded-lg hover:bg-[#ba005b] transition-colors disabled:opacity-40"
+                >
+                  Add Selected ({selectedSuggested.length})
+                </button>
+              </div>
+            </div>
 
             {/* Fast Add */}
             <div className="flex flex-col sm:flex-row gap-4">

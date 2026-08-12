@@ -9,7 +9,7 @@ import type { SalonData } from '../types';
  */
 export type ThemeId = Exclude<NonNullable<SalonData['templateId']>, 'family-salon'>;
 export type LegacyThemeId = 'family-salon';
-export type CatalogueThemeId = Exclude<ThemeId, 'family_full_service'> | LegacyThemeId;
+export type CatalogueThemeId = ThemeId | LegacyThemeId;
 
 /** All currently selectable themes, in display order. */
 export const THEME_IDS: ThemeId[] = [
@@ -58,6 +58,8 @@ export interface PredefinedService {
   description: string;
   price: number;
   duration: number; // minutes
+  /** Optional customer-facing label when a suggested name maps to a canonical service. */
+  suggestedLabel?: string;
 }
 
 /**
@@ -70,6 +72,7 @@ export const THEME_CATEGORIES: Record<CatalogueThemeId, string[]> = {
   barber_mens_grooming: ['Haircuts', 'Beard & Shave', 'Grooming & Treatments'],
   hair_studio_color_bar: ['Styling & Cuts', 'Hair Color', 'Treatments'],
   beauty_skin_spa: ['Facial & Skincare', 'Spa & Body', 'Waxing & Threading', 'Makeup'],
+  family_full_service: ["Men's Services", "Women's Services", 'Kids Special', 'Combos'],
   'family-salon': ['Hair', 'Beauty', 'Skin', 'Grooming', 'Spa', 'Kids'],
 };
 
@@ -135,7 +138,7 @@ export const BEAUTY_SPA_THEME = {
  *
  * This theme is deliberately a bright, high-density system: cobalt navigation,
  * sky surfaces, teal actions, and a small sunny-yellow highlight for kid-first
- * moments. It has no service catalogue entries in this phase.
+ * moments. The family service catalogue is maintained separately below.
  */
 export const FAMILY_FULL_SERVICE_THEME = {
   id: 'family_full_service' as const,
@@ -157,10 +160,9 @@ export const FAMILY_FULL_SERVICE_THEME = {
 } as const;
 
 /**
- * The full, professionally-curated service catalogue for each existing theme.
- * The new Full-Service Family Salon intentionally has no catalogue entry yet;
- * this phase only wires its visual template. Every existing entry remains
- * genuinely different per theme and categories map cleanly for the editor.
+ * The full, professionally-curated service catalogue for each theme.
+ * Existing theme entries remain unchanged; the family_full_service block is
+ * the only service data added in Phase 5.2.
  */
 export const SERVICES_BY_THEME: Record<CatalogueThemeId, PredefinedService[]> = {
   hair: [
@@ -276,6 +278,31 @@ export const SERVICES_BY_THEME: Record<CatalogueThemeId, PredefinedService[]> = 
     { name: 'Olaplex Bond Repair', category: 'Treatments', description: 'Patented bond-building therapy that relinks broken bonds for stronger, healthier hair.', price: 3500, duration: 60 },
   ],
 
+  family_full_service: [
+    // Men's Services
+    { name: 'Classic Haircut', category: "Men's Services", description: 'A polished classic cut with scissor and clipper detailing, wash and finish.', price: 350, duration: 35 },
+    { name: 'Beard Trim', category: "Men's Services", description: 'Precision beard shaping with a clean line-up, warm towel and conditioning finish.', price: 250, duration: 25 },
+    { name: 'Hair Color', category: "Men's Services", description: 'A rich, even colour refresh with consultation and scalp-safe application.', price: 1200, duration: 75 },
+    { name: 'Head Massage', category: "Men's Services", description: 'A relaxing scalp and head massage to release tension and leave you refreshed.', price: 500, duration: 30 },
+
+    // Women's Services
+    { name: 'Haircut & Blowdry', category: "Women's Services", description: 'A tailored haircut finished with a smooth, bouncy salon blowdry.', price: 650, duration: 55 },
+    { name: 'Hair Spa', category: "Women's Services", description: 'Deep conditioning, warm steam and a restorative scalp massage for softer, shinier hair.', price: 1000, duration: 60 },
+    { name: 'Threading', category: "Women's Services", description: 'Gentle, precise facial threading for clean brows and a polished finish.', price: 150, duration: 20 },
+    { name: 'Root Touch-Up', category: "Women's Services", description: 'Seamless grey coverage and root refresh blended into your existing colour.', price: 900, duration: 60 },
+    { name: 'Facial', category: "Women's Services", description: 'A deep-cleansing facial with steam, gentle extraction and a soothing mask for fresh, glowing skin.', price: 850, duration: 50 },
+
+    // Kids Special
+    { name: 'Kids Haircut', category: 'Kids Special', description: 'A gentle, friendly haircut designed for a comfortable and fuss-free kids visit.', price: 250, duration: 25 },
+    { name: 'Creative Styling', category: 'Kids Special', description: 'Fun braids, clips and creative styling for parties, photos and special days.', price: 450, duration: 35 },
+    { name: 'Baby Hair Cut (Mundan/Trim)', category: 'Kids Special', description: 'A patient, hygienic first haircut or trim with extra care for little guests.', price: 300, duration: 30 },
+
+    // Combos
+    { name: 'Family Haircare Package', category: 'Combos', description: 'A convenient family visit combining haircare moments for everyone under one roof.', price: 1800, duration: 120 },
+    { name: 'Couple Pamper Combo', category: 'Combos', description: 'A shared salon break with coordinated grooming and relaxation for two.', price: 1500, duration: 90 },
+    { name: 'Express Grooming', category: 'Combos', description: 'A quick, polished grooming refresh for busy days and last-minute plans.', price: 700, duration: 45 },
+  ],
+
   'family-salon': [
     // Hair
     { name: "Women's Cut & Style", category: 'Hair', description: 'Flattering cut shaped to your face, finished with a relaxing wash and blow-dry.', price: 400, duration: 45 },
@@ -357,6 +384,14 @@ export const SUGGESTED_SERVICE_NAMES: Record<CatalogueThemeId, string[]> = {
     'De-Tan Pack',
     'Bridal Makeup',
   ],
+  family_full_service: [
+    'Classic Haircut',
+    'Haircut & Blowdry',
+    'Beard Trim',
+    'Hair Spa',
+    'Deep Cleansing Facial',
+    'Kids Haircut',
+  ],
   'family-salon': [
     "Women's Cut & Style",
     "Men's Classic Cut",
@@ -389,45 +424,54 @@ export const SUGGESTED_SERVICE_ALIASES: Partial<Record<CatalogueThemeId, Record<
   beauty_skin_spa: {
     'De-Tan Pack': 'De-Tan Brightening',
   },
+  family_full_service: {
+    'Deep Cleansing Facial': 'Facial',
+  },
 };
 
-/**
- * Returns the categories available to the service editor for a theme.
- * The family theme deliberately returns an empty list until the service phase
- * is implemented; keeping this boundary here prevents UI code from inventing
- * family services as a side effect of selecting the visual theme.
- */
+/** Returns the categories available to the service editor for a theme. */
 export function getThemeCategories(theme: ThemeId): string[] {
-  if (theme === 'family_full_service') return [];
   return THEME_CATEGORIES[theme as CatalogueThemeId] || [];
 }
 
 /** Returns the curated suggested services for a theme (resolved from the catalogue). */
 export function getSuggestedServices(theme: ThemeId): PredefinedService[] {
-  if (theme === 'family_full_service') return [];
   const catalogueTheme = theme as CatalogueThemeId;
   const all = SERVICES_BY_THEME[catalogueTheme] || [];
   const aliases = SUGGESTED_SERVICE_ALIASES[catalogueTheme] || {};
   return (SUGGESTED_SERVICE_NAMES[catalogueTheme] || [])
-    .map((name) => all.find((s) => s.name === name) || all.find((s) => s.name === aliases[name]))
+    .map((suggestedName) => {
+      const resolved = all.find((service) => service.name === suggestedName)
+        || all.find((service) => service.name === aliases[suggestedName]);
+      if (!resolved) return undefined;
+      // Keep the requested family-facing chip label while adding the canonical
+      // predefined service behind it (e.g. Deep Cleansing Facial → Facial).
+      return theme === 'family_full_service' && resolved.name !== suggestedName
+        ? { ...resolved, suggestedLabel: suggestedName }
+        : resolved;
+    })
     .filter((s): s is PredefinedService => Boolean(s));
 }
 
 /** All predefined services that belong to a given theme + category. */
 export function getServicesForThemeCategory(theme: ThemeId, category: string): PredefinedService[] {
-  if (theme === 'family_full_service') return [];
   return (SERVICES_BY_THEME[theme as CatalogueThemeId] || []).filter((s) => s.category === category);
 }
 
 /** Case-insensitive lookup of a predefined service by name within a theme. */
 export function findPredefinedService(theme: ThemeId, name: string): PredefinedService | undefined {
-  if (theme === 'family_full_service') return undefined;
   const q = name.trim().toLowerCase();
-  return (SERVICES_BY_THEME[theme as CatalogueThemeId] || []).find((s) => s.name.toLowerCase() === q);
+  const all = SERVICES_BY_THEME[theme as CatalogueThemeId] || [];
+  const directMatch = all.find((service) => service.name.toLowerCase() === q);
+  if (directMatch || theme !== 'family_full_service') return directMatch;
+
+  const suggestedName = Object.entries(SUGGESTED_SERVICE_ALIASES[theme] || {})
+    .find(([displayName]) => displayName.toLowerCase() === q)?.[1];
+  return suggestedName ? all.find((service) => service.name.toLowerCase() === suggestedName.toLowerCase()) : undefined;
 }
 
 /** Theme-aware "Suggest with AI" starter services. */
-export const AI_SUGGESTION_NAMES: Record<CatalogueThemeId, [string, string]> = {
+export const AI_SUGGESTION_NAMES: Record<Exclude<CatalogueThemeId, 'family_full_service'>, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
   barber_mens_grooming: ['Skin Fade', 'Hot Towel Classic Shave'],
   hair_studio_color_bar: ['Balayage / Ombre', 'Olaplex Bond Repair'],
@@ -436,7 +480,7 @@ export const AI_SUGGESTION_NAMES: Record<CatalogueThemeId, [string, string]> = {
 };
 
 /** Theme-aware spoken-input example service. */
-export const VOICE_SERVICE_BY_THEME: Record<CatalogueThemeId, PredefinedService> = {
+export const VOICE_SERVICE_BY_THEME: Record<Exclude<CatalogueThemeId, 'family_full_service'>, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
   barber_mens_grooming: { name: 'The Executive Cut & Shave', category: 'Grooming & Treatments', description: 'Signature cut with hot-towel shave and scalp massage finish.', price: 750, duration: 60 },
   hair_studio_color_bar: { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
