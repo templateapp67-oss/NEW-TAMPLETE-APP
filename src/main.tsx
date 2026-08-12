@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import NearbySalonSearch from './components/NearbySalonSearch.tsx';
+import { AuthModalProvider } from './components/AuthModalProvider.tsx';
 import './index.css';
 
 /**
@@ -14,12 +15,14 @@ const isNearbyRoute =
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isNearbyRoute ? (
-      <div className="min-h-screen bg-[#f9f9f9] font-sans text-gray-900">
-        <NearbySalonSearch />
-      </div>
-    ) : (
-      <App />
-    )}
+    <AuthModalProvider>
+      {isNearbyRoute ? (
+        <div className="min-h-screen bg-[#f9f9f9] font-sans text-gray-900">
+          <NearbySalonSearch />
+        </div>
+      ) : (
+        <App />
+      )}
+    </AuthModalProvider>
   </StrictMode>,
 );

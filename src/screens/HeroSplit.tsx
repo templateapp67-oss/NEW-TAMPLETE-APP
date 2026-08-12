@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import { Sparkles, ArrowRight, CheckCircle2, Smartphone, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
-import LoginModal from '../components/LoginModal';
+import { useAuthModal } from '../components/AuthModalProvider';
 import { useAuth, signOut } from '../lib/useAuth';
 
 export default function HeroSplit({ onNext }: { onNext: () => void }) {
-  const [loginOpen, setLoginOpen] = useState(false);
+  const { openAuth } = useAuthModal();
   const { user } = useAuth();
   return (
     <div className="min-h-screen bg-[#f9f8f6] flex flex-col font-sans overflow-hidden">
@@ -21,9 +20,8 @@ export default function HeroSplit({ onNext }: { onNext: () => void }) {
           <button
             type="button"
             data-testid="hero-login-btn"
-            onClick={() => (user ? void signOut() : setLoginOpen(true))}
+            onClick={() => (user ? void signOut() : openAuth('login'))}
             aria-haspopup="dialog"
-            aria-expanded={loginOpen}
             className="border border-[#ac0053] text-[#ac0053] px-4 py-1.5 rounded-lg font-semibold text-sm hover:bg-pink-50 transition-colors"
           >
             {user ? 'Log Out' : 'Log In'}
@@ -154,7 +152,6 @@ export default function HeroSplit({ onNext }: { onNext: () => void }) {
         </div>
       </main>
 
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { fetchSalonLocation, saveSalonLocation } from '../lib/salonLocationServi
 import { resolveOwnerSalonId, ownerSalonMessage } from '../lib/ownerSalon';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { useAuth } from '../lib/useAuth';
-import LoginModal from '../components/LoginModal';
+import { useAuthModal } from '../components/AuthModalProvider';
 import { 
   MapPin, 
   Clock, 
@@ -70,7 +70,7 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
    */
   const [salonId, setSalonId] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth();
-  const [loginOpen, setLoginOpen] = useState(false);
+  const { openAuth } = useAuthModal();
 
   // The editor may only be opened once the authenticated owner's salon is known.
   const canEditLocation = salonId !== null && isSupabaseConfigured;
@@ -359,9 +359,8 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
                 <button
                   type="button"
                   data-testid="location-login-btn"
-                  onClick={() => setLoginOpen(true)}
+                  onClick={() => openAuth('login')}
                   aria-haspopup="dialog"
-                  aria-expanded={loginOpen}
                   className="shrink-0 rounded-lg bg-[#ac0053] px-3 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#ba005b]"
                 >
                   Log In
@@ -603,8 +602,6 @@ export default function StepLocation({ data, setData, onNext, onPrev, onSave }: 
       </footer>
 
       {/* Owner location editor — map + Nominatim. No browser geolocation here. */}
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-
       <LocationPickerModal
         open={pickerOpen}
         initialAddress={address.fullAddress}

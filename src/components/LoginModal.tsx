@@ -24,15 +24,21 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
  * Rendered via createPortal(..., document.body) to escape any parent
  * overflow/transform/stacking context clipping.
  */
+export type AuthMode = 'login' | 'signup';
+
 export interface LoginModalProps {
   open: boolean;
   onClose: () => void;
   onSignedIn?: () => void;
+  initialMode?: AuthMode;
 }
 
-export type AuthMode = 'login' | 'signup';
-
-export default function LoginModal({ open, onClose, onSignedIn }: LoginModalProps) {
+export default function LoginModal({
+  open,
+  onClose,
+  onSignedIn,
+  initialMode = 'login',
+}: LoginModalProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,13 +47,14 @@ export default function LoginModal({ open, onClose, onSignedIn }: LoginModalProp
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Reset state on open
+  // Reset transient state and honour the button that opened the form.
   useEffect(() => {
     if (!open) return;
+    setMode(initialMode);
     setError(null);
     setNotice(null);
     setBusy(false);
-  }, [open]);
+  }, [open, initialMode]);
 
   // Handle Escape key
   useEffect(() => {
@@ -148,6 +155,7 @@ export default function LoginModal({ open, onClose, onSignedIn }: LoginModalProp
       aria-modal="true"
       aria-labelledby="auth-modal-title"
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs transition-opacity"
+      style={{ zIndex: 2147483647 }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
