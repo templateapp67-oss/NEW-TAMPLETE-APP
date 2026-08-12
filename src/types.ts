@@ -167,6 +167,7 @@ export interface SalonData {
   packages: Package[];
   team: TeamMember[];
   websiteAppearance?: WebsiteAppearance;
+  brandColor?: string;
   reviewedContent?: ReviewedContent;
   websiteSlug?: string;
   publishState?: PublishState;

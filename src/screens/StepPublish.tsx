@@ -1,6 +1,37 @@
 import { Sparkles, ArrowRight, Scissors, Edit2, Plus, ArrowLeft, Sun, Moon } from 'lucide-react';
 import { SalonData } from '../types';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+
+
+const BRAND_COLORS = [
+  { name: 'Charcoal', value: '#1a1c1c' },
+  { name: 'Nexora Pink', value: '#ac0053' },
+  { name: 'Warm Taupe', value: '#8b6f61' },
+  { name: 'Emerald', value: '#059669' },
+  { name: 'Royal Blue', value: '#2563eb' },
+];
+
+const TAGLINE_CATEGORIES: Record<string, Record<string, string[]>> = {
+  Salon: {
+    'Hair Salon': ['Where your best look begins.', 'Style that feels unmistakably you.', 'Expert care for beautiful hair.', 'Your everyday beauty, elevated.', 'Confidence in every strand.'],
+    'Unisex Salon': ['Modern style for every expression.', 'One salon, every kind of style.', 'Made for your look and lifestyle.', 'Feel good. Look your best.', 'Personal style, professionally finished.'],
+    'Luxury Salon': ['Where luxury meets your signature style.', 'An elevated salon experience, made for you.', 'Refined beauty. Exceptional care.', 'Luxury styling with a personal touch.', 'Your signature look, beautifully crafted.'],
+  },
+  Beauty: {
+    'Beauty Parlour': ['Beautiful moments, beautifully made.', 'Your beauty, our signature.', 'Care that brings your glow to life.', 'Feel radiant, every day.', 'Personalized beauty for you.'],
+    Makeup: ['Make every moment your moment.', 'Artistry for your most beautiful days.', 'Your features, beautifully amplified.', 'Makeup that moves with you.', 'Glow with confidence.'],
+    Skincare: ['Healthy skin. Timeless confidence.', 'Nourish your glow naturally.', 'Thoughtful care for radiant skin.', 'Your skin, at its most beautiful.', 'A better glow starts with better care.'],
+  },
+  Spa: {
+    'Day Spa': ['Pause, breathe, and feel renewed.', 'Your time to restore and reconnect.', 'Wellness that stays with you.', 'A calmer way to feel your best.', 'Relaxation, thoughtfully perfected.'],
+    'Wellness Spa': ['Wellness for your body, mind, and soul.', 'Restore your balance. Renew your energy.', 'A deeper kind of self-care.', 'Feel better from the inside out.', 'Your wellbeing, beautifully supported.'],
+    'Medical Spa': ['Advanced care for your natural confidence.', 'Expert wellness, beautifully personalized.', 'Science-backed care, naturally you.', 'Where innovation meets wellbeing.', 'Your most confident self, supported.'],
+  },
+};
+
+const TAGLINE_SUBCATEGORIES = Object.fromEntries(
+  Object.entries(TAGLINE_CATEGORIES).map(([category, subcategories]) => [category, Object.keys(subcategories)]),
+);
 
 interface Props {
   data: SalonData;
@@ -12,10 +43,55 @@ interface Props {
 
 export default function StepPublish({ data, setData, onNext, onPrev, onSave }: Props) {
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
+  const [taglineCategory, setTaglineCategory] = useState('Salon');
+  const [taglineSubcategory, setTaglineSubcategory] = useState('Hair Salon');
+  const [showServiceForm, setShowServiceForm] = useState(false);
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServicePrice, setNewServicePrice] = useState('500');
+  const [newServiceDuration, setNewServiceDuration] = useState('60');
+  const [newServiceDescription, setNewServiceDescription] = useState('');
   const appearance = data.websiteAppearance || 'light';
 
   const selectAppearance = (app: 'light' | 'dark') => {
     setData(prev => ({ ...prev, websiteAppearance: app }));
+    if (onSave) onSave();
+  };
+
+  const taglineOptions = useMemo(
+    () => TAGLINE_CATEGORIES[taglineCategory]?.[taglineSubcategory] || TAGLINE_CATEGORIES.Salon['Hair Salon'],
+    [taglineCategory, taglineSubcategory],
+  );
+
+  const selectTagline = (tagline: string) => {
+    setData(prev => ({ ...prev, tagline }));
+    if (onSave) onSave();
+  };
+
+  const selectBrandColor = (brandColor: string) => {
+    setData(prev => ({ ...prev, brandColor }));
+    if (onSave) onSave();
+  };
+
+  const addService = (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = newServiceName.trim();
+    if (!name) return;
+    setData(prev => ({
+      ...prev,
+      services: [...prev.services, {
+        id: `custom-${Date.now()}`,
+        name,
+        category: 'Custom',
+        description: newServiceDescription.trim() || 'Personalized service by our expert team.',
+        price: Math.max(0, Number(newServicePrice) || 0),
+        duration: Math.max(1, Number(newServiceDuration) || 60),
+      }],
+    }));
+    setNewServiceName('');
+    setNewServiceDescription('');
+    setNewServicePrice('500');
+    setNewServiceDuration('60');
+    setShowServiceForm(false);
     if (onSave) onSave();
   };
 
@@ -115,22 +191,42 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
                   className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-4 py-3 text-[#1a1c1c] outline-none focus:border-[#ac0053] focus:ring-1 focus:ring-[#ac0053] transition-colors"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-[#1a1c1c] mb-2">Tagline</label>
-                <input 
-                  type="text" 
-                  value={data.tagline}
-                  onChange={e => setData({...data, tagline: e.target.value})}
-                  onBlur={onSave}
-                  className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-4 py-3 text-[#1a1c1c] outline-none focus:border-[#ac0053] focus:ring-1 focus:ring-[#ac0053] transition-colors"
-                />
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-[#1a1c1c]">Tagline</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={taglineCategory} onChange={e => { const next = e.target.value; setTaglineCategory(next); setTaglineSubcategory(TAGLINE_SUBCATEGORIES[next][0]); }} className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-3 py-2.5 text-xs text-[#1a1c1c] outline-none focus:border-[#ac0053]">
+                    {Object.keys(TAGLINE_CATEGORIES).map(category => <option key={category}>{category}</option>)}
+                  </select>
+                  <select value={taglineSubcategory} onChange={e => setTaglineSubcategory(e.target.value)} className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-3 py-2.5 text-xs text-[#1a1c1c] outline-none focus:border-[#ac0053]">
+                    {TAGLINE_SUBCATEGORIES[taglineCategory].map(subcategory => <option key={subcategory}>{subcategory}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  {taglineOptions.map(option => (
+                    <button key={option} type="button" onClick={() => selectTagline(option)} className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors ${data.tagline === option ? 'border-[#ac0053] bg-[#ffd9e1]/30 text-[#ac0053] font-bold' : 'border-[#eeeeee] bg-[#f9f9f9] text-[#5f5e5e] hover:border-[#ac0053]'}`}>
+                      {option}
+                    </button>
+                  ))}
+                </div>
+                <input type="text" value={data.tagline} onChange={e => setData({...data, tagline: e.target.value})} onBlur={onSave} placeholder="Or write your own tagline" className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-4 py-3 text-[#1a1c1c] outline-none focus:border-[#ac0053] focus:ring-1 focus:ring-[#ac0053] transition-colors" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-[#1a1c1c] mb-2">Brand Color</label>
-                <div className="flex gap-4">
-                  <button className="w-10 h-10 rounded-full bg-[#1a1c1c] border-2 border-[#ac0053] ring-2 ring-offset-2 ring-[#ffb1c4]"></button>
-                  <button className="w-10 h-10 rounded-full bg-[#ac0053] border-2 border-transparent hover:scale-110 transition-transform"></button>
-                  <button className="w-10 h-10 rounded-full bg-[#656464] border-2 border-transparent hover:scale-110 transition-transform"></button>
+                <div className="flex flex-wrap gap-4">
+                  {BRAND_COLORS.map(color => {
+                    const selected = (data.brandColor || '#1a1c1c') === color.value;
+                    return (
+                      <button
+                        key={color.value}
+                        type="button"
+                        title={color.name}
+                        aria-label={`Select ${color.name} brand color`}
+                        onClick={() => selectBrandColor(color.value)}
+                        className={`h-10 w-10 rounded-full border-2 transition-transform hover:scale-110 ${selected ? 'ring-2 ring-offset-2 ring-[#ffb1c4] border-white' : 'border-transparent'}`}
+                        style={{ backgroundColor: color.value }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -142,7 +238,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
               Core Services
             </h2>
             <div className="bg-white rounded-lg border border-[#eeeeee] p-4 shadow-sm space-y-4">
-              {data.services.slice(0, 2).map((s) => (
+              {data.services.map((s) => (
                 <div key={s.id} className="flex items-center gap-4 bg-[#eeeeee] rounded-lg p-3 group cursor-pointer border border-transparent hover:border-[#eeeeee] transition-colors">
                   <div className="w-12 h-12 rounded bg-[#f9f9f9] flex items-center justify-center shrink-0">
                     <Sparkles className="w-6 h-6 text-[#ac0053]" />
@@ -155,9 +251,20 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
                 </div>
               ))}
               
-              <button className="w-full py-3 border border-dashed border-[#eeeeee] rounded-lg text-[#5f5e5e] text-sm font-semibold hover:text-[#ac0053] hover:border-[#ac0053] transition-colors flex items-center justify-center gap-2">
+              <button type="button" onClick={() => setShowServiceForm(prev => !prev)} className="w-full py-3 border border-dashed border-[#eeeeee] rounded-lg text-[#5f5e5e] text-sm font-semibold hover:text-[#ac0053] hover:border-[#ac0053] transition-colors flex items-center justify-center gap-2">
                 <Plus className="w-[18px] h-[18px]" /> Add Another Service
               </button>
+              {showServiceForm && (
+                <form onSubmit={addService} className="space-y-3 rounded-xl border border-[#ac0053]/20 bg-[#fff8fa] p-4">
+                  <input autoFocus required value={newServiceName} onChange={e => setNewServiceName(e.target.value)} placeholder="Service name" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-[#ac0053]" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="number" min="0" value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} placeholder="Price" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-[#ac0053]" />
+                    <input type="number" min="1" value={newServiceDuration} onChange={e => setNewServiceDuration(e.target.value)} placeholder="Minutes" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-[#ac0053]" />
+                  </div>
+                  <textarea value={newServiceDescription} onChange={e => setNewServiceDescription(e.target.value)} placeholder="Short description (optional)" rows={2} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-[#ac0053]" />
+                  <button type="submit" className="w-full rounded-lg bg-[#ac0053] px-3 py-2 text-xs font-bold text-white hover:bg-[#ba005b]">Save Service</button>
+                </form>
+              )}
             </div>
           </div>
 
@@ -206,10 +313,10 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
             <div className="relative w-full h-[400px] flex items-center px-12 overflow-hidden">
               <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?q=80&w=1000)'}}></div>
               <div className="absolute inset-0 bg-white/70 z-10"></div>
-              <div className="relative z-20 max-w-lg">
+              <div className="relative z-20 max-w-lg" style={{ '--brand-color': data.brandColor || '#1a1c1c' } as React.CSSProperties}>
                 <h1 className="text-4xl md:text-5xl font-bold text-[#1a1c1c] mb-4 transition-all">{data.salonName || 'Your Salon'}</h1>
                 <p className="text-lg text-[#5b3f46] mb-8 transition-all">{data.tagline || 'Your tagline'}</p>
-                <button className="bg-[#1a1c1c] text-white px-8 py-3 rounded-lg text-sm font-semibold">Book Appointment</button>
+                <button className="text-white px-8 py-3 rounded-lg text-sm font-semibold" style={{ backgroundColor: data.brandColor || '#1a1c1c' }}>Book Appointment</button>
               </div>
             </div>
 
@@ -217,14 +324,14 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
             <div className={`px-12 py-16 ${appearance === 'dark' ? 'bg-zinc-900' : 'bg-[#ffffff]'}`}>
               <h2 className={`text-3xl font-bold text-center mb-12 ${appearance === 'dark' ? 'text-white' : 'text-[#1a1c1c]'}`}>Our Services</h2>
               <div className="grid grid-cols-2 gap-6">
-                {data.services.slice(0, 2).map((s) => (
+                {data.services.map((s) => (
                   <div key={s.id} className={`rounded-xl p-8 border hover:shadow-lg transition-shadow ${appearance === 'dark' ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-[#f9f9f9] border-[#e5e2e1]/50'}`}>
                     <div className="w-12 h-12 rounded-full bg-[#ac0053]/10 flex items-center justify-center mb-6">
                       <Sparkles className="w-6 h-6 text-[#ac0053]" />
                     </div>
                     <h3 className={`text-2xl font-bold mb-2 ${appearance === 'dark' ? 'text-white' : 'text-[#1a1c1c]'}`}>{s.name}</h3>
                     <p className={`text-sm mb-4 ${appearance === 'dark' ? 'text-zinc-400' : 'text-[#5f5e5e]'}`}>{s.description}</p>
-                    <div className="text-sm font-semibold text-[#ac0053]">₹{s.price.toLocaleString('en-IN')} • {s.duration} min</div>
+                    <div className="text-sm font-semibold" style={{ color: data.brandColor || '#ac0053' }}>₹{s.price.toLocaleString('en-IN')} • {s.duration} min</div>
                   </div>
                 ))}
               </div>

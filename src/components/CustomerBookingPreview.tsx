@@ -28,6 +28,7 @@ interface Props {
   data: SalonData;
   onBackToWebsite: () => void;
   onShowToast?: (msg: string) => void;
+  onAdvancePaymentSuccess?: () => void;
 }
 
 const DEFAULT_SERVICE: Service = {
@@ -66,7 +67,7 @@ const CATEGORY_IMAGES: Record<string, string> = {
   makeup: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
 };
 
-export default function CustomerBookingPreview({ data, onBackToWebsite, onShowToast }: Props) {
+export default function CustomerBookingPreview({ data, onBackToWebsite, onShowToast, onAdvancePaymentSuccess }: Props) {
   // Available services list (from data or default)
   const services = data.services && data.services.length > 0 ? data.services : [DEFAULT_SERVICE];
   const team = data.team && data.team.length > 0 ? data.team : [DEFAULT_STAFF];
@@ -105,7 +106,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
   const [paymentState, setPaymentState] = useState<'idle' | 'verifying' | 'success'>('idle');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const depositPercentage = data.bookingRules?.advanceDepositPercentage ?? 25;
+  const depositPercentage = 25;
   const depositAmount = Math.round((selectedService.price * depositPercentage) / 100);
   const remainingAmount = selectedService.price - depositAmount;
 
@@ -119,6 +120,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
     
     setTimeout(() => {
       setPaymentState('success');
+      onAdvancePaymentSuccess?.();
       setTimeout(() => {
         setActiveView('confirmed');
         if (onShowToast) {
