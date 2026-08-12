@@ -171,7 +171,12 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
         </button>
 
         {/* Account — available on every screen */}
-        {authLoading ? null : user ? (
+        {authLoading ? (
+          <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#ac0053]" />
+            <span className="hidden sm:inline">Checking...</span>
+          </div>
+        ) : user ? (
           <div className="flex items-center gap-2">
             <span
               className="hidden lg:inline max-w-[160px] truncate text-xs font-medium text-gray-600"
@@ -180,6 +185,8 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
               {user.email}
             </span>
             <button
+              type="button"
+              data-testid="topbar-logout-btn"
               onClick={() => void signOut()}
               className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
             >
@@ -188,7 +195,11 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
           </div>
         ) : (
           <button
+            type="button"
+            data-testid="topbar-login-btn"
             onClick={() => setLoginOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={loginOpen}
             className="flex items-center gap-1.5 rounded-lg bg-[#ac0053] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#ba005b]"
           >
             <LogIn className="h-3.5 w-3.5" /> Log In

@@ -1,19 +1,28 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-11** (session `arena/019ff184-new-tamplete-app`).
+> Last updated: **2026-08-12** (session `arena/019ff405-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
 
-- The 25-screen React/Express application and owner location/auth/nearby-search
-  work remain unchanged.
-- `supabase/migrations/` now contains **15 ordered DRAFT migrations (M01–M15)**
+- **Auth UI / Login Modal fixed**:
+  - The login modal now renders through a React portal (`createPortal(..., document.body)`),
+    preventing any clipping or hidden modal issues caused by parent `overflow-hidden`,
+    CSS transforms, or stacking contexts (specifically on Screen 02 Hero Split, TopBar, and Location screens).
+  - Accessible HTML `<form>` with explicit **Log In** and **Sign Up** mode switcher tabs,
+    email and password inputs (with show/hide password toggle and ≥6 character validation for sign-up),
+    Enter-to-submit, loading spinner, error/notice banners, Escape key listener, and backdrop click to close.
+  - The form opens reliably even when Supabase environment variables are absent, displaying a clear notice:
+    *"Authentication form is ready, but Supabase is not connected. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app."*
+  - TopBar account action includes a graceful loading fallback so buttons never permanently disappear during session verification.
+  - Automated regression suite added in `scripts/test-auth-modal.mjs` (`npm run test:auth`).
+- `supabase/migrations/` continues to contain **15 ordered DRAFT migrations (M01–M15)**
   based on the 90-point specification §5.25.
 - `scripts/validate-migrations.mjs` applies all 15 files twice and runs the P88
   functional acceptance set A–L using `@electric-sql/pglite` (real PostgreSQL).
-- Validation is green: **15/15 clean apply on pass 1, 15/15 on pass 2, and 12/12
-  functional tests**.
+- Validation is green: **15/15 clean apply on pass 1, 15/15 on pass 2, 12/12
+  functional tests, and 13/13 auth regression tests**.
 - **No migration has been applied to local, staging, or live Supabase.** The SQL
   is a reviewed/testable draft only.
 
@@ -27,7 +36,8 @@
 | #4 | Nexora 90-point Supabase master database specification |
 | #5 | Leaflet/Nominatim owner location, Supabase auth, public `/nearby` search |
 | #6 | Repository agent guide (`AGENTS.md`) and this handoff document |
-| Current DB draft | M01–M15, migration plan, PGlite replay + tests A–L |
+| #7 | 15 Safe migrations draft from 90-point spec (M01–M15) + PGlite acceptance suite |
+| Current | Fix login and sign-up modal portal rendering, accessible form, and triggers |
 
 ## Existing application inventory
 
@@ -42,6 +52,29 @@
 - **Public customer discovery**: `/nearby` renders `NearbySalonSearch`.
 - **Current app persistence**: wizard/dashboard data is still primarily
   localStorage/in-memory; the draft DB schema is not yet wired to screens.
+
+## Environment & Supabase Auth configuration requirements
+
+For real authentication and owner session management:
+
+1. **Supabase Dashboard → Project Settings → API**:
+   - `VITE_SUPABASE_URL`: Project URL (`https://<project-ref>.supabase.co`)
+   - `VITE_SUPABASE_ANON_KEY`: `anon` / `public` API key
+   - **Never** expose `service_role` in browser client or repository code.
+2. **Supabase Dashboard → Authentication → Providers**:
+   - **Email** provider must be enabled.
+3. **Supabase Dashboard → Authentication → URL Configuration**:
+   - Add your app/preview URL (`https://{port}-{sandboxId}.e2b.app` or custom domain)
+     to **Redirect URLs** and **Site URL**.
+4. **Email Confirmation**:
+   - If *Confirm email* is enabled in Supabase, users will receive a verification link upon
+     signing up. The form displays a confirmation notice and instructs the user to check their email.
+
+```bash
+cp .env.example .env
+# Fill VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm run dev                 # http://0.0.0.0:3000
+```
 
 ## Database status — keep these realities separate
 
@@ -88,46 +121,21 @@ The optional `payment_refunds` table is deferred until a real refund backend is
 implemented. SQL also cannot read browser localStorage; the later application
 wiring step must upsert each owner's existing draft/progress payload.
 
-## Migration validation
+## Validation commands
 
 ```bash
-npm install
-npm run validate:migrations
+npm run lint                # TypeScript type check (tsc --noEmit)
+npm run test:auth           # Auth modal and login reliability regression tests
+node verify-22-screens.js   # Static verification of all 25 screens & features
+npm run validate:migrations # PGlite: apply M01–M15 twice + run tests A–L
+npm run build               # Vite build + esbuild server bundle
 ```
 
 Expected output:
-
-```text
-Migration pass 1: 15/15 applied cleanly
-Migration pass 2: 15/15 applied cleanly
-...
-Functional tests: 12/12 passed
-```
-
-Tests A–L cover tenant isolation, single service/staff sources, live published
-sync, ₹1,200 → ₹300/₹900 math, unverified-payment rejection, exactly-once
-verification, dashboard/revenue consistency, archived-history preservation,
-onboarding resume, published slug access, and private-field exclusion.
-
-PGlite validates PostgreSQL behavior on a clean schema. It does not prove that
-the drafts can safely upgrade the unknown live schema and does not replace
-Supabase staging tests.
-
-## Environment and running locally
-
-```bash
-cp .env.example .env
-npm install
-npm run dev                 # http://0.0.0.0:3000
-npm run lint
-node verify-22-screens.js
-npm run validate:migrations
-```
-
-Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, optional
-server-side `GEMINI_API_KEY`, and optional `NOMINATIM_*` overrides. Never expose
-`service_role`, Razorpay secret, webhook secret, or Gemini key in the browser or
-in database fields.
+- `lint`: 0 errors
+- `test:auth`: 13/13 passed
+- `verify-22-screens`: 25/25 verified
+- `validate:migrations`: 15/15 applied cleanly x2, 12/12 functional tests passed
 
 ## Guardrails / gotchas
 
