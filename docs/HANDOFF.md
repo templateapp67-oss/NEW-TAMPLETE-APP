@@ -1,11 +1,29 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-12** (session `arena/019ff622-new-tamplete-app`).
+> Last updated: **2026-08-12** (session `arena/019ff634-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
 
+- **Category-based auto-suggested service descriptions (Step 05 / Add Service)**:
+  - When the user picks a **Category** in the "Add New Service" form, the
+    Description field is auto-filled with a professional, customer-friendly,
+    service-specific suggestion. Copy is category-aware (offline, rule-based —
+    no API key needed): **Haircut** (precision cut), **Styling** (blow-dry/set),
+    **Color** (color/highlights/balayage), **Treatment** (hair/scalp repair),
+    **Barbering** (men's grooming/beard/shaving), plus a generic fallback.
+  - Suggestions are prefixed with the service name (e.g. *"Balayage Color —
+    Vibrant, long-lasting color…"*), so they stay service-specific and update as
+    the name is typed (only while the description hasn't been hand-written).
+  - Description is fully user-editable. If the user hand-writes it and then
+    changes the category, the suggestion is **not** overwritten silently — an
+    inline "Replace / Keep mine" confirmation appears. A **"Generate
+    suggestion"** button is also provided to regenerate on demand.
+  - All new logic lives in `src/screens/StepServices.tsx`
+    (`suggestServiceDescription`, `handleOpenAddService`, `handleCategoryChange`,
+    `handleServiceNameChange`, `handleServiceDescChange`, `applyDescSuggestion`).
+    No schema/DB changes. Regression: `npm run lint`.
 - **Owner Photo + Owner Role (Step 03 / dashboard edit)**:
   - `SalonData.ownerPhotoUrl` added and persisted through the existing
     `nexora_onboarding_state` localStorage flow (same pattern as `logoUrl`).
