@@ -61,6 +61,14 @@ function suggestServiceDescription(category: string, serviceName: string): strin
       return withName('Artistic color with expert placement for a natural, dimensional, glossy finish.');
     case 'Treatments':
       return withName('Advanced repair and gloss treatment to restore strength, shine and vitality.');
+    case 'Facial & Skincare':
+      return withName('Nourishing facial and skincare treatment for healthy, glowing skin.');
+    case 'Spa & Body':
+      return withName('Relaxing body massage and spa therapy to melt away tension.');
+    case 'Waxing & Threading':
+      return withName('Hygienic, comfortable waxing and threading with soothing aftercare.');
+    case 'Makeup':
+      return withName('Professional makeup artistry for a flawless, long-lasting finish.');
     case 'Hair':
       return withName('Cut, style and colour services for every member of the family.');
     case 'Beauty':

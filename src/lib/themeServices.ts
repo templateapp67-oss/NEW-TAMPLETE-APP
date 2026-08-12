@@ -57,7 +57,7 @@ export const THEME_CATEGORIES: Record<ThemeId, string[]> = {
   hair: ['Haircut', 'Styling', 'Color', 'Treatment', 'Makeup & Beauty'],
   barber_mens_grooming: ['Haircuts', 'Beard & Shave', 'Grooming & Treatments'],
   hair_studio_color_bar: ['Styling & Cuts', 'Hair Color', 'Treatments'],
-  beauty_skin_spa: ['Massage', 'Facials', 'Nails', 'Hair Removal', 'Spa Packages'],
+  beauty_skin_spa: ['Facial & Skincare', 'Spa & Body', 'Waxing & Threading', 'Makeup'],
   'family-salon': ['Hair', 'Beauty', 'Skin', 'Grooming', 'Spa', 'Kids'],
 };
 
@@ -186,41 +186,31 @@ export const SERVICES_BY_THEME: Record<ThemeId, PredefinedService[]> = {
   ],
 
   beauty_skin_spa: [
-    // Massage
-    { name: 'Swedish Relaxation Massage', category: 'Massage', description: 'Gentle, flowing massage to ease tension and promote calm.', price: 1800, duration: 60 },
-    { name: 'Deep Tissue Massage', category: 'Massage', description: 'Firm pressure massage targeting knots and chronic muscle tightness.', price: 2400, duration: 60 },
-    { name: 'Aroma Oil Massage', category: 'Massage', description: 'Soothing essential-oil massage for balance, mood and skin.', price: 2000, duration: 60 },
-    { name: 'Head & Shoulder Massage', category: 'Massage', description: 'Focused massage to release neck, shoulder and scalp tension.', price: 900, duration: 30 },
-    { name: 'Foot Reflexology', category: 'Massage', description: 'Pressure-point therapy on the feet to restore overall wellbeing.', price: 1000, duration: 45 },
-    { name: 'Prenatal Massage', category: 'Massage', description: 'Gentle, side-lying massage tailored for expecting mothers.', price: 2200, duration: 60 },
+    // Facial & Skincare
+    { name: 'HydraFacial', category: 'Facial & Skincare', description: 'Multi-step hydradermabrasion facial that deeply cleanses, hydrates and plumps for instant glow.', price: 2800, duration: 60 },
+    { name: 'Anti-Aging Gold Facial', category: 'Facial & Skincare', description: 'Luxurious 24K gold facial that firms, brightens and reduces the appearance of fine lines.', price: 2400, duration: 60 },
+    { name: 'Deep Cleansing Cleanup', category: 'Facial & Skincare', description: 'Thorough cleanse with steam, gentle extraction and a soothing mask for clear, fresh skin.', price: 1200, duration: 45 },
+    { name: 'De-Tan Brightening', category: 'Facial & Skincare', description: 'Brightening de-tan treatment to reverse sun damage and restore an even, radiant complexion.', price: 1600, duration: 45 },
+    { name: 'Organic Glow Treatment', category: 'Facial & Skincare', description: 'Plant-based glow facial with botanical actives for a natural, healthy luminosity.', price: 1800, duration: 60 },
 
-    // Facials
-    { name: 'Hydra Facial', category: 'Facials', description: 'Hydrating, deep-cleansing facial for instant glow and plump skin.', price: 2500, duration: 60 },
-    { name: 'Anti-Ageing Gold Facial', category: 'Facials', description: 'Luxurious gold facial to firm, brighten and reduce fine lines.', price: 1800, duration: 60 },
-    { name: 'Acne Clear Facial', category: 'Facials', description: 'Clarifying facial to calm breakouts and decongest pores.', price: 1500, duration: 45 },
-    { name: 'Brightening Facial', category: 'Facials', description: 'Vitamin-rich facial to even tone and revive dull skin.', price: 1400, duration: 45 },
-    { name: 'Oxygen Facial', category: 'Facials', description: 'Oxygen-infusion facial for a refreshed, radiant complexion.', price: 2200, duration: 60 },
+    // Spa & Body
+    { name: 'Swedish Body Massage', category: 'Spa & Body', description: 'Gentle, flowing full-body massage that eases tension and promotes deep relaxation.', price: 2200, duration: 60 },
+    { name: 'Deep Tissue Massage', category: 'Spa & Body', description: 'Firm, targeted pressure to release knots and chronic muscle tightness.', price: 2800, duration: 60 },
+    { name: 'Aromatherapy', category: 'Spa & Body', description: 'Soothing essential-oil massage chosen to balance mood, body and skin.', price: 2400, duration: 60 },
+    { name: 'Foot Reflexology', category: 'Spa & Body', description: 'Pressure-point therapy on the feet to relieve stress and restore overall wellbeing.', price: 1200, duration: 45 },
+    { name: 'Back Spa', category: 'Spa & Body', description: 'Deep-cleansing back treatment with exfoliation, extraction and a relaxing massage.', price: 1800, duration: 45 },
 
-    // Nails
-    { name: 'Classic Manicure', category: 'Nails', description: 'Nail shaping, cuticle care and polished finish for hands.', price: 600, duration: 45 },
-    { name: 'Gel Manicure', category: 'Nails', description: 'Long-lasting gel polish with glossy, chip-free shine.', price: 1200, duration: 60 },
-    { name: 'Classic Pedicure', category: 'Nails', description: 'Relaxing foot soak, exfoliation and polished toenails.', price: 800, duration: 60 },
-    { name: 'Gel Pedicure', category: 'Nails', description: 'Durable gel pedicure with soothing foot massage.', price: 1500, duration: 75 },
-    { name: 'Nail Art (per hand)', category: 'Nails', description: 'Custom hand-painted nail art to express your style.', price: 500, duration: 30 },
-    { name: 'French Manicure', category: 'Nails', description: 'Timeless French tip manicure for an elegant finish.', price: 900, duration: 50 },
+    // Waxing & Threading
+    { name: 'Eyebrow & Upper Lip Threading', category: 'Waxing & Threading', description: 'Precise threading to shape your brows and smooth the upper lip with clean definition.', price: 150, duration: 15 },
+    { name: 'Full Body Waxing', category: 'Waxing & Threading', description: 'Complete body waxing — arms, legs, underarms and bikini line with soothing aftercare.', price: 2200, duration: 90 },
+    { name: 'Rica Waxing', category: 'Waxing & Threading', description: 'Premium Rica wax treatment, gentle on sensitive skin with long-lasting smoothness.', price: 1800, duration: 60 },
+    { name: 'Bikini Wax', category: 'Waxing & Threading', description: 'Hygienic, comfortable bikini-line waxing in a private, relaxing setting.', price: 900, duration: 30 },
 
-    // Hair Removal
-    { name: 'Full Arms Waxing', category: 'Hair Removal', description: 'Hygienic full-arm waxing with calming aftercare.', price: 500, duration: 30 },
-    { name: 'Full Legs Waxing', category: 'Hair Removal', description: 'Smooth full-leg waxing for long-lasting softness.', price: 800, duration: 45 },
-    { name: 'Underarm Waxing', category: 'Hair Removal', description: 'Quick, clean underarm waxing for up to 4 weeks of smoothness.', price: 300, duration: 15 },
-    { name: 'Brazilian Waxing', category: 'Hair Removal', description: 'Gentle, professional intimate waxing in a private setting.', price: 1200, duration: 45 },
-    { name: 'Face Threading', category: 'Hair Removal', description: 'Precise facial threading for brows, upper lip and chin.', price: 250, duration: 20 },
-
-    // Spa Packages
-    { name: 'Detox Day Spa Package', category: 'Spa Packages', description: 'Massage, facial and foot reflexology for a full reset.', price: 4500, duration: 150 },
-    { name: 'Bridal Glow Package', category: 'Spa Packages', description: 'Pre-bridal facials, body polish and makeup for radiant skin.', price: 9000, duration: 240 },
-    { name: 'Couple Spa Retreat', category: 'Spa Packages', description: 'Side-by-side massage and spa rituals for two.', price: 6000, duration: 150 },
-    { name: 'Quick Refresh Package', category: 'Spa Packages', description: 'Express facial and head massage for a midday pick-me-up.', price: 2500, duration: 90 },
+    // Makeup
+    { name: 'Bridal Makeup', category: 'Makeup', description: 'Flawless, long-lasting bridal look with skin prep, lashes and finishing touches for your big day.', price: 9000, duration: 150 },
+    { name: 'Party Makeup', category: 'Makeup', description: 'Camera-ready makeup for parties, dinners and celebrations with a polished finish.', price: 3000, duration: 75 },
+    { name: 'Airbrush Makeup', category: 'Makeup', description: 'Featherlight, high-definition airbrush makeup for a flawless, weightless finish.', price: 4500, duration: 90 },
+    { name: 'Pre-Bridal Skin Care', category: 'Makeup', description: 'A pre-wedding skincare ritual of facials and treatments for radiant, camera-ready skin.', price: 6000, duration: 120 },
   ],
 
   hair_studio_color_bar: [
@@ -322,13 +312,12 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
     'Olaplex Bond Repair',
   ],
   beauty_skin_spa: [
-    'Swedish Relaxation Massage',
-    'Hydra Facial',
-    'Classic Manicure',
-    'Full Legs Waxing',
-    'Detox Day Spa Package',
-    'Head & Shoulder Massage',
-    'Aroma Oil Massage',
+    'HydraFacial',
+    'Deep Cleansing Cleanup',
+    'Full Body Waxing',
+    'Swedish Body Massage',
+    'De-Tan Pack',
+    'Bridal Makeup',
   ],
   'family-salon': [
     "Women's Cut & Style",
@@ -359,6 +348,9 @@ export const SUGGESTED_SERVICE_ALIASES: Partial<Record<ThemeId, Record<string, s
     'Signature Haircut': 'Signature Cut & Blowdry',
     'Balayage': 'Balayage / Ombre',
   },
+  beauty_skin_spa: {
+    'De-Tan Pack': 'De-Tan Brightening',
+  },
 };
 
 /** Returns the curated suggested services for a theme (resolved from the catalogue). */
@@ -386,7 +378,7 @@ export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
   barber_mens_grooming: ['Skin Fade', 'Hot Towel Classic Shave'],
   hair_studio_color_bar: ['Balayage / Ombre', 'Olaplex Bond Repair'],
-  beauty_skin_spa: ['Hydra Facial', 'Swedish Relaxation Massage'],
+  beauty_skin_spa: ['HydraFacial', 'Swedish Body Massage'],
   'family-salon': ['De-Stress Spa Combo', 'Mommy & Me Package'],
 };
 
@@ -395,6 +387,6 @@ export const VOICE_SERVICE_BY_THEME: Record<ThemeId, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
   barber_mens_grooming: { name: 'The Executive Cut & Shave', category: 'Grooming & Treatments', description: 'Signature cut with hot-towel shave and scalp massage finish.', price: 750, duration: 60 },
   hair_studio_color_bar: { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
-  beauty_skin_spa: { name: 'Aroma Relaxation Massage', category: 'Massage', description: 'Soothing essential-oil full-body massage.', price: 2000, duration: 60 },
+  beauty_skin_spa: { name: 'Aromatherapy Body Ritual', category: 'Spa & Body', description: 'Soothing essential-oil full-body massage for deep relaxation.', price: 2400, duration: 60 },
   'family-salon': { name: 'Family Pamper Day Pass', category: 'Spa', description: 'A relaxing head massage and mini facial for the whole family.', price: 2500, duration: 120 },
 };
