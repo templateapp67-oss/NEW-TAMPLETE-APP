@@ -571,7 +571,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                       type="button"
                       onClick={() => {
                         if (!advancePaymentSuccessful) {
-                          setLockedActionMessage('Please pay 25% advance first. These buttons will work after successful payment.');
+                          setLockedActionMessage('Please pay 25% advance first.');
                           return;
                         }
                         window.location.href = `tel:${data.phone || ''}`;
@@ -586,7 +586,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                       type="button"
                       onClick={() => {
                         if (!advancePaymentSuccessful) {
-                          setLockedActionMessage('Please pay 25% advance first. These buttons will work after successful payment.');
+                          setLockedActionMessage('Please pay 25% advance first.');
                           return;
                         }
                         const phone = (data.whatsappPhone || data.phone || '').replace(/\D/g, '');
@@ -602,7 +602,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                       type="button"
                       onClick={() => {
                         if (!advancePaymentSuccessful) {
-                          setLockedActionMessage('Please pay 25% advance first. These buttons will work after successful payment.');
+                          setLockedActionMessage('Please pay 25% advance first.');
                           return;
                         }
                         setShowBookingWidget(true);
@@ -615,7 +615,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                 </div>
                 {!advancePaymentSuccessful && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                    <p>{lockedActionMessage || 'Please pay 25% advance first. These buttons will work after successful payment.'}</p>
+                    <p>{lockedActionMessage || 'Please pay 25% advance first.'}</p>
                     <button
                       type="button"
                       onClick={() => { setLockedActionMessage(null); setShowBookingWidget(true); }}
