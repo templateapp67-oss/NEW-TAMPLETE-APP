@@ -11,6 +11,7 @@ import {
   findPredefinedService,
   AI_SUGGESTION_NAMES,
   VOICE_SERVICE_BY_THEME,
+  normalizeThemeId,
   type ThemeId,
   type PredefinedService,
 } from '../lib/themeServices';
@@ -50,6 +51,10 @@ function suggestServiceDescription(category: string, serviceName: string): strin
       return withName('Hygienic, comfortable hair removal with soothing aftercare.');
     case 'Spa Packages':
       return withName('Curated spa experience combining our most-loved treatments.');
+    case 'Haircuts':
+      return withName('Precision barbering with clean lines and a sharp, confident finish.');
+    case 'Grooming & Treatments':
+      return withName('Deep-cleansing grooming and scalp treatments to refresh and revitalise.');
     case 'Cut & Style':
       return withName('Editorial precision cut and styling tailored to your hair type and face shape.');
     case 'Color & Highlights':
@@ -84,7 +89,7 @@ interface Props {
 }
 
 export default function StepServices({ data, setData, onNext, onPrev, onSave }: Props) {
-  const theme = (data.templateId || 'hair') as ThemeId;
+  const theme = normalizeThemeId(data.templateId);
   const categories = THEME_CATEGORIES[theme];
 
   // Theme-driven suggested services (genuinely different per theme).

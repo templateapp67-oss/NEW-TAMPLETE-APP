@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SalonData } from '../types';
 import TemplateRenderer from '../components/TemplateRenderer';
+import { normalizeThemeId } from '../lib/themeServices';
 import { CheckCircle2, ArrowRight, ArrowLeft, Eye, Layout, Monitor, Smartphone } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -12,14 +13,14 @@ interface Props {
   onSave?: (msg?: string) => void;
 }
 
-type ThemeChoice = 'hair' | 'barber' | 'hair-studio' | 'wellness' | 'family-salon';
+type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair-studio' | 'wellness' | 'family-salon';
 
 export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
   const [isSwitching, setIsSwitching] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
-  const currentTemplate = data.templateId || 'hair';
+  const currentTemplate = normalizeThemeId(data.templateId);
 
   const selectTemplate = (id: ThemeChoice) => {
     if (id === currentTemplate) return;
@@ -117,10 +118,10 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
 
           {/* Theme 2 — Barber & Men's Grooming */}
           <div
-            onClick={() => selectTemplate('barber')}
+            onClick={() => selectTemplate('barber_mens_grooming')}
             className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
-              currentTemplate === 'barber'
-                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+              currentTemplate === 'barber_mens_grooming'
+                ? 'border-[#c9a227] bg-[#3a3016]/20 ring-2 ring-[#c9a227]/30 shadow-xs'
                 : 'border-gray-200/80 hover:border-gray-300'
             }`}
           >
@@ -138,13 +139,13 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start">
                   <h3 className="font-bold text-lg text-gray-900 mb-1">Barber & Men's Grooming</h3>
-                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'barber' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'barber_mens_grooming' ? 'text-[#c9a227]' : 'text-gray-300'}`} />
                 </div>
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-800 font-bold mb-2 text-[11px]">
-                  Classic Vintage • Gold Accents
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#141414] text-[#e8c95c] font-bold mb-2 text-[11px]">
+                  Dark Charcoal • Gold Accents
                 </span>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Dark charcoal with sharp gold accents — built for modern barber shops and men's grooming lounges.
+                  Classic vintage barbershop with a sharp, masculine layout — fades, hot towel shaves and premium grooming.
                 </p>
               </div>
             </div>

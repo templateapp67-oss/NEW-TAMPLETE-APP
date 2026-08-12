@@ -1,11 +1,33 @@
 import type { SalonData } from '../types';
 
-/** Theme = the salon website template chosen in Step 2 (Hair / Barber / Wellness). */
+/** Theme = the salon website template chosen in Step 2 (Hair / Barber / Hair Studio / Wellness / Family). */
 export type ThemeId = NonNullable<SalonData['templateId']>;
+
+/** All currently selectable themes, in display order. */
+export const THEME_IDS: ThemeId[] = [
+  'hair',
+  'barber_mens_grooming',
+  'hair-studio',
+  'wellness',
+  'family-salon',
+];
+
+/**
+ * Normalises a saved `templateId` into a valid ThemeId.
+ *
+ * `barber` is the legacy id for the Barber & Men's Grooming slot; it has been
+ * superseded by `barber_mens_grooming`. Old drafts saved as `barber` are mapped
+ * forward so nothing breaks, while new data is always written with the canonical id.
+ */
+export function normalizeThemeId(id: string | undefined | null): ThemeId {
+  if (id === 'barber') return 'barber_mens_grooming';
+  if (id && (THEME_IDS as string[]).includes(id)) return id as ThemeId;
+  return 'hair';
+}
 
 export const THEME_LABELS: Record<ThemeId, string> = {
   hair: 'Hair & Unisex Salon',
-  barber: "Barber & Men's Grooming",
+  barber_mens_grooming: "Barber & Men's Grooming",
   'hair-studio': 'Hair Studio & Color Bar',
   wellness: 'Beauty, Skin & Spa',
   'family-salon': 'Full-Service Family Salon',
@@ -26,11 +48,28 @@ export interface PredefinedService {
  */
 export const THEME_CATEGORIES: Record<ThemeId, string[]> = {
   hair: ['Haircut', 'Styling', 'Color', 'Treatment', 'Makeup & Beauty'],
-  barber: ['Haircut', 'Beard & Shave', 'Grooming', 'Treatment'],
+  barber_mens_grooming: ['Haircuts', 'Beard & Shave', 'Grooming & Treatments'],
   'hair-studio': ['Cut & Style', 'Color & Highlights', 'Texture & Perms', 'Treatments', 'Bridal & Events'],
   wellness: ['Massage', 'Facials', 'Nails', 'Hair Removal', 'Spa Packages'],
   'family-salon': ['Hair', 'Beauty', 'Skin', 'Grooming', 'Spa', 'Kids'],
 };
+
+/**
+ * Shared design tokens for the Barber & Men's Grooming theme.
+ * Used by both TemplateRenderer (BarberTemplateRenderer) and PreviewPane so the
+ * Dark Charcoal + Gold identity stays consistent everywhere it is rendered.
+ */
+export const BARBER_THEME = {
+  id: 'barber_mens_grooming' as const,
+  charcoal: '#141414',
+  charcoalSoft: '#1d1d1d',
+  charcoalCard: '#1a1a1a',
+  gold: '#c9a227',
+  goldBright: '#e8c95c',
+  goldSoft: '#3a3016',
+  cream: '#f5efe0',
+  muted: '#a6a49b',
+} as const;
 
 /**
  * The full, professionally-curated service catalogue for each theme.
@@ -76,32 +115,27 @@ export const SERVICES_BY_THEME: Record<ThemeId, PredefinedService[]> = {
     { name: 'Arms & Underarms Waxing', category: 'Makeup & Beauty', description: 'Smooth, hygienic waxing for arms and underarms with soothing aftercare.', price: 500, duration: 40 },
   ],
 
-  barber: [
-    // Haircut
-    { name: "Classic Men's Haircut", category: 'Haircut', description: 'Timeless scissor-and-clipper cut finished with a neat neck shave.', price: 300, duration: 30 },
-    { name: 'Skin Fade', category: 'Haircut', description: 'Sharp, seamless skin fade blended to your preferred length on top.', price: 450, duration: 45 },
-    { name: 'Buzz Cut', category: 'Haircut', description: 'Clean, uniform buzz cut for a low-maintenance sharp look.', price: 250, duration: 20 },
-    { name: 'Textured Crop', category: 'Haircut', description: 'Modern textured crop with fringe and effortless matte finish.', price: 400, duration: 40 },
-    { name: 'Kids Haircut', category: 'Haircut', description: 'Friendly boys’ haircut with clippers, scissors and a hot towel.', price: 200, duration: 25 },
+  barber_mens_grooming: [
+    // Haircuts
+    { name: 'Skin Fade', category: 'Haircuts', description: 'Precision skin fade blended seamlessly from skin to your preferred length on top.', price: 450, duration: 45 },
+    { name: 'Scissors Cut', category: 'Haircuts', description: 'Classic scissor-over-comb cut tailored to your hair type and face shape.', price: 400, duration: 40 },
+    { name: 'Buzz Cut', category: 'Haircuts', description: 'Clean, uniform clipper cut for a low-maintenance, sharp look.', price: 250, duration: 20 },
+    { name: 'Taper Fade', category: 'Haircuts', description: 'Gradual taper fade with a crisp neckline and clean, sharp finish.', price: 400, duration: 40 },
+    { name: 'Kids Barbering', category: 'Haircuts', description: 'Patient, friendly haircut for boys with a fun, fuss-free finish.', price: 250, duration: 25 },
+    { name: 'Head Shave', category: 'Haircuts', description: 'Smooth head shave with hot-towel prep and soothing aftercare.', price: 300, duration: 25 },
 
     // Beard & Shave
-    { name: 'Beard Trim & Shape', category: 'Beard & Shave', description: 'Precision beard trimming and shaping to define your jawline.', price: 200, duration: 20 },
-    { name: 'Hot Towel Shave', category: 'Beard & Shave', description: 'Classic straight-razor hot-towel shave for a baby-smooth finish.', price: 350, duration: 30 },
-    { name: 'Beard Sculpting', category: 'Beard & Shave', description: 'Detailed beard sculpting, lining and styling with beard oil.', price: 300, duration: 30 },
-    { name: 'Head Shave', category: 'Beard & Shave', description: 'Smooth, polished head shave with hot towel and moisturiser.', price: 250, duration: 25 },
-    { name: 'Beard Colour', category: 'Beard & Shave', description: 'Natural-looking beard colour to cover greys and add depth.', price: 400, duration: 30 },
+    { name: 'Beard Sculpting & Lineup', category: 'Beard & Shave', description: 'Detailed beard sculpting with a sharp line-up, hot towel and beard oil finish.', price: 350, duration: 30 },
+    { name: 'Hot Towel Classic Shave', category: 'Beard & Shave', description: 'Traditional straight-razor shave with hot towels and a cooling balm.', price: 400, duration: 35 },
+    { name: 'Beard Trim & Lineup', category: 'Beard & Shave', description: 'Precision beard trim with crisp cheek and neck line-up.', price: 250, duration: 20 },
+    { name: 'Moustache Styling', category: 'Beard & Shave', description: 'Moustache trim, shape and styling with premium wax.', price: 150, duration: 15 },
+    { name: 'Beard Color/Coverup', category: 'Beard & Shave', description: 'Natural-looking beard colour to cover greys and deepen tone.', price: 450, duration: 30 },
 
-    // Grooming
-    { name: 'Haircut + Beard Combo', category: 'Grooming', description: 'Complete grooming: haircut plus beard trim in one sitting.', price: 550, duration: 55 },
-    { name: "Men's Facial", category: 'Grooming', description: 'Deep-cleansing facial to refresh, exfoliate and hydrate skin.', price: 700, duration: 45 },
-    { name: 'Eyebrow Trimming', category: 'Grooming', description: 'Neat eyebrow grooming and shaping for a sharp look.', price: 100, duration: 10 },
-    { name: 'Ear & Nose Waxing', category: 'Grooming', description: 'Quick, hygienic waxing of ears and nose for a clean finish.', price: 150, duration: 15 },
-    { name: 'Haircut + Facial Combo', category: 'Grooming', description: 'Haircut paired with a reviving men’s facial.', price: 950, duration: 80 },
-
-    // Treatment
-    { name: 'Scalp Massage', category: 'Treatment', description: 'Relaxing therapeutic scalp massage to relieve tension and boost circulation.', price: 500, duration: 30 },
-    { name: 'Anti-Dandruff Treatment', category: 'Treatment', description: 'Targeted scalp treatment to control flakes and soothe irritation.', price: 800, duration: 45 },
-    { name: "Men's Hair Spa", category: 'Treatment', description: 'Deep-conditioning hair spa to strengthen and refresh men’s hair.', price: 900, duration: 50 },
+    // Grooming & Treatments
+    { name: 'Charcoal Face Detox', category: 'Grooming & Treatments', description: 'Deep-cleansing charcoal facial to unclog pores and refresh tired skin.', price: 800, duration: 40 },
+    { name: 'Scalp & Head Massage', category: 'Grooming & Treatments', description: 'Therapeutic scalp massage to relieve tension and boost circulation.', price: 600, duration: 30 },
+    { name: 'Executive Beard & Hair Combo', category: 'Grooming & Treatments', description: 'Signature haircut plus sculpted beard and styling finish in one sitting.', price: 700, duration: 60 },
+    { name: 'Hair Loss Scalp Therapy', category: 'Grooming & Treatments', description: 'Targeted scalp therapy to strengthen roots and reduce hair fall.', price: 1200, duration: 45 },
   ],
 
   wellness: [
@@ -233,14 +267,13 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
     'Bridal Makeup (HD)',
     'Party & Event Hairstyling',
   ],
-  barber: [
-    "Classic Men's Haircut",
+  barber_mens_grooming: [
     'Skin Fade',
-    'Beard Trim & Shape',
+    'Beard Sculpting',
     'Hot Towel Shave',
-    'Haircut + Beard Combo',
-    "Men's Hair Spa",
-    'Scalp Massage',
+    'Hair & Beard Combo',
+    'Head Shave',
+    'Charcoal Face Mask',
   ],
   'hair-studio': [
     'Precision Dry Cut',
@@ -271,11 +304,28 @@ export const SUGGESTED_SERVICE_NAMES: Record<ThemeId, string[]> = {
   ],
 };
 
+/**
+ * Display-name → catalogue-name aliases for suggested services.
+ * The Barber theme's suggested chips use short customer-facing labels
+ * (e.g. "Beard Sculpting") while the catalogue stores the fuller name
+ * (e.g. "Beard Sculpting & Lineup"). This maps them together so one-click
+ * "Add Selected" always resolves to a real, fully-described service.
+ */
+export const SUGGESTED_SERVICE_ALIASES: Partial<Record<ThemeId, Record<string, string>>> = {
+  barber_mens_grooming: {
+    'Beard Sculpting': 'Beard Sculpting & Lineup',
+    'Hot Towel Shave': 'Hot Towel Classic Shave',
+    'Hair & Beard Combo': 'Executive Beard & Hair Combo',
+    'Charcoal Face Mask': 'Charcoal Face Detox',
+  },
+};
+
 /** Returns the curated suggested services for a theme (resolved from the catalogue). */
 export function getSuggestedServices(theme: ThemeId): PredefinedService[] {
   const all = SERVICES_BY_THEME[theme] || [];
+  const aliases = SUGGESTED_SERVICE_ALIASES[theme] || {};
   return (SUGGESTED_SERVICE_NAMES[theme] || [])
-    .map((name) => all.find((s) => s.name === name))
+    .map((name) => all.find((s) => s.name === name) || all.find((s) => s.name === aliases[name]))
     .filter((s): s is PredefinedService => Boolean(s));
 }
 
@@ -293,7 +343,7 @@ export function findPredefinedService(theme: ThemeId, name: string): PredefinedS
 /** Theme-aware "Suggest with AI" starter services. */
 export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
   hair: ['Keratin Smoothing Treatment', 'Balayage Highlights'],
-  barber: ['Skin Fade', 'Hot Towel Shave'],
+  barber_mens_grooming: ['Skin Fade', 'Hot Towel Classic Shave'],
   'hair-studio': ['Hand-Painted Balayage', 'Bond Repair Treatment'],
   wellness: ['Hydra Facial', 'Swedish Relaxation Massage'],
   'family-salon': ['De-Stress Spa Combo', 'Mommy & Me Package'],
@@ -302,7 +352,7 @@ export const AI_SUGGESTION_NAMES: Record<ThemeId, [string, string]> = {
 /** Theme-aware spoken-input example service. */
 export const VOICE_SERVICE_BY_THEME: Record<ThemeId, PredefinedService> = {
   hair: { name: 'Signature Blow-Out & Style', category: 'Styling', description: 'Salon blow-out with volume and long-lasting hold.', price: 500, duration: 45 },
-  barber: { name: "Gentlemen's Royal Cut", category: 'Haircut', description: 'Custom cut with scalp massage and hot towel finish.', price: 450, duration: 40 },
+  barber_mens_grooming: { name: 'The Executive Cut & Shave', category: 'Grooming & Treatments', description: 'Signature cut with hot-towel shave and scalp massage finish.', price: 750, duration: 60 },
   'hair-studio': { name: 'Glass Hair Gloss & Finish', category: 'Treatments', description: 'Mirror-shine gloss treatment with silk press finish.', price: 2000, duration: 55 },
   wellness: { name: 'Aroma Relaxation Massage', category: 'Massage', description: 'Soothing essential-oil full-body massage.', price: 2000, duration: 60 },
   'family-salon': { name: 'Family Pamper Day Pass', category: 'Spa', description: 'A relaxing head massage and mini facial for the whole family.', price: 2500, duration: 120 },

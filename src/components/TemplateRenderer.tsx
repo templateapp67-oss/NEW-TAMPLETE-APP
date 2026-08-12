@@ -1,7 +1,9 @@
 import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { getReadableTextColor, withHexAlpha } from '../lib/websiteCustomization';
+import { normalizeThemeId } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
+import BarberTemplateRenderer from './BarberTemplateRenderer';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -10,18 +12,16 @@ interface Props {
 }
 
 export default function TemplateRenderer({ data, mode }: Props) {
-  const templateId = data.templateId || 'hair';
+  const templateId = normalizeThemeId(data.templateId);
 
-  // Template-specific styling configurations
+  // The Barber & Men's Grooming theme is a fully separate renderer — not a
+  // colour variation of the other themes. Render it through its own component.
+  if (templateId === 'barber_mens_grooming') {
+    return <BarberTemplateRenderer data={data} mode={mode} />;
+  }
+
+  // Template-specific styling configurations (non-barber themes)
   const config = {
-    barber: {
-      navBg: 'bg-zinc-950 text-zinc-100 border-zinc-800',
-      heroBg: 'bg-zinc-900 text-zinc-100',
-      accentColor: '#f59e0b',
-      headingFont: 'font-sans uppercase tracking-widest',
-      cardBg: 'bg-zinc-900/90 border-zinc-800 text-zinc-100',
-      footerBg: 'bg-zinc-950 text-zinc-300',
-    },
     hair: {
       navBg: 'bg-white text-gray-900 border-gray-100',
       heroBg: 'bg-gray-900 text-white',
@@ -189,9 +189,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
                   className="inline-block px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider mb-3"
                   style={{ color: brandColor, backgroundColor: withHexAlpha(brandColor, '22'), borderColor: withHexAlpha(brandColor, '55') }}
                 >
-                  {templateId === 'barber'
-                    ? 'Master Barber Lounge'
-                    : templateId === 'wellness'
+                  {templateId === 'wellness'
                     ? 'Luxury Spa & Wellness'
                     : 'Premier Hair & Beauty'}
                 </span>
