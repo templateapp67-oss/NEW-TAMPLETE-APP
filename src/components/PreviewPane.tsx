@@ -6,6 +6,7 @@ import { normalizeThemeId, BARBER_THEME, HAIR_STUDIO_THEME, BEAUTY_SPA_THEME } f
 import CustomerBookingPreview from './CustomerBookingPreview';
 import OwnerAvatar from './OwnerAvatar';
 import FamilyFullServiceTemplateRenderer from './FamilyFullServiceTemplateRenderer';
+import NailLashStudioTemplateRenderer from './NailLashStudioTemplateRenderer';
 
 export default function PreviewPane({ data, step, activeStaffId }: { data: SalonData, step: number, activeStaffId?: string }) {
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
@@ -44,6 +45,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   const isHairStudio = templateId === 'hair_studio_color_bar';
   const isBeautySpa = templateId === 'beauty_skin_spa';
   const isFamilyFullService = templateId === 'family_full_service';
+  const isNailLashStudio = templateId === 'nail_lash_studio';
 
   // Template styles configuration
   const templateConfig = {
@@ -105,6 +107,18 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
       fontFamily: 'font-sans',
       cardBg: 'bg-white border-[#dcebf4] text-[#15324b]',
       subText: 'text-[#5d7387]',
+      headingFont: 'font-sans font-extrabold',
+    },
+    'nail_lash_studio': {
+      navBg: 'bg-[#fffaf7] text-[#211b24] border-[#eadbd5]',
+      heroBg: 'bg-[#211b24] text-white',
+      primaryBtn: 'bg-[#ff2d8d] hover:bg-[#d70f68] text-white',
+      accentColor: '#ff2d8d',
+      accentText: 'text-[#d70f68]',
+      badgeBg: 'bg-[#ffe5f1] text-[#d70f68]',
+      fontFamily: 'font-sans',
+      cardBg: 'bg-[#fffaf7] border-[#eadbd5] text-[#211b24]',
+      subText: 'text-[#806c74]',
       headingFont: 'font-sans font-extrabold',
     }
   }[templateId];
@@ -187,6 +201,13 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
     return (
       <div className="w-full h-full bg-[#f3f3f4] flex items-start justify-center overflow-hidden p-2 md:p-4">
         <FamilyFullServiceTemplateRenderer data={data} mode={mode} />
+      </div>
+    );
+  }
+  if (isNailLashStudio) {
+    return (
+      <div className="w-full h-full bg-[#f3f3f4] flex items-start justify-center overflow-hidden p-2 md:p-4">
+        <NailLashStudioTemplateRenderer data={data} mode={mode} />
       </div>
     );
   }

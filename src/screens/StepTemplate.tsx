@@ -14,7 +14,7 @@ interface Props {
   onThemeChange?: (id: ThemeChoice) => void;
 }
 
-type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family_full_service';
+type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family_full_service' | 'nail_lash_studio';
 
 export default function StepTemplate({ data, setData, onNext, onPrev, onSave, onThemeChange }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -258,6 +258,41 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave, on
                 </span>
                 <p className="text-xs text-gray-600 leading-relaxed">
                   Bright teal-and-sky energy with a friendly multi-category layout for the whole family — kids to grandparents.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Theme 6 — Nail & Lash Studio */}
+          <div
+            onClick={() => selectTemplate('nail_lash_studio')}
+            className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
+              currentTemplate === 'nail_lash_studio'
+                ? 'border-[#ff2d8d] bg-[#fff0f7]/70 ring-2 ring-[#ff2d8d]/25 shadow-xs'
+                : 'border-gray-200/80 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
+                <img
+                  src="https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=600&auto=format&fit=crop"
+                  alt="Nail & Lash Studio Template"
+                  className="w-full h-full object-cover absolute inset-0"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
+                  <span className="text-white text-[10px] font-medium tracking-wide uppercase">Preview</span>
+                </div>
+              </div>
+              <div className="flex-1 pt-1">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-lg text-gray-900 mb-1">Nail &amp; Lash Studio</h3>
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'nail_lash_studio' ? 'text-[#ff2d8d]' : 'text-gray-300'}`} />
+                </div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#ffe5f1] text-[#d70f68] font-bold mb-2 text-[11px]">
+                  Neon Pink • Nude Sand • Glam
+                </span>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  A glamorous, visual-first studio for polished nails, expressive art, lashes and brows.
                 </p>
               </div>
             </div>

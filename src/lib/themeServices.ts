@@ -9,7 +9,8 @@ import type { SalonData } from '../types';
  */
 export type ThemeId = Exclude<NonNullable<SalonData['templateId']>, 'family-salon'>;
 export type LegacyThemeId = 'family-salon';
-export type CatalogueThemeId = ThemeId | LegacyThemeId;
+/** Nail & Lash is UI-only in this phase and intentionally has no service catalogue key. */
+export type CatalogueThemeId = Exclude<ThemeId, 'nail_lash_studio'> | LegacyThemeId;
 
 /** All currently selectable themes, in display order. */
 export const THEME_IDS: ThemeId[] = [
@@ -18,6 +19,7 @@ export const THEME_IDS: ThemeId[] = [
   'hair_studio_color_bar',
   'beauty_skin_spa',
   'family_full_service',
+  'nail_lash_studio',
 ];
 
 /**
@@ -50,6 +52,7 @@ export const THEME_LABELS: Record<ThemeId, string> = {
   hair_studio_color_bar: 'Hair Studio & Color Bar',
   beauty_skin_spa: 'Beauty, Skin & Spa',
   family_full_service: 'Full-Service Family Salon',
+  nail_lash_studio: 'Nail & Lash Studio',
 };
 
 export interface PredefinedService {
@@ -156,6 +159,25 @@ export const FAMILY_FULL_SERVICE_THEME = {
   ink: '#15324b',
   muted: '#5d7387',
   line: '#dcebf4',
+  white: '#ffffff',
+} as const;
+
+/** Shared visual tokens for the Nail & Lash Studio UI. */
+export const NAIL_LASH_STUDIO_THEME = {
+  id: 'nail_lash_studio' as const,
+  ink: '#211b24',
+  inkSoft: '#3a2a37',
+  pink: '#ff2d8d',
+  pinkDeep: '#d70f68',
+  pinkGlow: '#ff79b7',
+  pinkSoft: '#ffe5f1',
+  sand: '#f7eee8',
+  sandDeep: '#e5cfc4',
+  nude: '#c89f91',
+  nudeSoft: '#f1dfd7',
+  cream: '#fffaf7',
+  muted: '#806c74',
+  line: '#eadbd5',
   white: '#ffffff',
 } as const;
 

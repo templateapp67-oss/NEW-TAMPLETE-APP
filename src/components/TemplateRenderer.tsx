@@ -7,6 +7,7 @@ import BarberTemplateRenderer from './BarberTemplateRenderer';
 import HairStudioTemplateRenderer from './HairStudioTemplateRenderer';
 import BeautySpaTemplateRenderer from './BeautySpaTemplateRenderer';
 import FamilyFullServiceTemplateRenderer from './FamilyFullServiceTemplateRenderer';
+import NailLashStudioTemplateRenderer from './NailLashStudioTemplateRenderer';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -30,6 +31,9 @@ export default function TemplateRenderer({ data, mode }: Props) {
   }
   if (templateId === 'family_full_service') {
     return <FamilyFullServiceTemplateRenderer data={data} mode={mode} />;
+  }
+  if (templateId === 'nail_lash_studio') {
+    return <NailLashStudioTemplateRenderer data={data} mode={mode} />;
   }
 
   // Template-specific styling configurations (remaining themes)

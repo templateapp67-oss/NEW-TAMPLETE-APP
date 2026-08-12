@@ -95,6 +95,7 @@ interface Props {
 export default function StepServices({ data, setData, onNext, onPrev, onSave }: Props) {
   const theme = normalizeThemeId(data.templateId);
   const isFamilyFullService = theme === 'family_full_service';
+  const isNailLashStudio = theme === 'nail_lash_studio';
   const categories = getThemeCategories(theme);
 
   // Theme-driven suggested services (genuinely different per theme).
@@ -239,7 +240,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   };
 
   const handleAISuggest = () => {
-    if (isFamilyFullService) return;
+    if (isFamilyFullService || isNailLashStudio) return;
     const names = AI_SUGGESTION_NAMES[theme as keyof typeof AI_SUGGESTION_NAMES];
     if (!names) return;
     const aiAdded: Service[] = names.map((n, i) => {
@@ -262,7 +263,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   };
 
   const handleSpeechInput = () => {
-    if (isFamilyFullService) return;
+    if (isFamilyFullService || isNailLashStudio) return;
     setIsSpeaking(true);
     speechTimerRef.current = setTimeout(() => {
       speechTimerRef.current = null;
@@ -478,8 +479,21 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
               <p className="text-[#5f5e5e] text-base">Choose your services, add prices and your website will update instantly.</p>
             </div>
 
-            {/* Suggested Services — theme-specific */}
-            <div className="bg-white rounded-lg border border-[#eeeeee] p-6 shadow-sm flex flex-col gap-4">
+            {isNailLashStudio ? (
+              <div className="rounded-lg border border-[#f4bfd9] bg-[#fff0f7] p-6 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-[#d70f68] shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-[#3a2a37] uppercase tracking-wider">Nail & Lash menu setup is coming next</h3>
+                    <p className="text-xs text-[#806c74] mt-1 leading-relaxed">This phase applies the Nail & Lash Studio look only. No Nail & Lash services or suggested services have been added yet.</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Suggested Services — theme-specific */
+              <div className="bg-white rounded-lg border border-[#eeeeee] p-6 shadow-sm flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <div>
                   <h3 className="text-xs font-semibold text-[#1a1c1c] uppercase tracking-wider">Suggested for {THEME_LABELS[theme]}</h3>
@@ -537,7 +551,8 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   Add Selected ({selectedSuggested.length})
                 </button>
               </div>
-            </div>
+              </div>
+            )}
 
             {/* Fast Add */}
             <div className="flex flex-col sm:flex-row gap-4">
