@@ -11,6 +11,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:auth": "tsx scripts/test-auth-modal.mjs",
+    "test:customization": "tsx scripts/test-website-customization.mjs",
     "validate:migrations": "node scripts/validate-migrations.mjs"
   },
   "dependencies": {

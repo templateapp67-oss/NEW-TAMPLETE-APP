@@ -5,6 +5,7 @@ import TemplateRenderer from '../components/TemplateRenderer';
 import ShareReferralPremium from '../components/ShareReferralPremium';
 import BrandingWhiteLabel from '../components/BrandingWhiteLabel';
 import { SALON_NAME_FONTS, SALON_NAME_COLORS } from '../lib/brandIdentity';
+import { BRAND_COLORS, TAGLINE_CATEGORIES, TAGLINE_SUBCATEGORIES } from '../lib/websiteCustomization';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -53,35 +54,6 @@ import {
   Palette
 } from 'lucide-react';
 
-const BRAND_COLORS = [
-  { name: 'Charcoal', value: '#1a1c1c' },
-  { name: 'Nexora Pink', value: '#ac0053' },
-  { name: 'Warm Taupe', value: '#8b6f61' },
-  { name: 'Emerald', value: '#059669' },
-  { name: 'Royal Blue', value: '#2563eb' },
-];
-
-const TAGLINE_CATEGORIES: Record<string, Record<string, string[]>> = {
-  Salon: {
-    'Hair Salon': ['Where your best look begins.', 'Style that feels unmistakably you.', 'Expert care for beautiful hair.', 'Your everyday beauty, elevated.', 'Confidence in every strand.'],
-    'Unisex Salon': ['Modern style for every expression.', 'One salon, every kind of style.', 'Made for your look and lifestyle.', 'Feel good. Look your best.', 'Personal style, professionally finished.'],
-    'Luxury Salon': ['Where luxury meets your signature style.', 'An elevated salon experience, made for you.', 'Refined beauty. Exceptional care.', 'Luxury styling with a personal touch.', 'Your signature look, beautifully crafted.'],
-  },
-  Beauty: {
-    'Beauty Parlour': ['Beautiful moments, beautifully made.', 'Your beauty, our signature.', 'Care that brings your glow to life.', 'Feel radiant, every day.', 'Personalized beauty for you.'],
-    Makeup: ['Make every moment your moment.', 'Artistry for your most beautiful days.', 'Your features, beautifully amplified.', 'Makeup that moves with you.', 'Glow with confidence.'],
-    Skincare: ['Healthy skin. Timeless confidence.', 'Nourish your glow naturally.', 'Thoughtful care for radiant skin.', 'Your skin, at its most beautiful.', 'A better glow starts with better care.'],
-  },
-  Spa: {
-    'Day Spa': ['Pause, breathe, and feel renewed.', 'Your time to restore and reconnect.', 'Wellness that stays with you.', 'A calmer way to feel your best.', 'Relaxation, thoughtfully perfected.'],
-    'Wellness Spa': ['Wellness for your body, mind, and soul.', 'Restore your balance. Renew your energy.', 'A deeper kind of self-care.', 'Feel better from the inside out.', 'Your wellbeing, beautifully supported.'],
-    'Medical Spa': ['Advanced care for your natural confidence.', 'Expert wellness, beautifully personalized.', 'Science-backed care, naturally you.', 'Where innovation meets wellbeing.', 'Your most confident self, supported.'],
-  },
-};
-
-const TAGLINE_SUBCATEGORIES = Object.fromEntries(
-  Object.entries(TAGLINE_CATEGORIES).map(([category, subcategories]) => [category, Object.keys(subcategories)]),
-);
 interface Props {
   data: SalonData;
   setData: React.Dispatch<React.SetStateAction<SalonData>>;
@@ -306,6 +278,16 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
     [taglineCategory, taglineSubcategory],
   );
 
+  const updateTagline = (tagline: string) => {
+    setData(prev => ({
+      ...prev,
+      tagline,
+      reviewedContent: prev.reviewedContent
+        ? { ...prev.reviewedContent, tagline }
+        : prev.reviewedContent,
+    }));
+  };
+
   const handlePolishText = (field: 'tagline' | 'about' | 'bio', tone: 'luxury' | 'modern' | 'warm') => {
     setPolishingField(field);
     setPolishingStatus('🤖 Gemini AI analyzing your request...');
@@ -325,7 +307,7 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
         else if (tone === 'modern') resultText = `Bespoke Styling, Precision Cuts & Trendsetting Hair Design`;
         else resultText = `Your Sanctuary for Beautiful Hair & Warm, Personal Care`;
         
-        setData(prev => ({ ...prev, tagline: resultText }));
+        updateTagline(resultText);
       } else if (field === 'about') {
         if (tone === 'luxury') resultText = `Welcome to an elevated realm of salon luxury. We blend master techniques, premium formulations, and bespoke styling to craft an unforgettable aesthetic experience customized for your lifestyle.`;
         else if (tone === 'modern') resultText = `We are a high-energy creative collective redefining hair fashion. Specializing in precision styling, multi-dimensional hair coloring, and advanced hair rejuvenation therapies for the modern individual.`;
@@ -1695,7 +1677,7 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                                 <button
                                   key={option}
                                   type="button"
-                                  onClick={() => setData(prev => ({ ...prev, tagline: option }))}
+                                  onClick={() => updateTagline(option)}
                                   className={`w-full rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
                                     data.tagline === option
                                       ? 'border-[#ac0053] bg-[#ffd9e1]/30 text-[#ac0053] font-bold'
@@ -1709,7 +1691,7 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                             <input 
                               type="text" 
                               value={data.tagline}
-                              onChange={(e) => setData(prev => ({ ...prev, tagline: e.target.value }))}
+                              onChange={(e) => updateTagline(e.target.value)}
                               placeholder="Or write your own tagline"
                               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold focus:border-[#ac0053]"
                             />

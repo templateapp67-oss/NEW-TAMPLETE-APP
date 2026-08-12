@@ -162,23 +162,32 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSave = () => {
+  const handleSave = (nextDataOrMessage?: SalonData | string) => {
+    // Some inputs pass their blur event and a few screens pass a status message;
+    // the appearance editor passes an exact SalonData snapshot. Only a real
+    // salon payload should replace the current data during this immediate save.
+    const isSalonSnapshot =
+      typeof nextDataOrMessage === 'object' &&
+      nextDataOrMessage !== null &&
+      'salonName' in nextDataOrMessage &&
+      'services' in nextDataOrMessage;
+    const dataToSave = isSalonSnapshot ? nextDataOrMessage : data;
     setSaveStatus('saving');
     try {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
           step,
-          data,
+          data: dataToSave,
           activeModule,
           dashboardTab,
           lastSaved: new Date().toISOString(),
           onboarding_progress: `Step ${step + 1} of ${TOTAL_STEPS}`,
-          lastCompletedStep: data.lastCompletedStep,
-          selectedTemplate: data.templateId,
-          websiteAppearance: data.websiteAppearance,
-          reviewedContent: data.reviewedContent,
-          publishState: data.publishState,
+          lastCompletedStep: dataToSave.lastCompletedStep,
+          selectedTemplate: dataToSave.templateId,
+          websiteAppearance: dataToSave.websiteAppearance,
+          reviewedContent: dataToSave.reviewedContent,
+          publishState: dataToSave.publishState,
           currentStep: step + 1
         })
       );
