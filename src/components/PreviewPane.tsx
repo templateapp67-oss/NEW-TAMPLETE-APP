@@ -1,6 +1,7 @@
 import { Monitor, Smartphone, Phone, Sparkles, Instagram, Youtube, Facebook, Video, Heart, ExternalLink, MapPin, Clock, Navigation, MessageCircle, CalendarCheck, CreditCard } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
+import { getSalonNameStyle } from '../lib/brandIdentity';
 import CustomerBookingPreview from './CustomerBookingPreview';
 
 export default function PreviewPane({ data, step, activeStaffId }: { data: SalonData, step: number, activeStaffId?: string }) {
@@ -12,7 +13,14 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
   const contactSectionRef = useRef<HTMLDivElement>(null);
 
   const [showBookingWidget, setShowBookingWidget] = useState(step === 8);
-  // Temporary until the real Razorpay verification is connected: keep appointment actions active.
+  /**
+   * PAYMENT INTEGRATION SWITCH — testing phase.
+   * Keep `advancePaymentSuccessful = true` so Call Now / WhatsApp / Book Online
+   * stay ACTIVE while testing. When the real payment integration goes live,
+   * flip this to `false` and the buttons will require a successful 25% advance
+   * deposit before unlocking (see the `!advancePaymentSuccessful` branches below).
+   * No real gateway is wired yet — the booking flow remains the existing mock.
+   */
   const [advancePaymentSuccessful, setAdvancePaymentSuccessful] = useState(true);
   const [lockedActionMessage, setLockedActionMessage] = useState<string | null>(null);
   const lastStepRef = useRef(step);
@@ -199,7 +207,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                 ) : (
                   <Sparkles className="w-5 h-5" style={{ color: templateConfig.accentColor }} />
                 )}
-                <span className="font-bold text-lg">{data.salonName || 'Your Salon'}</span>
+                <span className="font-bold text-lg" style={getSalonNameStyle(data)}>{data.salonName || 'Your Salon'}</span>
               </div>
               {mode === 'desktop' && (
                 <div className={`flex gap-6 text-xs font-medium opacity-90`}>

@@ -1,4 +1,5 @@
 import { SalonData, getPublicStaffData } from '../types';
+import { getSalonNameStyle } from '../lib/brandIdentity';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -96,7 +97,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
             ) : (
               <Sparkles className="w-5 h-5" style={{ color: brandColor }} />
             )}
-            <span className="font-bold text-lg">{data.salonName || 'Your Salon'}</span>
+            <span className="font-bold text-lg" style={getSalonNameStyle(data)}>{data.salonName || 'Your Salon'}</span>
           </div>
           {mode === 'desktop' && (
             <div className="flex gap-6 text-xs font-medium opacity-90">
@@ -394,7 +395,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
 
         {/* Footer */}
         <footer id="section-footer" className={`px-6 py-8 text-center text-xs border-t border-gray-800 ${config.footerBg}`}>
-          <p className="font-bold text-sm mb-1">{data.salonName || 'Your Salon'}</p>
+          <p className="font-bold text-sm mb-1" style={getSalonNameStyle(data)}>{data.salonName || 'Your Salon'}</p>
           <p className="opacity-70 mb-4">{data.tagline || 'Excellence in Hair & Beauty'}</p>
           <p className="opacity-50 text-[10px]">© 2026 {data.salonName || 'Salon'}. Powered by Nexora Platform.</p>
         </footer>

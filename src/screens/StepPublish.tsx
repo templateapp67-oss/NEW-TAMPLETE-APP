@@ -1,5 +1,6 @@
-import { Sparkles, ArrowRight, Scissors, Edit2, Plus, ArrowLeft, Sun, Moon } from 'lucide-react';
+import { Sparkles, ArrowRight, Scissors, Edit2, Plus, ArrowLeft, Sun, Moon, Type, Palette } from 'lucide-react';
 import { SalonData } from '../types';
+import { SALON_NAME_FONTS, SALON_NAME_COLORS, getSalonNameStyle } from '../lib/brandIdentity';
 import React, { useMemo, useState } from 'react';
 
 
@@ -69,6 +70,16 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
 
   const selectBrandColor = (brandColor: string) => {
     setData(prev => ({ ...prev, brandColor }));
+    if (onSave) onSave();
+  };
+
+  const selectSalonNameFont = (fontId: string) => {
+    setData(prev => ({ ...prev, salonNameFont: fontId }));
+    if (onSave) onSave();
+  };
+
+  const selectSalonNameColor = (color: string) => {
+    setData(prev => ({ ...prev, salonNameColor: color }));
     if (onSave) onSave();
   };
 
@@ -191,6 +202,64 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
                   className="w-full bg-[#f9f9f9] border border-[#eeeeee] rounded-lg px-4 py-3 text-[#1a1c1c] outline-none focus:border-[#ac0053] focus:ring-1 focus:ring-[#ac0053] transition-colors"
                 />
               </div>
+
+              {/* Salon Name Font + Text Color (Brand Identity) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-[#1a1c1c] flex items-center gap-1.5">
+                    <Type className="w-3.5 h-3.5 text-[#ac0053]" /> Salon Name Font
+                  </label>
+                  <div className="space-y-1.5">
+                    {SALON_NAME_FONTS.map(font => {
+                      const selected = data.salonNameFont === font.id;
+                      return (
+                        <button
+                          key={font.id}
+                          type="button"
+                          onClick={() => selectSalonNameFont(font.id)}
+                          className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                            selected
+                              ? 'border-[#ac0053] bg-[#ffd9e1]/30 text-[#ac0053]'
+                              : 'border-[#eeeeee] bg-[#f9f9f9] text-[#5f5e5e] hover:border-[#ac0053]'
+                          }`}
+                        >
+                          <span className="block text-[10px] font-semibold uppercase tracking-wider opacity-70">{font.label}</span>
+                          <span className="block text-base leading-snug truncate" style={{ fontFamily: font.fontFamily, fontWeight: font.fontWeight, letterSpacing: font.letterSpacing, textTransform: font.textTransform }}>
+                            {(data.salonName || 'Royal Salon').slice(0, 22)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-[#1a1c1c] flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-[#ac0053]" /> Salon Name Color
+                  </label>
+                  <div className="space-y-1.5">
+                    {SALON_NAME_COLORS.map(color => {
+                      const selected = (data.salonNameColor || '') === color.value;
+                      return (
+                        <button
+                          key={color.value}
+                          type="button"
+                          onClick={() => selectSalonNameColor(color.value)}
+                          className={`w-full rounded-lg border px-3 py-2 text-left flex items-center gap-3 transition-colors ${
+                            selected
+                              ? 'border-[#ac0053] bg-[#ffd9e1]/30'
+                              : 'border-[#eeeeee] bg-[#f9f9f9] hover:border-[#ac0053]'
+                          }`}
+                        >
+                          <span className="w-5 h-5 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: color.value }} />
+                          <span className="text-xs font-semibold text-[#5f5e5e]">{color.label}</span>
+                          <span className="ml-auto text-[10px] font-mono text-[#5f5e5e] opacity-70">{color.value}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-[#1a1c1c]">Tagline</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -300,7 +369,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
           <div className={`flex-1 overflow-y-auto custom-scrollbar ${appearance === 'dark' ? 'bg-zinc-950' : 'bg-white'}`}>
             {/* Preview Nav */}
             <nav className={`flex justify-between items-center px-8 py-6 border-b ${appearance === 'dark' ? 'border-zinc-800 bg-zinc-950 text-white' : 'border-[#e5e2e1]/50 bg-white text-[#1a1c1c]'}`}>
-              <div className="text-2xl font-bold transition-all">{data.salonName || 'Your Salon'}</div>
+              <div className="text-2xl font-bold transition-all" style={getSalonNameStyle(data)}>{data.salonName || 'Your Salon'}</div>
               <div className={`flex gap-6 text-sm ${appearance === 'dark' ? 'text-zinc-400' : 'text-[#5f5e5e]'}`}>
                 <span className={`${appearance === 'dark' ? 'text-white' : 'text-[#1a1c1c]'} font-medium`}>Home</span>
                 <span>Services</span>
@@ -314,7 +383,7 @@ export default function StepPublish({ data, setData, onNext, onPrev, onSave }: P
               <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?q=80&w=1000)'}}></div>
               <div className="absolute inset-0 bg-white/70 z-10"></div>
               <div className="relative z-20 max-w-lg" style={{ '--brand-color': data.brandColor || '#1a1c1c' } as React.CSSProperties}>
-                <h1 className="text-4xl md:text-5xl font-bold text-[#1a1c1c] mb-4 transition-all">{data.salonName || 'Your Salon'}</h1>
+                <h1 className="text-4xl md:text-5xl font-bold text-[#1a1c1c] mb-4 transition-all" style={getSalonNameStyle(data)}>{data.salonName || 'Your Salon'}</h1>
                 <p className="text-lg text-[#5b3f46] mb-8 transition-all">{data.tagline || 'Your tagline'}</p>
                 <button className="text-white px-8 py-3 rounded-lg text-sm font-semibold" style={{ backgroundColor: data.brandColor || '#1a1c1c' }}>Book Appointment</button>
               </div>

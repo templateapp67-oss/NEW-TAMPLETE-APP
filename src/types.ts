@@ -168,6 +168,10 @@ export interface SalonData {
   team: TeamMember[];
   websiteAppearance?: WebsiteAppearance;
   brandColor?: string;
+  /** Brand identity: font preset id for the salon name (see SALON_NAME_FONTS). */
+  salonNameFont?: string;
+  /** Brand identity: text color (hex) for the salon name (see SALON_NAME_COLORS). */
+  salonNameColor?: string;
   reviewedContent?: ReviewedContent;
   websiteSlug?: string;
   publishState?: PublishState;
