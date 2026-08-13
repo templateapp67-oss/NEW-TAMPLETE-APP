@@ -1770,6 +1770,10 @@ Per P67: services.business_id; staff_members.business_id; staff_services(staff_i
   `get_theme_service_catalog(p_theme_id)` boundary. SQL applies the mandatory
   stable theme filter before returning that theme's categories, predefined
   services, and `is_suggested=true` relationships to the unchanged UI.
+- Phase 7.4 Session 2 adds authenticated `save_predefined_services`: tenant is
+  derived from `auth.uid()` membership, the full catalog chain is validated,
+  and partial uniqueness on `(business_id, predefined_service_id)` makes Add
+  Selected replay-safe without restricting custom NULL provenance rows.
 
 ### 5.15 Website/Publishing Architecture
 
@@ -1834,5 +1838,6 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 17. **M17** Phase 7.2 nullable catalog provenance on existing business-owned saved services
 18. **M18** Phase 7.3 exact, generated, idempotent five-theme catalog seed
 19. **M19** Phase 7.4 Session 1 mandatory theme-filtered catalog read RPC
+20. **M20** Phase 7.4 Session 2 authenticated, tenant-derived, idempotent predefined-service saving
 
-**Execution gate:** M01–M19 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
+**Execution gate:** M01–M20 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.

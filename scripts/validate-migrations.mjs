@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 19, 'expected exactly M01-M19');
+assert.equal(migrationFiles.length, 20, 'expected exactly M01-M20');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/19 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/20 applied cleanly`);
 }
 
 const ids = {
@@ -832,6 +832,201 @@ await test('Q — theme catalog RPC database-filters each of the five UI catalog
   assert.equal(unsupported.rows[0].missing_theme, null);
 });
 
-assert.equal(passed, 17);
-console.log(`Functional tests: ${passed}/17 passed`);
+await test('R — Add Selected saves all five themes once with tenant-safe exact provenance', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+  const suggestedIdsByTheme = new Map();
+
+  for (const themeId of seededThemeIds) {
+    const rows = await db.query(
+      `select ps.id
+       from public.predefined_services ps
+       join public.themes t on t.id = ps.theme_id
+       where t.theme_id = $1 and ps.is_active and ps.is_suggested
+       order by ps.suggested_sort_order`,
+      [themeId],
+    );
+    assert.equal(rows.rows.length, 6);
+    suggestedIdsByTheme.set(themeId, rows.rows.map((row) => row.id));
+  }
+
+  const customBefore = await db.query(
+    `select business_id, name, category, short_description, price_paise,
+            duration_minutes, status::text, theme_id, category_id,
+            predefined_service_id
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    for (const themeId of seededThemeIds) {
+      const selectedIds = suggestedIdsByTheme.get(themeId);
+      const save = await db.query(
+        `select public.save_predefined_services(
+           $1,
+           string_to_array($2, ',')::uuid[]
+         ) as result`,
+        [themeId, selectedIds.join(',')],
+      );
+      const result = save.rows[0].result;
+      assert.equal(result.business_id, ids.businessA);
+      assert.equal(result.theme_id, themeId);
+      assert.equal(result.requested_count, 6);
+      assert.equal(result.services.length, 6);
+      assert.equal(result.inserted_count, themeId === 'barber_mens_grooming' ? 5 : 6);
+      assert.equal(result.existing_count, themeId === 'barber_mens_grooming' ? 1 : 0);
+      result.services.forEach((service) => {
+        assert.equal(service.business_id, ids.businessA);
+        assert.equal(service.theme_key, themeId);
+        assert.equal(selectedIds.includes(service.predefined_service_id), true);
+      });
+    }
+
+    const afterFirstSave = await db.query(
+      `select count(*)::int as count
+       from public.services
+       where business_id = $1 and predefined_service_id is not null`,
+      [ids.businessA],
+    );
+    assert.equal(afterFirstSave.rows[0].count, 30);
+
+    // Repeating every Add Selected request returns the existing rows and inserts
+    // nothing, even if the request itself repeats an ID.
+    for (const themeId of seededThemeIds) {
+      const selectedIds = suggestedIdsByTheme.get(themeId);
+      const repeatedInput = [...selectedIds, selectedIds[0]];
+      const repeat = await db.query(
+        `select public.save_predefined_services(
+           $1,
+           string_to_array($2, ',')::uuid[]
+         ) as result`,
+        [themeId, repeatedInput.join(',')],
+      );
+      assert.equal(repeat.rows[0].result.requested_count, 6);
+      assert.equal(repeat.rows[0].result.inserted_count, 0);
+      assert.equal(repeat.rows[0].result.existing_count, 6);
+      assert.equal(repeat.rows[0].result.services.length, 6);
+    }
+
+    const afterRepeat = await db.query(
+      `select count(*)::int as count
+       from public.services
+       where business_id = $1 and predefined_service_id is not null`,
+      [ids.businessA],
+    );
+    assert.equal(afterRepeat.rows[0].count, 30);
+
+    const mismatches = await db.query(
+      `select count(*)::int as count
+       from public.services s
+       join public.predefined_services ps on ps.id = s.predefined_service_id
+       join public.service_categories c on c.id = ps.category_id
+       where s.business_id = $1
+         and s.id <> $2
+         and (
+           s.theme_id is distinct from ps.theme_id
+           or s.category_id is distinct from ps.category_id
+           or s.name is distinct from ps.name
+           or s.category is distinct from c.name
+           or s.short_description is distinct from ps.description
+           or s.price_paise is distinct from ps.default_price_paise
+           or s.duration_minutes is distinct from ps.default_duration_minutes
+           or s.status <> 'active'
+         )`,
+      [ids.businessA, ids.savedPredefinedA],
+    );
+    assert.equal(mismatches.rows[0].count, 0);
+
+    // Skin Fade existed before Session 2 with owner-edited fields. ON CONFLICT
+    // must preserve it rather than overwrite/convert it.
+    const preservedExisting = await db.query(
+      `select name, category, short_description, price_paise,
+              duration_minutes, status::text
+       from public.services where id = $1`,
+      [ids.savedPredefinedA],
+    );
+    assert.deepEqual(
+      {
+        ...preservedExisting.rows[0],
+        price_paise: Number(preservedExisting.rows[0].price_paise),
+      },
+      {
+        name: 'Saved Curated Service',
+        category: 'Preserved display category',
+        short_description: 'Owner-edited saved description',
+        price_paise: 175000,
+        duration_minutes: 75,
+        status: 'active',
+      },
+    );
+
+    await expectReject(
+      () => db.query(
+        `select public.save_predefined_services(
+           'barber_mens_grooming',
+           array[$1::uuid]
+         )`,
+        [suggestedIdsByTheme.get('hair_studio_color_bar')[0]],
+      ),
+      /do not belong to the active theme/i,
+    );
+
+    await expectReject(
+      () => db.query(
+        `insert into public.services (
+           business_id, theme_id, category_id, predefined_service_id,
+           name, price_paise, duration_minutes
+         )
+         select business_id, theme_id, category_id, predefined_service_id,
+                'Duplicate direct insert', price_paise, duration_minutes
+         from public.services where id = $1`,
+        [ids.savedPredefinedA],
+      ),
+      /unique|duplicate/i,
+    );
+  });
+
+  // The same predefined row can be saved by a different authenticated tenant,
+  // and ownership is derived server-side from that user's membership.
+  await asRole('authenticated', ids.ownerB, async () => {
+    const selectedId = suggestedIdsByTheme.get('nail_lash_studio')[0];
+    const save = await db.query(
+      `select public.save_predefined_services(
+         'nail_lash_studio', array[$1::uuid]
+       ) as result`,
+      [selectedId],
+    );
+    assert.equal(save.rows[0].result.business_id, ids.businessB);
+    assert.equal(save.rows[0].result.inserted_count, 1);
+  });
+
+  await asRole('authenticated', '', async () => {
+    await expectReject(
+      () => db.query(
+        `select public.save_predefined_services(
+           'nail_lash_studio', array[$1::uuid]
+         )`,
+        [suggestedIdsByTheme.get('nail_lash_studio')[0]],
+      ),
+      /log in/i,
+    );
+  });
+
+  const customAfter = await db.query(
+    `select business_id, name, category, short_description, price_paise,
+            duration_minutes, status::text, theme_id, category_id,
+            predefined_service_id
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+  assert.deepEqual(customAfter.rows, customBefore.rows);
+});
+
+assert.equal(passed, 18);
+console.log(`Functional tests: ${passed}/18 passed`);
 await db.close();

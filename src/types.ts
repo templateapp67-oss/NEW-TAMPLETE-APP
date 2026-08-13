@@ -6,6 +6,14 @@ export interface Service {
   price: number;
   duration: number; // minutes
   featured?: boolean;
+  /** Database provenance for a saved predefined service. Custom/manual services
+   * intentionally keep these nullable/undefined. */
+  businessId?: string;
+  themeId?: string | null;
+  themeKey?: string;
+  categoryId?: string | null;
+  predefinedServiceId?: string | null;
+  status?: 'active' | 'inactive' | 'archived';
 }
 
 export interface Package {

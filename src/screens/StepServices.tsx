@@ -19,6 +19,7 @@ import {
   loadThemeServiceCatalog,
   type ThemeServiceCatalog,
 } from '../lib/themeCatalogService';
+import { savePredefinedServices } from '../lib/savedServiceService';
 
 // Generates a professional, customer-friendly, category-specific service description.
 // Kept offline (rule-based) so it works without any API key, consistent with the app's
@@ -115,6 +116,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [catalogLoading, setCatalogLoading] = useState(usesDatabaseCatalog);
   const [catalogError, setCatalogError] = useState('');
   const catalogRequestRef = useRef(0);
+  const saveRequestRef = useRef(0);
 
   // Never derive a new theme from the previous response: until the current
   // database request resolves, all five-theme arrays stay empty. The original
@@ -137,6 +139,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
   const [selectedSuggested, setSelectedSuggested] = useState<string[]>([]);
   const [suggestedFilter, setSuggestedFilter] = useState<'All' | string>('All');
+  const [isSavingSelected, setIsSavingSelected] = useState(false);
+  const [saveSelectedError, setSaveSelectedError] = useState('');
+  const [saveSelectedNotice, setSaveSelectedNotice] = useState('');
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingPackage, setIsAddingPackage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -217,9 +222,13 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       speechTimerRef.current = null;
     }
 
-    // Suggested-services selection buffers
+    // Suggested-services selection/save buffers
+    saveRequestRef.current += 1;
     setSelectedSuggested([]);
     setSuggestedFilter('All');
+    setIsSavingSelected(false);
+    setSaveSelectedError('');
+    setSaveSelectedNotice('');
 
     // Add-service form: database themes intentionally start empty until their
     // current theme-scoped response arrives; the original theme stays unchanged.
@@ -314,26 +323,98 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     }
   };
 
-  const handleAddSelected = () => {
-    if (selectedSuggested.length === 0) return;
-    const newServices: Service[] = selectedSuggested.map((sName) => {
-      const found = suggestedList.find((s) => s.name === sName);
-      return {
-        id: 's-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-        name: found ? found.name : sName,
-        category: found ? found.category : 'General',
-        description: found ? found.description : 'Professional service provided by experienced stylists.',
-        price: found ? found.price : 50,
-        duration: found ? found.duration : 30,
-      };
-    });
+  const handleAddSelected = async () => {
+    if (selectedSuggested.length === 0 || isSavingSelected) return;
 
-    setData({
-      ...data,
-      services: [...data.services, ...newServices],
-    });
-    setSelectedSuggested([]);
-    if (onSave) onSave();
+    // Preserve the original Existing Theme behavior. Session 2 database saving
+    // applies only to the five M18/M19 database catalogs.
+    if (!isDatabaseCatalogTheme(theme)) {
+      const newServices: Service[] = selectedSuggested.map((sName) => {
+        const found = suggestedList.find((service) => service.name === sName);
+        return {
+          id: 's-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+          name: found ? found.name : sName,
+          category: found ? found.category : 'General',
+          description: found ? found.description : 'Professional service provided by experienced stylists.',
+          price: found ? found.price : 50,
+          duration: found ? found.duration : 30,
+        };
+      });
+      setData({ ...data, services: [...data.services, ...newServices] });
+      setSelectedSuggested([]);
+      if (onSave) onSave();
+      return;
+    }
+
+    if (!activeCatalog) {
+      setSaveSelectedError('Wait for this theme’s services to finish loading.');
+      return;
+    }
+
+    // Resolve selected chips only through the current RPC response. No name-only
+    // or cross-theme predefined relationship is sent to the database.
+    const selectedRows = activeCatalog.suggestedServices.filter((service) =>
+      selectedSuggested.includes(service.name)
+    );
+    if (selectedRows.length !== selectedSuggested.length) {
+      setSaveSelectedError('The selected services are no longer available for this theme.');
+      return;
+    }
+
+    const requestId = saveRequestRef.current + 1;
+    saveRequestRef.current = requestId;
+    setIsSavingSelected(true);
+    setSaveSelectedError('');
+    setSaveSelectedNotice('');
+
+    try {
+      const result = await savePredefinedServices(
+        theme,
+        selectedRows.map((service) => service.id),
+      );
+      if (saveRequestRef.current !== requestId) return;
+
+      // Keep local preview state aligned with returned canonical saved rows, but
+      // never add the same predefined service twice on repeated clicks.
+      const localPredefinedIds = new Set(
+        data.services
+          .map((service) => service.predefinedServiceId)
+          .filter((id): id is string => Boolean(id)),
+      );
+      const newlyVisibleServices: Service[] = result.services
+        .filter((service) => !localPredefinedIds.has(service.predefinedServiceId))
+        .map((service) => ({
+          id: service.id,
+          businessId: service.businessId,
+          themeId: service.themeId,
+          themeKey: service.themeKey,
+          categoryId: service.categoryId,
+          predefinedServiceId: service.predefinedServiceId,
+          name: service.name,
+          category: service.category,
+          description: service.description,
+          price: service.price,
+          duration: service.duration,
+          featured: service.featured,
+          status: service.status,
+        }));
+
+      if (newlyVisibleServices.length > 0) {
+        setData({ ...data, services: [...data.services, ...newlyVisibleServices] });
+      }
+      setSelectedSuggested([]);
+      setSaveSelectedNotice(
+        result.insertedCount > 0
+          ? `${result.insertedCount} service${result.insertedCount === 1 ? '' : 's'} saved.`
+          : 'Selected services are already saved.',
+      );
+      if (onSave) onSave();
+    } catch (error) {
+      if (saveRequestRef.current !== requestId) return;
+      setSaveSelectedError(error instanceof Error ? error.message : 'Unable to save the selected services.');
+    } finally {
+      if (saveRequestRef.current === requestId) setIsSavingSelected(false);
+    }
   };
 
   const handleAISuggest = () => {
@@ -480,6 +561,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     if (!newServiceName.trim()) return;
     const created: Service = {
       id: 'custom-' + Date.now(),
+      themeId: null,
+      categoryId: null,
+      predefinedServiceId: null,
       name: newServiceName,
       category: newServiceCategory || 'General',
       description: newServiceDesc || 'Custom salon service.',
@@ -637,11 +721,17 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
               <div className="pt-2">
                 <button
                   onClick={handleAddSelected}
-                  disabled={selectedSuggested.length === 0}
+                  disabled={selectedSuggested.length === 0 || isSavingSelected || currentCatalogLoading}
                   className="bg-[#ac0053] text-white font-semibold text-sm px-6 py-2.5 rounded-lg hover:bg-[#ba005b] transition-colors disabled:opacity-40"
                 >
-                  Add Selected ({selectedSuggested.length})
+                  {isSavingSelected ? 'Saving…' : `Add Selected (${selectedSuggested.length})`}
                 </button>
+                {saveSelectedError && (
+                  <p className="text-xs text-red-600 mt-2" role="alert">{saveSelectedError}</p>
+                )}
+                {saveSelectedNotice && !saveSelectedError && (
+                  <p className="text-xs text-emerald-700 mt-2" role="status">{saveSelectedNotice}</p>
+                )}
               </div>
             </div>
 
