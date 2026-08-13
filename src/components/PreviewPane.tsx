@@ -5,6 +5,7 @@ import { getSalonNameStyle } from '../lib/brandIdentity';
 import { normalizeThemeId, BARBER_THEME, HAIR_STUDIO_THEME, BEAUTY_SPA_THEME } from '../lib/themeServices';
 import CustomerBookingPreview from './CustomerBookingPreview';
 import OwnerAvatar from './OwnerAvatar';
+import { ServicePrice } from './PromotionalPricing';
 import FamilyFullServiceTemplateRenderer from './FamilyFullServiceTemplateRenderer';
 import NailLashStudioTemplateRenderer from './NailLashStudioTemplateRenderer';
 
@@ -347,7 +348,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                     <div key={s.id} className="p-5 rounded-xl border border-gray-100 shadow-2xs bg-white hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-1">
                         <h4 className="font-bold text-gray-900 text-sm">{s.name}</h4>
-                        <span className={`font-bold ${accentTextCls} text-sm`}>₹{s.price.toLocaleString('en-IN')}</span>
+                        <ServicePrice service={s} offers={data.offers} className={`font-bold ${accentTextCls} text-sm`} compact />
                       </div>
                       <p className="text-xs text-gray-500 mb-4">{s.description}</p>
                       <button 

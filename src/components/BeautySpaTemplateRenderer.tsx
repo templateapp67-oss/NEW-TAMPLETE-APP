@@ -3,6 +3,7 @@ import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { BEAUTY_SPA_THEME } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
+import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import {
   Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard, Leaf, Flower2, Sparkles, Droplets,
@@ -161,7 +162,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                 <div key={s.id} className="rounded-3xl p-6 border transition-all hover:-translate-y-0.5" style={{ backgroundColor: '#ffffff', borderColor: line, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-serif font-semibold text-sm" style={{ color: text }}>{s.name}</h4>
-                    <span className="font-semibold text-sm whitespace-nowrap" style={{ color: emerald }}>₹{s.price.toLocaleString('en-IN')}</span>
+                    <ServicePrice service={s} offers={data.offers} style={{ color: emerald }} compact />
                   </div>
                   <span className="inline-block text-[9px] uppercase tracking-[0.2em] font-semibold px-2.5 py-0.5 rounded-full mb-3" style={{ backgroundColor: emeraldSoft, color: emeraldDeep }}>
                     {s.category}
@@ -200,7 +201,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                        <span className="font-semibold text-lg" style={{ color: emerald }}>₹{p.price.toLocaleString('en-IN')}</span>
+                        <BundlePrice bundle={p} offers={data.offers} style={{ color: emerald }} />
                         <button className="px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-105" style={btnEmerald}>
                           Book Package
                         </button>
@@ -247,7 +248,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                           <p className="text-[10px] uppercase tracking-[0.15em]" style={{ color: muted }}>{s.duration} mins</p>
                         </div>
                       </div>
-                      <span className="font-semibold text-sm whitespace-nowrap" style={{ color: emerald }}>₹{s.price.toLocaleString('en-IN')}</span>
+                      <ServicePrice service={s} offers={data.offers} style={{ color: emerald }} compact />
                     </div>
                   ))
                 ) : (
@@ -302,7 +303,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                         <p className="text-[10px] uppercase tracking-[0.15em] text-white/60">{s.duration} mins</p>
                       </div>
                     </div>
-                    <span className="font-semibold text-sm whitespace-nowrap text-white">₹{s.price.toLocaleString('en-IN')}</span>
+                    <ServicePrice service={s} offers={data.offers} className="text-white" compact dark />
                   </div>
                 ))}
               </div>

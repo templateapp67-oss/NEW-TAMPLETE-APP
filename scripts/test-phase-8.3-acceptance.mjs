@@ -2,7 +2,7 @@
  * PHASE 8.3 — FINAL 5-THEME ACCEPTANCE TEST (data + integration layer)
  *
  * Runs the complete service workflow for every theme against REAL PostgreSQL
- * (M01–M23) through the REAL `@supabase/supabase-js` client and the app's own
+ * (M01–M24) through the REAL `@supabase/supabase-js` client and the app's own
  * service layer. The UI layer is covered by test-phase-8.3-ui.mjs.
  *
  * Per theme: UI contract, theme_id, categories, predefined services, suggested

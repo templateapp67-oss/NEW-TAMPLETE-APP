@@ -3,6 +3,7 @@ import type { SalonData } from '../types';
 import { getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { NAIL_LASH_STUDIO_THEME } from '../lib/themeServices';
+import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import {
   ArrowRight,
   Award,
@@ -240,6 +241,36 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
           <div className="flex items-end justify-between gap-4 mb-7"><SectionTitle eyebrow="The glow menu" title="Featured services" body="A curated edit of the studio experience — presented here as visual direction only." /><span className="hidden md:inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[8px] font-extrabold uppercase tracking-[0.16em]" style={{ color: pinkDeep, backgroundColor: pinkSoft }}>Curated, never cookie-cutter</span></div>
           <div className={`grid gap-3 ${mode === 'desktop' ? 'grid-cols-4' : 'grid-cols-2'}`}>{FEATURED.map((item) => { const Icon = item.icon; return <a href="#section-contact" key={item.name} className="group rounded-[1.5rem] p-4 min-h-[170px] border flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-lg" style={{ borderColor: line, backgroundColor: item.color === inkSoft ? ink : white }}><div className="flex items-center justify-between"><span className="text-[9px] font-extrabold" style={{ color: item.color === inkSoft ? pinkGlow : pinkDeep }}>{item.number}</span><Icon className="w-5 h-5" style={{ color: item.color === inkSoft ? pink : item.color }} /></div><div><h3 className="text-sm font-extrabold" style={{ color: item.color === inkSoft ? white : ink }}>{item.name}</h3><p className="text-[9px] leading-relaxed mt-1" style={{ color: item.color === inkSoft ? 'rgba(255,255,255,0.6)' : muted }}>{item.detail}</p><span className="inline-flex items-center gap-1 mt-4 text-[8px] font-extrabold uppercase tracking-[0.15em]" style={{ color: item.color === inkSoft ? pinkGlow : pinkDeep }}>Explore <ChevronRight className="w-3 h-3 transition-transform group-hover:translate-x-1" /></span></div></a>; })}</div>
         </section>
+
+        {/* Owner service records — kept visually aligned with the existing
+            editorial theme while exposing Phase 9.1 prices and promotions. */}
+        {(data.services.length > 0 || data.packages.length > 0) && (
+          <section id="section-service-menu" className="px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
+            <SectionTitle eyebrow="Book the edit" title="Studio menu" body="Choose your finish, pricing option or limited-time special." />
+            <div className={`grid gap-3 mt-8 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {data.services.filter((service) => service.status !== 'inactive' && service.status !== 'archived').map((service) => (
+                <article key={service.id} className="rounded-[1.5rem] border p-4 flex items-start justify-between gap-4" style={{ borderColor: line, backgroundColor: cream }}>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold" style={{ color: ink }}>{service.name}</h3>
+                    <p className="text-[9px] uppercase tracking-[0.14em] font-bold mt-1" style={{ color: pinkDeep }}>{service.category} · {service.duration} min</p>
+                    <p className="text-[10px] leading-relaxed mt-2 line-clamp-2" style={{ color: muted }}>{service.description}</p>
+                  </div>
+                  <ServicePrice service={service} offers={data.offers} style={{ color: pinkDeep }} compact />
+                </article>
+              ))}
+            </div>
+            {data.packages.filter((bundle) => bundle.status !== 'inactive' && bundle.status !== 'archived').length > 0 && (
+              <div className="mt-8 space-y-3">
+                {data.packages.filter((bundle) => bundle.status !== 'inactive' && bundle.status !== 'archived').map((bundle) => (
+                  <article key={bundle.id} className="rounded-[1.5rem] border p-5 flex items-center justify-between gap-4" style={{ borderColor: pink, backgroundColor: pinkSoft }}>
+                    <div><h3 className="text-sm font-extrabold" style={{ color: ink }}>{bundle.name}</h3><p className="text-[10px] mt-1" style={{ color: muted }}>{bundle.includedServices?.map((item) => item.name).join(' + ') || bundle.description}</p></div>
+                    <BundlePrice bundle={bundle} offers={data.offers} style={{ color: pinkDeep }} />
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Nail Art Showcase */}
         <section id="section-nail-art" className="px-5 md:px-8 py-12" style={{ backgroundColor: ink }}><div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-8"><SectionTitle eyebrow="The art wall" title="Nail art showcase" body="Tiny canvases. Big personality. Bring a reference, a colour story or just a mood." light /><a href="#section-contact" className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.18em] self-start" style={{ backgroundColor: pink, color: white }}>Start your set <ArrowRight className="w-3.5 h-3.5" /></a></div><div className={`grid gap-3 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-2'}`}>{NAIL_ART.map((item, index) => <ImageShowcaseCard key={item.name} item={item} index={index} />)}</div></section>

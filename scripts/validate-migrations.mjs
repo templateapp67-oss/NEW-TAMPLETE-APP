@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 23, 'expected exactly M01-M23');
+assert.equal(migrationFiles.length, 24, 'expected exactly M01-M24');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/23 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/24 applied cleanly`);
 }
 
 const ids = {

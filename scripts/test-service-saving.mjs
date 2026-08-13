@@ -626,7 +626,10 @@ await test('Phase 8.2 — StepServices renders every required state', async () =
     source.indexOf('const runSavedServicesLoad'),
     source.indexOf('const reloadSavedServices'),
   );
-  assert.ok(loadBlock.includes('services: [] }'), 'must clear rows before loading a new theme');
+  assert.ok(
+    loadBlock.includes('services: [], packages: [], offers: [] }'),
+    'must clear service and commerce rows before loading a new theme',
+  );
   assert.ok(loadBlock.includes('savedLoadRequestRef.current !== requestId'),
     'must ignore late responses from a previous theme');
 });

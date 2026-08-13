@@ -1,7 +1,7 @@
 /**
  * Phase 8.2 — validation, security and error-handling test suite.
  *
- * This is an ADVERSARIAL suite. It applies the full M01–M23 migration set to a
+ * This is an ADVERSARIAL suite. It applies the full M01–M24 migration set to a
  * real PostgreSQL (PGlite) and then actively attacks the saved-service system
  * as a logged-in tenant, a rival tenant, and an anonymous visitor — through
  * both the RPC surface AND direct table access (the PostgREST path).

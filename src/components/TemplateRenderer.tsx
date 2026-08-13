@@ -8,6 +8,7 @@ import HairStudioTemplateRenderer from './HairStudioTemplateRenderer';
 import BeautySpaTemplateRenderer from './BeautySpaTemplateRenderer';
 import FamilyFullServiceTemplateRenderer from './FamilyFullServiceTemplateRenderer';
 import NailLashStudioTemplateRenderer from './NailLashStudioTemplateRenderer';
+import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -170,7 +171,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
               >
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold text-sm">{s.name}</h4>
-                  <span className="font-bold text-sm" style={accentStyle}>₹{s.price.toLocaleString('en-IN')}</span>
+                  <ServicePrice service={s} offers={data.offers} className="font-bold text-sm" style={accentStyle} />
                 </div>
                 <p className="text-xs opacity-75 mb-4 line-clamp-2">{s.description}</p>
                 <div className="flex justify-between items-center pt-2 border-t border-gray-100/20 text-[11px]">
@@ -211,7 +212,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
                       </div>
                     </div>
                     <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-0 border-gray-150">
-                      <span className="font-extrabold text-base md:text-lg" style={accentStyle}>₹{p.price.toLocaleString('en-IN')}</span>
+                      <BundlePrice bundle={p} offers={data.offers} className="font-extrabold text-base md:text-lg" style={accentStyle} dark={isDark} />
                       <button className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-colors hover:brightness-90`} style={brandButtonStyle}>
                         Book Bundle
                       </button>

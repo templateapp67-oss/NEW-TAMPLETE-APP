@@ -1,8 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { SalonData, Service } from '../types';
+import type { SalonData, Service, ServiceOffer } from '../types';
 import { getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { FAMILY_FULL_SERVICE_THEME } from '../lib/themeServices';
+import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import {
   ArrowRight,
   Baby,
@@ -214,7 +215,7 @@ function FocusStrip({ items, light = false }: { items: readonly FocusItem[]; lig
   );
 }
 
-function ServiceRow({ service, dark = false }: { service: Service; dark?: boolean; key?: string }) {
+function ServiceRow({ service, offers = [], dark = false }: { service: Service; offers?: ServiceOffer[]; dark?: boolean; key?: string }) {
   return (
     <div
       className="flex items-center justify-between gap-4 py-4 border-b last:border-b-0"
@@ -229,9 +230,7 @@ function ServiceRow({ service, dark = false }: { service: Service; dark?: boolea
         </p>
       </div>
       <div className="text-right shrink-0">
-        <span className="text-xs font-extrabold" style={{ color: dark ? sun : blue }}>
-          ₹{service.price.toLocaleString('en-IN')}
-        </span>
+        <ServicePrice service={service} offers={offers} style={{ color: dark ? sun : blue }} compact dark={dark} />
         <p className="mt-1 text-[9px] font-semibold" style={{ color: dark ? 'rgba(255,255,255,0.52)' : muted }}>
           {service.duration} min
         </p>
@@ -379,7 +378,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   const renderServiceMenu = (items: Service[], focuses: readonly FocusItem[], dark = false) => (
     items.length > 0 ? (
       <div className="rounded-2xl px-5" style={{ backgroundColor: dark ? 'rgba(255,255,255,0.06)' : white }}>
-        {items.map((service) => <ServiceRow key={service.id} service={service} dark={dark} />)}
+        {items.map((service) => <ServiceRow key={service.id} service={service} offers={data.offers} dark={dark} />)}
       </div>
     ) : (
       <EmptyMenu title="Your service menu is ready for its first listings." focuses={focuses} dark={dark} />
@@ -584,7 +583,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
               {groups.combos.map((combo) => (
                 <div key={combo.id} className="rounded-2xl border p-5 flex items-center justify-between gap-4" style={{ borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.08)' }}>
                   <div className="min-w-0"><div className="flex items-center gap-2"><PackageIcon className="w-4 h-4 shrink-0" style={{ color: sun }} /><h3 className="text-sm font-extrabold text-white truncate">{combo.name}</h3></div><p className="text-[10px] leading-relaxed mt-2 text-white/65 line-clamp-2">{combo.description}</p><p className="text-[9px] mt-3 font-bold text-white/55">{combo.duration} min · One easy booking</p></div>
-                  <div className="text-right shrink-0"><span className="block text-lg font-extrabold" style={{ color: sun }}>₹{combo.price.toLocaleString('en-IN')}</span><a href="#section-contact" className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-white mt-2">Book <ArrowRight className="w-3 h-3" /></a></div>
+                  <div className="text-right shrink-0"><BundlePrice bundle={combo} offers={data.offers} style={{ color: sun }} dark /><a href="#section-contact" className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-white mt-2">Book <ArrowRight className="w-3 h-3" /></a></div>
                 </div>
               ))}
             </div>
