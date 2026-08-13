@@ -148,6 +148,10 @@ export function announcementOffer(data: SalonData): { title: string; badge?: str
   return null;
 }
 
+export function siteSectionDomId(themeId: SiteHeaderThemeId, key: SiteSectionKey): string {
+  return SITE_SECTION_ID_ALIASES[themeId]?.[key] || SITE_SECTION_IDS[key];
+}
+
 export function sectionProps(
   key: SiteSectionKey,
   status: SectionStatus,

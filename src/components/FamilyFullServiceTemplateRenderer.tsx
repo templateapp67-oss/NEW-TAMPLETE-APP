@@ -10,6 +10,8 @@ import SiteFloatingActions from './SiteFloatingActions';
 import SiteBookingHost from './SiteBookingHost';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
 import SiteSalonStatus from './SiteSalonStatus';
+import SiteReviews from './SiteReviews';
+import SiteSocialFeed from './SiteSocialFeed';
 import { openSiteBooking } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { FAMILY_SURFACES, surfacesOf } from '../lib/themeSurfaces';
@@ -42,7 +44,6 @@ import {
   Navigation,
   Package as PackageIcon,
   Phone,
-  Quote,
   Scissors,
   ShieldCheck,
   Smile,
@@ -354,12 +355,6 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
     { id: 'section-combos', label: S.navCombos },
   ];
 
-  const REVIEWS = [
-    { name: 'Priya & Aarav', detail: S.review1Detail, quote: S.review1Quote, initials: 'PA', color: t.blue },
-    { name: 'Meera Kapoor', detail: S.review2Detail, quote: S.review2Quote, initials: 'MK', color: t.teal },
-    { name: 'Rohan Mehta', detail: S.review3Detail, quote: S.review3Quote, initials: 'RM', color: t.coral },
-  ];
-
   const groups = getServiceGroups(data);
   const FALLBACK_GALLERY: GalleryImageTile[] = PREVIEW_GALLERY_BASE.map((img, i) => ({
     ...img,
@@ -377,7 +372,6 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   const servicesState = resolveSectionState('services', data.services);
   const offersState = resolveSectionState('offers', (data.packages || []));
   const galleryState = resolveSectionState('gallery', data.gallery);
-  const videosState = resolveSectionState('videos', data.socialVideos);
   const teamState = resolveSectionState('team', publicTeam);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', [data.about || '1']);
@@ -611,20 +605,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           <div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 2 })}`}>{gallery.map((image, index) => <GalleryTile key={`${image.url}-${index}`} image={image} index={index} mode={mode} />)}</div>
         </section>
 
-        <section {...sectionProps('videos', videosState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
-          <SectionIntro eyebrow={S.featuredEyebrow} title={S.videosEmpty} t={t} />
-          {videosState === 'ready' ? (
-            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
-              {(data.socialVideos || []).map((video) => (
-                <div key={video.id} className="relative aspect-[9/16] overflow-hidden rounded-[1.5rem] min-w-0">
-                  <img src={video.thumbnailUrl} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#12385b]/80 to-transparent" />
-                  <p className="absolute left-3 right-3 bottom-3 text-xs font-extrabold text-white line-clamp-2">{video.title}</p>
-                </div>
-              ))}
-            </div>
-          ) : <div className="mt-6"><SectionStatePanel status={videosState} copy={X} palette={palette} emptyTitle={S.videosEmpty} /></div>}
-        </section>
+        <SiteSocialFeed themeId="family_full_service" data={data} mode={mode} />
 
         {/* About */}
         <section {...sectionProps('about', aboutState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: t.well }}>
@@ -668,11 +649,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           )}
         </section>
 
-        {/* Testimonials */}
-        <section {...sectionProps('reviews', 'ready', 'section-testimonials')} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
-          <SectionIntro eyebrow={S.testimonialsEyebrow} title={S.testimonialsTitle} body={S.testimonialsBody} align="center" t={t} />
-          <div className={`grid gap-3 mt-8 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 1 })}`}>{REVIEWS.map((review) => <article key={review.name} className="rounded-[1.5rem] border p-5 flex flex-col" style={{ borderColor: line, backgroundColor: t.well }}><div className="flex items-center justify-between"><div className="flex gap-0.5">{[0, 1, 2, 3, 4].map((star) => <Star key={star} className="w-3.5 h-3.5" style={{ color: '#f2b243', fill: '#f2b243' }} />)}</div><Quote className="w-5 h-5" style={{ color: review.color }} /></div><p className="text-xs leading-relaxed mt-4 flex-1" style={{ color: ink }}>“{review.quote}”</p><div className="flex items-center gap-2 mt-5 pt-3 border-t" style={{ borderColor: line }}><span className="w-8 h-8 rounded-full flex items-center justify-center text-[9px] font-extrabold text-white" style={{ backgroundColor: review.color }}>{review.initials}</span><div><p className="text-[10px] font-extrabold" style={{ color: ink }}>{review.name}</p><p className="text-[9px] mt-0.5" style={{ color: muted }}>{review.detail}</p></div></div></article>)}</div>
-        </section>
+        <SiteReviews themeId="family_full_service" data={data} mode={mode} />
 
         {/* Contact */}
         <section id="section-contact" data-site-section="location" data-section-state={locationState} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: t.contactBand }}>

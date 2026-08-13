@@ -65,6 +65,8 @@ npm run test:phase-10.3     # canonical section order + responsive structure
 npm run test:phase-10.4     # final CTA, footer & floating actions
 npm run test:phase-10.5     # announcement bar & live salon status
 npm run test:phase-10.6     # Book Appointment entry flow (Service → Date → Slot → Details → Summary)
+npm run test:phase-10.7     # Advance payment & booking confirmation
+npm run test:phase-10.8     # Reviews, ratings & social / latest-work feed
 npm run test:phase-10       # all Phase 10 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features

@@ -9,6 +9,8 @@ import SiteFloatingActions from './SiteFloatingActions';
 import SiteBookingHost from './SiteBookingHost';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
 import SiteSalonStatus from './SiteSalonStatus';
+import SiteReviews from './SiteReviews';
+import SiteSocialFeed from './SiteSocialFeed';
 import { openSiteBooking } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../lib/themeSurfaces';
@@ -25,8 +27,8 @@ import {
 } from '../lib/siteStructure';
 import type { ViewportMode } from '../lib/siteStructure';
 import {
-  Scissors, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
-  Video, Heart, Star, Quote, CreditCard, Palette,
+  Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
+  CreditCard, Palette,
 } from 'lucide-react';
 
 interface Props {
@@ -83,7 +85,6 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
   const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
   const galleryState = resolveSectionState('gallery', data.gallery);
-  const videosState = resolveSectionState('videos', data.socialVideos);
   const teamState = resolveSectionState('team', data.team);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
@@ -93,12 +94,6 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
     backgroundColor: rose,
     color: isDark ? '#241d1b' : '#ffffff',
   };
-
-  const REVIEWS = [
-    { name: 'Ananya Iyer', service: S.review1Service, quote: S.review1Quote },
-    { name: 'Sara Khan', service: S.review2Service, quote: S.review2Quote },
-    { name: 'Meera Nair', service: S.review3Service, quote: S.review3Quote },
-  ];
 
   return (
     <div className={`relative shadow-xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)} ${mode === 'mobile' ? 'site-has-mobile-dock' : ''}`} style={{ borderColor: line, backgroundColor: card }}>
@@ -340,29 +335,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        <div {...sectionProps('videos', videosState)} className="site-section px-5 md:px-8 py-16 border-t" style={{ backgroundColor: paperDeep, borderColor: line }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold flex items-center justify-center gap-2" style={{ color: roseDeep }}>
-                <Video className="w-3 h-3" /> {S.videosEyebrow}
-              </span>
-              <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: ink }}>{S.videosTitle}</h3>
-            </div>
-            {videosState === 'ready' ? (
-              <div className={`grid gap-4 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
-                {(data.socialVideos || []).map((video) => (
-                  <div key={video.id} className="relative aspect-[9/16] overflow-hidden group border" style={{ borderColor: line }}>
-                    <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-95" />
-                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(25,24,23,0.85), transparent)' }}></div>
-                    <div className="absolute bottom-3 left-3 right-3 text-white">
-                      <p className="text-xs font-serif font-semibold line-clamp-2">{video.title}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : <SectionStatePanel status={videosState} copy={X} palette={palette} emptyTitle={S.videosEmpty} />}
-          </div>
-        </div>
+        <SiteSocialFeed themeId="hair_studio_color_bar" data={data} mode={mode} />
 
         <div {...sectionProps('about', aboutState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: paper }}>
           <div className="max-w-2xl mx-auto text-center">
@@ -415,34 +388,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        <div {...sectionProps('reviews', 'ready')} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: paperDeep }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>{S.reviewsEyebrow}</span>
-              <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: ink }}>{S.reviewsTitle}</h3>
-              <div className="h-px w-16 mx-auto mt-5" style={{ backgroundColor: rose }}></div>
-            </div>
-            <div className={`grid gap-6 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 1 })}`}>
-              {REVIEWS.map((r, i) => (
-                <div key={i} className="border p-6 flex flex-col gap-3" style={{ borderColor: line, backgroundColor: card }}>
-                  <div className="flex gap-0.5">
-                    {[0, 1, 2, 3, 4].map((star) => (
-                      <Star key={star} className="w-3.5 h-3.5" style={{ color: rose, fill: rose }} />
-                    ))}
-                  </div>
-                  <Quote className="w-5 h-5" style={{ color: roseBright }} />
-                  <p className="text-xs leading-relaxed italic flex-1 font-serif" style={{ color: inkSoft }}>
-                    “{r.quote}”
-                  </p>
-                  <div className="pt-3 border-t" style={{ borderColor: line }}>
-                    <p className="text-xs font-semibold" style={{ color: ink }}>{r.name}</p>
-                    <p className="text-[10px] uppercase tracking-[0.18em] mt-0.5" style={{ color: roseDeep }}>{r.service}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <SiteReviews themeId="hair_studio_color_bar" data={data} mode={mode} />
 
         <div {...sectionProps('location', locationState)} className="site-section px-5 md:px-8 py-16 border-t" style={{ backgroundColor: paper, borderColor: line }}>
           <div className="max-w-3xl mx-auto">
