@@ -46,7 +46,8 @@ npm run start        # run the production build (node dist/server.cjs)
 npm run preview      # vite preview on http://0.0.0.0:4173
 npm run lint         # type-check only: tsc --noEmit
 npm run generate:theme-seed # regenerate M18 from src/lib/themeServices.ts
-npm run validate:migrations # source-check M18 + apply M01–M18 twice + tests A–P
+npm run validate:migrations # source-check M18 + apply M01–M19 twice + tests A–Q
+npm run test:theme-catalog # verify five-theme DB/RPC/UI read boundaries
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
@@ -108,8 +109,8 @@ node verify-22-screens.js   # static verification of all 25 screens/features
 
 - `docs/nexora-database-spec.md` — the 90-point Nexora Supabase master
   specification and source for migration order §5.25.
-- `docs/database-migrations-plan.md` + `supabase/migrations/` — **DRAFT** M01–M18.
-  They pass clean replay x2 plus tests A–P in PGlite, but have **not been applied
+- `docs/database-migrations-plan.md` + `supabase/migrations/` — **DRAFT** M01–M19.
+  They pass clean replay x2 plus tests A–Q in PGlite, but have **not been applied
   to any database**. M02 is deliberately a fail-closed preflight and must be
   regenerated after read-only live Supabase introspection. Never execute the
   migration set without a separate explicit go-ahead.
@@ -150,7 +151,7 @@ loads). All `.env*` files are gitignored except `.env.example`.
   tuned for agent editing (`DISABLE_HMR` env).
 - **Verification**: after UI/feature changes, run
   `node verify-22-screens.js` and `npm run lint`. After migration changes, also
-  run `npm run validate:migrations` and keep the 18/18 x2 + 16/16 result.
+  run `npm run validate:migrations` and keep the 19/19 x2 + 17/17 result.
 
 ## Git workflow
 

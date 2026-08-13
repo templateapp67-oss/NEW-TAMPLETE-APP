@@ -1766,6 +1766,10 @@ Per P67: services.business_id; staff_members.business_id; staff_services(staff_i
   17 categories, 78 canonical predefined services, and 30 suggested mappings.
   Suggested labels/orders remain attributes of their canonical predefined row,
   including aliases where chip and canonical names differ.
+- Phase 7.4 Session 1 exposes one read-only
+  `get_theme_service_catalog(p_theme_id)` boundary. SQL applies the mandatory
+  stable theme filter before returning that theme's categories, predefined
+  services, and `is_suggested=true` relationships to the unchanged UI.
 
 ### 5.15 Website/Publishing Architecture
 
@@ -1829,5 +1833,6 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 16. **M16** Phase 7.1 global theme/service reference architecture (themes, categories, predefined services; no dataset seed)
 17. **M17** Phase 7.2 nullable catalog provenance on existing business-owned saved services
 18. **M18** Phase 7.3 exact, generated, idempotent five-theme catalog seed
+19. **M19** Phase 7.4 Session 1 mandatory theme-filtered catalog read RPC
 
-**Execution gate:** M01–M18 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
+**Execution gate:** M01–M19 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.

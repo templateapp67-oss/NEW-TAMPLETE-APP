@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 18, 'expected exactly M01-M18');
+assert.equal(migrationFiles.length, 19, 'expected exactly M01-M19');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/18 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/19 applied cleanly`);
 }
 
 const ids = {
@@ -719,13 +719,16 @@ await test('P — five-theme seed exactly matches the Phase 2–6 application da
         is_suggested: Boolean(suggestion),
         suggested_label: suggestion?.suggestedLabel ?? null,
         suggested_sort_order: suggestion?.suggestedSortOrder ?? null,
+        default_price_paise: service.price * 100,
+        default_duration_minutes: service.duration,
         is_active: true,
       };
     });
     const services = await db.query(
       `select ps.name, c.name as category, ps.description, ps.sort_order,
               ps.is_suggested, ps.suggested_label,
-              ps.suggested_sort_order, ps.is_active
+              ps.suggested_sort_order, ps.default_price_paise,
+              ps.default_duration_minutes, ps.is_active
        from public.predefined_services ps
        join public.themes t on t.id = ps.theme_id
        join public.service_categories c on c.id = ps.category_id
@@ -765,6 +768,70 @@ await test('P — five-theme seed exactly matches the Phase 2–6 application da
   );
 });
 
-assert.equal(passed, 16);
-console.log(`Functional tests: ${passed}/16 passed`);
+await test('Q — theme catalog RPC database-filters each of the five UI catalogs', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+  const seenThemeDatabaseIds = new Set();
+
+  for (const themeId of seededThemeIds) {
+    const result = await db.query(
+      'select public.get_theme_service_catalog($1) as catalog',
+      [themeId],
+    );
+    const catalog = result.rows[0].catalog;
+    assert.equal(catalog.theme.theme_id, themeId);
+    assert.equal(seenThemeDatabaseIds.has(catalog.theme.id), false);
+    seenThemeDatabaseIds.add(catalog.theme.id);
+
+    const categoryIds = new Set(catalog.categories.map((category) => {
+      assert.equal(category.theme_id, catalog.theme.id);
+      return category.id;
+    }));
+    assert.deepEqual(
+      catalog.categories.map((category) => category.name),
+      THEME_CATEGORIES[themeId],
+    );
+
+    const expectedServices = SERVICES_BY_THEME[themeId];
+    assert.deepEqual(
+      catalog.predefined_services.map((service) => service.name),
+      expectedServices.map((service) => service.name),
+    );
+    catalog.predefined_services.forEach((service, index) => {
+      const expected = expectedServices[index];
+      assert.equal(service.theme_id, catalog.theme.id);
+      assert.equal(categoryIds.has(service.category_id), true);
+      assert.equal(service.description, expected.description);
+      assert.equal(Number(service.default_price_paise), expected.price * 100);
+      assert.equal(service.default_duration_minutes, expected.duration);
+    });
+
+    const predefinedIds = new Set(catalog.predefined_services.map((service) => service.id));
+    catalog.suggested_services.forEach((service) => {
+      assert.equal(service.theme_id, catalog.theme.id);
+      assert.equal(categoryIds.has(service.category_id), true);
+      assert.equal(predefinedIds.has(service.id), true);
+      assert.equal(service.is_suggested, true);
+    });
+    assert.deepEqual(
+      catalog.suggested_services.map((service) => service.suggested_label),
+      SUGGESTED_SERVICE_NAMES[themeId],
+    );
+  }
+
+  const unsupported = await db.query(
+    `select public.get_theme_service_catalog('hair') as original_theme,
+            public.get_theme_service_catalog('not-a-theme') as missing_theme`,
+  );
+  assert.equal(unsupported.rows[0].original_theme, null);
+  assert.equal(unsupported.rows[0].missing_theme, null);
+});
+
+assert.equal(passed, 17);
+console.log(`Functional tests: ${passed}/17 passed`);
 await db.close();

@@ -110,6 +110,8 @@ const serviceRows = themeIds.flatMap((themeId) => {
       suggestion ? 'true' : 'false',
       sqlNullableText(suggestion?.suggestedLabel),
       suggestion ? String(suggestion.suggestedSortOrder) : 'null',
+      String(service.price * 100),
+      String(service.duration),
     ];
   });
 });
@@ -131,7 +133,9 @@ alter table public.themes
   add column if not exists sort_order integer not null default 0;
 alter table public.predefined_services
   add column if not exists suggested_label text,
-  add column if not exists suggested_sort_order integer;
+  add column if not exists suggested_sort_order integer,
+  add column if not exists default_price_paise bigint,
+  add column if not exists default_duration_minutes integer;
 
 do $$
 begin
@@ -184,6 +188,26 @@ begin
       add constraint predefined_services_suggested_metadata_flag
       check (is_suggested or (suggested_label is null and suggested_sort_order is null)) not valid;
   end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.predefined_services'::regclass
+      and conname = 'predefined_services_default_price_nonnegative'
+  ) then
+    alter table public.predefined_services
+      add constraint predefined_services_default_price_nonnegative
+      check (default_price_paise is null or default_price_paise >= 0) not valid;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.predefined_services'::regclass
+      and conname = 'predefined_services_default_duration_positive'
+  ) then
+    alter table public.predefined_services
+      add constraint predefined_services_default_duration_positive
+      check (default_duration_minutes is null or default_duration_minutes > 0) not valid;
+  end if;
 end
 $$;
 
@@ -192,6 +216,8 @@ alter table public.predefined_services validate constraint predefined_services_s
 alter table public.predefined_services validate constraint predefined_services_suggested_order_nonnegative;
 alter table public.predefined_services validate constraint predefined_services_suggested_metadata_pair;
 alter table public.predefined_services validate constraint predefined_services_suggested_metadata_flag;
+alter table public.predefined_services validate constraint predefined_services_default_price_nonnegative;
+alter table public.predefined_services validate constraint predefined_services_default_duration_positive;
 
 create index if not exists idx_themes_active_sort_order
   on public.themes (is_active, sort_order, theme_id);
@@ -229,18 +255,21 @@ set sort_order = excluded.sort_order;
 
 with seed(
   theme_key, category_name, service_name, description, sort_order,
-  is_suggested, suggested_label, suggested_sort_order
+  is_suggested, suggested_label, suggested_sort_order,
+  default_price_paise, default_duration_minutes
 ) as (
   values
 ${valueLines(serviceRows)}
 )
 insert into public.predefined_services (
   theme_id, category_id, name, description, sort_order, is_suggested,
-  suggested_label, suggested_sort_order, is_active
+  suggested_label, suggested_sort_order, default_price_paise,
+  default_duration_minutes, is_active
 )
 select
   t.id, c.id, seed.service_name, seed.description, seed.sort_order,
-  seed.is_suggested, seed.suggested_label, seed.suggested_sort_order, true
+  seed.is_suggested, seed.suggested_label, seed.suggested_sort_order,
+  seed.default_price_paise, seed.default_duration_minutes, true
 from seed
 join public.themes t on t.theme_id = seed.theme_key
 join public.service_categories c
@@ -252,6 +281,8 @@ set category_id = excluded.category_id,
     is_suggested = excluded.is_suggested,
     suggested_label = excluded.suggested_label,
     suggested_sort_order = excluded.suggested_sort_order,
+    default_price_paise = excluded.default_price_paise,
+    default_duration_minutes = excluded.default_duration_minutes,
     is_active = true;
 
 comment on column public.themes.sort_order is
@@ -260,6 +291,10 @@ comment on column public.predefined_services.suggested_label is
   'Customer-facing suggested chip label mapped to this canonical predefined service.';
 comment on column public.predefined_services.suggested_sort_order is
   'Display order within the theme suggested-service list; NULL when not suggested.';
+comment on column public.predefined_services.default_price_paise is
+  'Curated default price in integer paise for onboarding auto-fill; saved services remain owner-editable.';
+comment on column public.predefined_services.default_duration_minutes is
+  'Curated default duration for onboarding auto-fill; saved services remain owner-editable.';
 
 commit;
 `;

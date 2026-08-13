@@ -13,6 +13,7 @@
     "test:auth": "tsx scripts/test-auth-modal.mjs",
     "test:customization": "tsx scripts/test-website-customization.mjs",
     "test:owner": "tsx scripts/test-owner-profile.mjs",
+    "test:theme-catalog": "tsx scripts/test-theme-catalog-ui.mjs",
     "generate:theme-seed": "tsx scripts/generate-theme-seed.mts --write",
     "validate:migrations": "tsx scripts/generate-theme-seed.mts --check && tsx scripts/validate-migrations.mjs"
   },

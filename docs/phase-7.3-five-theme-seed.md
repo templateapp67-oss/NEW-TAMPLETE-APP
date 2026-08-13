@@ -58,7 +58,10 @@ audience, active state, display order, and exact existing visual tokens in
 | **Total** | **17** | **78** | **30** |
 
 Category and predefined-service `sort_order` values follow their exact array
-positions in the Phase 2–6 source datasets.
+positions in the Phase 2–6 source datasets. The generated rows also preserve
+existing curated price/duration defaults as integer `default_price_paise` and
+`default_duration_minutes` values for the unchanged onboarding UI; saved salon
+services remain independently editable.
 
 ## Suggested-service relationship and aliases
 

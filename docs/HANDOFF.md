@@ -6,6 +6,22 @@
 
 ## Current repository state
 
+- **Phase 7.4 Session 1 — five-theme database reads connected (no writes):**
+  - Added M19 `get_theme_service_catalog(p_theme_id)`. The mandatory SQL filter
+    returns only the requested active theme, its categories, its active
+    predefined services, and its `is_suggested=true` relationships.
+  - Added `src/lib/themeCatalogService.ts`; all five seeded themes use the RPC,
+    validate returned theme/category/service IDs, and reject cross-theme data.
+  - `StepServices` now reads five-theme categories, service options, suggested
+    chips, names, descriptions, default prices and durations from the current
+    database catalog. It never downloads the global catalog for client filtering.
+  - Theme switches clear data immediately and use request IDs plus render-time
+    identity guards, preventing stale/late previous-theme responses.
+  - Existing `hair` / Existing Theme UI remains unchanged because Phase 7.3 did
+    not seed it. No renderer/layout, custom service, Add Selected persistence,
+    saved-service writes, or package logic changed. Session 1 stops at reads.
+  - Details: `docs/phase-7.4-session-1-database-ui-read.md`. Validation: M01–M19
+    replay x2, tests A–Q 17/17, and theme catalog UI tests 4/4.
 - **Phase 7.3 exact five-theme seed completed (draft, not applied):**
   - Added generated M18 seeding only `barber_mens_grooming`,
     `hair_studio_color_bar`, `beauty_skin_spa`, `family_full_service`, and
@@ -117,12 +133,12 @@
     *"Authentication form is ready, but Supabase is not connected. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app."*
   - TopBar account action includes a graceful loading fallback so buttons never permanently disappear during session verification.
   - Automated regression suite added in `scripts/test-auth-modal.mjs` (`npm run test:auth`).
-- `supabase/migrations/` now contains **18 ordered DRAFT migrations (M01–M18)**:
-  M01–M15 follow the 90-point specification §5.25; M16–M18 are the Phase 7
-  catalog architecture, saved-service-link, and exact seed extensions.
-- `scripts/validate-migrations.mjs` source-checks M18, applies all 18 files twice, and runs
-  the expanded functional acceptance set A–P using `@electric-sql/pglite` (real PostgreSQL).
-- Validation is green: **18/18 clean apply on pass 1, 18/18 on pass 2, 16/16
+- `supabase/migrations/` now contains **19 ordered DRAFT migrations (M01–M19)**:
+  M01–M15 follow the 90-point specification §5.25; M16–M19 are the Phase 7
+  catalog architecture, saved-service link, seed, and read-RPC extensions.
+- `scripts/validate-migrations.mjs` source-checks M18, applies all 19 files twice, and runs
+  the expanded functional acceptance set A–Q using `@electric-sql/pglite` (real PostgreSQL).
+- Validation is green: **19/19 clean apply on pass 1, 19/19 on pass 2, 17/17
   functional tests, and 14/14 auth regression tests**.
 - **No migration has been applied to local, staging, or live Supabase.** The SQL
   is a reviewed/testable draft only.
@@ -205,7 +221,7 @@ Do not infer its complete state from the repository.
 - Historical booking snapshots, payment verification/idempotency, audit events,
   auto-save/resume, plan/white-label gates.
 
-### 3. Checked-in M01–M18 drafts
+### 3. Checked-in M01–M19 drafts
 
 The draft creates a clean target schema only when no known legacy collision is
 present. **M02 deliberately raises an exception** when it finds known live/legacy
@@ -215,7 +231,7 @@ parallel business model.
 
 Because the known live project has several of those objects, M02 must be
 regenerated after read-only introspection with explicit preserving
-rename/ALTER/backfill steps. M03–M18 may also need adjustments based on the
+rename/ALTER/backfill steps. M03–M19 may also need adjustments based on the
 actual types, keys, policies and data.
 
 The optional `payment_refunds` table is deferred until a real refund backend is
@@ -229,7 +245,8 @@ npm run lint                # TypeScript type check (tsc --noEmit)
 npm run test:auth           # Auth modal and login reliability regression tests
 node verify-22-screens.js   # Static verification of all 25 screens & features
 npm run generate:theme-seed # regenerate M18 from the TypeScript source
-npm run validate:migrations # source-check M18 + apply M01–M18 twice + tests A–P
+npm run validate:migrations # source-check M18 + apply M01–M19 twice + tests A–Q
+npm run test:theme-catalog # five-theme DB/RPC/UI read-boundary checks
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -237,11 +254,12 @@ Expected output:
 - `lint`: 0 errors
 - `test:auth`: 14/14 passed
 - `verify-22-screens`: 25/25 verified
-- `validate:migrations`: M18 source check + 18/18 applied cleanly x2, 16/16 tests passed
+- `validate:migrations`: M18 source check + 19/19 applied cleanly x2, 17/17 tests passed
+- `test:theme-catalog`: 4/4 passed
 
 ## Guardrails / gotchas
 
-- **Do not apply M01–M18 yet.** Draft generation and PGlite validation are not
+- **Do not apply M01–M19 yet.** Draft generation and PGlite validation are not
   execution approval.
 - Read-only live introspection comes first; sanitize outputs before committing.
 - Regenerate M02 rather than bypassing its collision exception.
@@ -263,9 +281,9 @@ Expected output:
 2. **Regenerate M02** and adapt downstream drafts to preserve the actual schema/data.
 3. Re-run clean replay, legacy-upgrade fixtures and security review.
 4. Obtain a **separate explicit go-ahead** for database execution.
-5. Apply M01–M18 in order via Supabase CLI (preferred) or SQL editor.
-6. Run P88 acceptance tests **A–L** plus Phase tests **M–P** on the approved environment.
+5. Apply M01–M19 in order via Supabase CLI (preferred) or SQL editor.
+6. Run P88 acceptance tests **A–L** plus Phase tests **M–Q** on the approved environment.
 7. Generate/commit Supabase **TypeScript types** per P72 and wire the service layer.
 
-In short: **live Supabase introspection → M02 regenerate → approved M01–M18
-apply → acceptance A–P → TypeScript types**.
+In short: **live Supabase introspection → M02 regenerate → approved M01–M19
+apply → acceptance A–Q → TypeScript types**.

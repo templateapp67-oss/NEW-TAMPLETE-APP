@@ -5,16 +5,20 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, FormEvent, useEffect, useRef } from 'react';
 import {
   THEME_LABELS,
-  getThemeCategories,
-  getSuggestedServices,
-  getServicesForThemeCategory,
-  findPredefinedService,
+  getThemeCategories as getStaticThemeCategories,
+  getSuggestedServices as getStaticSuggestedServices,
+  getServicesForThemeCategory as getStaticServicesForThemeCategory,
+  findPredefinedService as findStaticPredefinedService,
   AI_SUGGESTION_NAMES,
   VOICE_SERVICE_BY_THEME,
   normalizeThemeId,
-  type ThemeId,
   type PredefinedService,
 } from '../lib/themeServices';
+import {
+  isDatabaseCatalogTheme,
+  loadThemeServiceCatalog,
+  type ThemeServiceCatalog,
+} from '../lib/themeCatalogService';
 
 // Generates a professional, customer-friendly, category-specific service description.
 // Kept offline (rule-based) so it works without any API key, consistent with the app's
@@ -100,12 +104,36 @@ interface Props {
 
 export default function StepServices({ data, setData, onNext, onPrev, onSave }: Props) {
   const theme = normalizeThemeId(data.templateId);
+  const usesDatabaseCatalog = isDatabaseCatalogTheme(theme);
   const isFamilyFullService = theme === 'family_full_service';
   const isNailLashStudio = theme === 'nail_lash_studio';
-  const categories = getThemeCategories(theme);
 
-  // Theme-driven suggested services (genuinely different per theme).
-  const suggestedList = getSuggestedServices(theme);
+  const [loadedCatalog, setLoadedCatalog] = useState<ThemeServiceCatalog | null>(null);
+  const [catalogStatusTheme, setCatalogStatusTheme] = useState<string | null>(
+    usesDatabaseCatalog ? theme : null,
+  );
+  const [catalogLoading, setCatalogLoading] = useState(usesDatabaseCatalog);
+  const [catalogError, setCatalogError] = useState('');
+  const catalogRequestRef = useRef(0);
+
+  // Never derive a new theme from the previous response: until the current
+  // database request resolves, all five-theme arrays stay empty. The original
+  // preserved `hair` theme keeps its pre-existing local catalog unchanged.
+  const activeCatalog = usesDatabaseCatalog && loadedCatalog?.theme.themeId === theme
+    ? loadedCatalog
+    : null;
+  const categories = usesDatabaseCatalog
+    ? (activeCatalog?.categories.map((category) => category.name) ?? [])
+    : getStaticThemeCategories(theme);
+  const suggestedList = usesDatabaseCatalog
+    ? (activeCatalog?.suggestedServices ?? [])
+    : getStaticSuggestedServices(theme);
+  const currentCatalogLoading = usesDatabaseCatalog
+    && (catalogStatusTheme !== theme || catalogLoading);
+  const currentCatalogError = usesDatabaseCatalog && catalogStatusTheme === theme
+    ? catalogError
+    : '';
+  const themeDisplayName = activeCatalog?.theme.name ?? THEME_LABELS[theme];
 
   const [selectedSuggested, setSelectedSuggested] = useState<string[]>([]);
   const [suggestedFilter, setSuggestedFilter] = useState<'All' | string>('All');
@@ -137,6 +165,45 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [newPackageDuration, setNewPackageDuration] = useState(60);
   const [newPackageDesc, setNewPackageDesc] = useState('');
 
+  // Load exactly one of the five seeded catalogs through the M19 RPC. The RPC
+  // applies themes.theme_id filtering in SQL; this component never downloads a
+  // global catalog for client-only filtering.
+  useEffect(() => {
+    const requestId = catalogRequestRef.current + 1;
+    catalogRequestRef.current = requestId;
+    let cancelled = false;
+
+    // Clear first so a theme switch cannot paint a previous theme for one frame.
+    setLoadedCatalog(null);
+    setCatalogStatusTheme(usesDatabaseCatalog ? theme : null);
+    setCatalogError('');
+
+    if (!usesDatabaseCatalog) {
+      setCatalogLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCatalogLoading(true);
+    loadThemeServiceCatalog(theme)
+      .then((catalog) => {
+        if (cancelled || catalogRequestRef.current !== requestId) return;
+        setLoadedCatalog(catalog);
+        setCatalogLoading(false);
+      })
+      .catch((error: unknown) => {
+        if (cancelled || catalogRequestRef.current !== requestId) return;
+        setLoadedCatalog(null);
+        setCatalogLoading(false);
+        setCatalogError(error instanceof Error ? error.message : 'Unable to load this theme’s service catalog.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [theme, usesDatabaseCatalog]);
+
   // When the theme changes, clear ALL theme-specific selections and temporary
   // buffers so nothing from a previous theme leaks into the current one:
   //   - selected suggested services
@@ -154,8 +221,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setSelectedSuggested([]);
     setSuggestedFilter('All');
 
-    // Add-service form: category, predefined selection and temporary buffers
-    const firstCategory = getThemeCategories(theme)[0] || 'General';
+    // Add-service form: database themes intentionally start empty until their
+    // current theme-scoped response arrives; the original theme stays unchanged.
+    const firstCategory = usesDatabaseCatalog
+      ? ''
+      : (getStaticThemeCategories(theme)[0] || 'General');
     setNewServiceCategory(firstCategory);
     setNewServiceName('');
     setNewServicePrice(50);
@@ -188,6 +258,17 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     };
   }, [theme]);
 
+  // Initialise category/form copy only after the current database theme arrives.
+  // activeCatalog is identity-checked above, so a late previous-theme response
+  // can never initialise this form.
+  useEffect(() => {
+    if (!usesDatabaseCatalog || !activeCatalog) return;
+    const firstCategory = activeCatalog.categories[0]?.name || '';
+    setNewServiceCategory(firstCategory);
+    setNewServiceDesc(suggestServiceDescription(firstCategory || 'General', ''));
+    setNewServiceDescTouched(false);
+  }, [activeCatalog, usesDatabaseCatalog]);
+
   // Close the service combobox when clicking outside it.
   useEffect(() => {
     const onDocMouseDown = (e: MouseEvent) => {
@@ -198,6 +279,16 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, []);
+
+  const findCurrentPredefinedService = (value: string): PredefinedService | undefined => {
+    if (!usesDatabaseCatalog) return findStaticPredefinedService(theme, value);
+    const query = value.trim().toLowerCase();
+    if (!query || !activeCatalog) return undefined;
+    return activeCatalog.predefinedServices.find((service) =>
+      service.name.toLowerCase() === query
+      || service.suggestedLabel?.toLowerCase() === query
+    );
+  };
 
   const visibleSuggested =
     suggestedFilter === 'All'
@@ -250,7 +341,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     const names = AI_SUGGESTION_NAMES[theme as keyof typeof AI_SUGGESTION_NAMES];
     if (!names) return;
     const aiAdded: Service[] = names.map((n, i) => {
-      const found = findPredefinedService(theme, n);
+      const found = findCurrentPredefinedService(n);
       return {
         id: 'ai-' + Date.now() + '-' + i,
         name: found ? found.name : n,
@@ -307,7 +398,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setNewServiceName(value);
     if (!serviceDropdownOpen) setServiceDropdownOpen(true);
     if (customService) return;
-    const match = findPredefinedService(theme, value);
+    const match = findCurrentPredefinedService(value);
     if (match) {
       // Exact predefined match (or a family suggested alias) → canonicalise
       // the name and auto-fill the rest of the form.
@@ -462,7 +553,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   // Service-name combobox: the list of selectable names is filtered by the
   // currently chosen category AND the current theme.
   const serviceQuery = newServiceName.trim().toLowerCase();
-  const categoryServices = getServicesForThemeCategory(theme, newServiceCategory);
+  const categoryServices = usesDatabaseCatalog
+    ? (activeCatalog?.predefinedServices.filter((service) => service.category === newServiceCategory) ?? [])
+    : getStaticServicesForThemeCategory(theme, newServiceCategory);
   const filteredServices = customService
     ? []
     : categoryServices.filter((s) => s.name.toLowerCase().includes(serviceQuery));
@@ -489,7 +582,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
             <div className="bg-white rounded-lg border border-[#eeeeee] p-6 shadow-sm flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <div>
-                  <h3 className="text-xs font-semibold text-[#1a1c1c] uppercase tracking-wider">Suggested for {THEME_LABELS[theme]}</h3>
+                  <h3 className="text-xs font-semibold text-[#1a1c1c] uppercase tracking-wider">Suggested for {themeDisplayName}</h3>
                   <p className="text-xs text-[#5f5e5e] mt-0.5">Curated to match your selected website style.</p>
                 </div>
                 <button
@@ -513,7 +606,13 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {visibleSuggested.map((s) => {
+                {currentCatalogLoading && (
+                  <p className="text-sm text-[#5f5e5e]">Loading services…</p>
+                )}
+                {!currentCatalogLoading && currentCatalogError && (
+                  <p className="text-sm text-red-600" role="alert">{currentCatalogError}</p>
+                )}
+                {!currentCatalogLoading && !currentCatalogError && visibleSuggested.map((s) => {
                   const isSelected = selectedSuggested.includes(s.name);
                   return (
                     <button
@@ -531,7 +630,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                     </button>
                   );
                 })}
-                {visibleSuggested.length === 0 && (
+                {!currentCatalogLoading && !currentCatalogError && visibleSuggested.length === 0 && (
                   <p className="text-sm text-[#5f5e5e]">No suggested services in this category.</p>
                 )}
               </div>
@@ -679,7 +778,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                             value={newServiceName}
                             onChange={(e) => handleServiceNameInput(e.target.value)}
                             onFocus={() => setServiceDropdownOpen(true)}
-                            placeholder={customService ? 'Type your custom service name' : `Search ${THEME_LABELS[theme]} services…`}
+                            placeholder={customService ? 'Type your custom service name' : `Search ${themeDisplayName} services…`}
                             className="w-full pl-9 pr-9 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
                           />
                           <ChevronDown
