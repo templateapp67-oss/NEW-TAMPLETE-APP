@@ -5,6 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import {
+  SERVICES_BY_THEME,
+  SUGGESTED_SERVICE_ALIASES,
+  SUGGESTED_SERVICE_NAMES,
+  THEME_CATEGORIES,
+  THEME_LABELS,
+} from '../src/lib/themeServices.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const migrationsDir = join(root, 'supabase', 'migrations');
@@ -12,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 15, 'expected exactly M01-M15');
+assert.equal(migrationFiles.length, 21, 'expected exactly M01-M21');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -73,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/15 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/21 applied cleanly`);
 }
 
 const ids = {
@@ -88,6 +95,15 @@ const ids = {
   customerA: '40000000-0000-4000-8000-0000000000a1',
   customerB: '40000000-0000-4000-8000-0000000000b1',
   bookingA: '50000000-0000-4000-8000-0000000000a1',
+  themeA: '60000000-0000-4000-8000-0000000000a1',
+  themeB: '60000000-0000-4000-8000-0000000000b1',
+  categoryA: '70000000-0000-4000-8000-0000000000a1',
+  categoryB: '70000000-0000-4000-8000-0000000000b1',
+  predefinedA: '80000000-0000-4000-8000-0000000000a1',
+  predefinedB: '80000000-0000-4000-8000-0000000000b1',
+  predefinedInactive: '80000000-0000-4000-8000-0000000000a2',
+  savedPredefinedA: '90000000-0000-4000-8000-0000000000a1',
+  savedManualA: '90000000-0000-4000-8000-0000000000a2',
 };
 
 await db.query(
@@ -369,6 +385,827 @@ await test('L — anonymous access exposes only published/public-safe data', asy
   });
 });
 
-assert.equal(passed, 12);
-console.log(`Functional tests: ${passed}/12 passed`);
+await test('M — theme catalog enforces valid same-theme relationships without touching business services', async () => {
+  const catalogCounts = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined
+  `);
+  assert.deepEqual(catalogCounts.rows[0], { themes: 5, categories: 17, predefined: 78 });
+
+  const themeRows = await db.query(
+    `select id, theme_id from public.themes
+     where theme_id in ('barber_mens_grooming', 'hair_studio_color_bar')`,
+  );
+  ids.themeA = themeRows.rows.find((row) => row.theme_id === 'barber_mens_grooming').id;
+  ids.themeB = themeRows.rows.find((row) => row.theme_id === 'hair_studio_color_bar').id;
+
+  const categoryRows = await db.query(
+    `select id, theme_id, name from public.service_categories
+     where (theme_id = $1 and name = 'Haircuts')
+        or (theme_id = $2 and name = 'Styling & Cuts')`,
+    [ids.themeA, ids.themeB],
+  );
+  ids.categoryA = categoryRows.rows.find((row) => row.theme_id === ids.themeA).id;
+  ids.categoryB = categoryRows.rows.find((row) => row.theme_id === ids.themeB).id;
+
+  const predefinedRow = await db.query(
+    `select id from public.predefined_services
+     where theme_id = $1 and category_id = $2 and name = 'Skin Fade'`,
+    [ids.themeA, ids.categoryA],
+  );
+  ids.predefinedA = predefinedRow.rows[0].id;
+
+  const businessServicesBefore = await db.query('select count(*)::int as count from public.services');
+
+  await expectReject(
+    () => db.query(
+      `insert into public.service_categories (theme_id, name)
+       values ('ffffffff-ffff-4fff-8fff-ffffffffffff', 'Orphan Category')`,
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.predefined_services (theme_id, category_id, name)
+       values ($1, $2, 'Cross-theme Service')`,
+      [ids.themeB, ids.categoryA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.themes (theme_id, name)
+       values ('barber_mens_grooming', 'Duplicate Stable ID')`,
+    ),
+    /unique|duplicate/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.service_categories (theme_id, name)
+       values ($1, 'Haircuts')`,
+      [ids.themeA],
+    ),
+    /unique|duplicate/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.predefined_services (theme_id, category_id, name)
+       values ($1, $2, 'Skin Fade')`,
+      [ids.themeA, ids.categoryA],
+    ),
+    /unique|duplicate/i,
+  );
+  await expectReject(
+    () => db.query('delete from public.themes where id = $1', [ids.themeA]),
+    /foreign key|violates/i,
+  );
+
+  await db.query(
+    `update public.service_categories
+     set sort_order = sort_order, updated_at = '2000-01-01T00:00:00Z'
+     where id = $1`,
+    [ids.categoryA],
+  );
+  const updatedCategory = await db.query(
+    `select sort_order, updated_at > '2000-01-01T00:00:00Z'::timestamptz as timestamp_refreshed
+     from public.service_categories where id = $1`,
+    [ids.categoryA],
+  );
+  assert.deepEqual(updatedCategory.rows[0], { sort_order: 0, timestamp_refreshed: true });
+
+  const businessServicesAfter = await db.query('select count(*)::int as count from public.services');
+  assert.equal(businessServicesAfter.rows[0].count, businessServicesBefore.rows[0].count);
+});
+
+await test('N — clients read only the active theme catalog and cannot mutate it', async () => {
+  await db.query('update public.themes set is_active = false where id = $1', [ids.themeB]);
+  await db.query('update public.predefined_services set is_active = false where id = $1', [ids.predefinedA]);
+
+  await asRole('anon', '', async () => {
+    const themes = await db.query('select theme_id from public.themes order by sort_order');
+    const categories = await db.query('select count(*)::int as count from public.service_categories');
+    const services = await db.query('select count(*)::int as count from public.predefined_services');
+    assert.deepEqual(
+      themes.rows.map((row) => row.theme_id),
+      ['barber_mens_grooming', 'beauty_skin_spa', 'family_full_service', 'nail_lash_studio'],
+    );
+    assert.equal(categories.rows[0].count, 14);
+    assert.equal(services.rows[0].count, 60);
+    await expectReject(
+      () => db.query("insert into public.themes (theme_id, name) values ('client-write', 'Blocked')"),
+      /permission denied/i,
+    );
+  });
+
+  await db.query('update public.themes set is_active = true where id = $1', [ids.themeB]);
+  await db.query('update public.predefined_services set is_active = true where id = $1', [ids.predefinedA]);
+});
+
+await test('O — saved services preserve custom rows and enforce exact catalog provenance', async () => {
+  const legacyRows = await db.query(
+    `select
+       count(*)::int as total,
+       count(*) filter (
+         where theme_id is null
+           and category_id is null
+           and predefined_service_id is null
+       )::int as safely_unlinked
+     from public.services
+     where id in ($1, $2)`,
+    [ids.serviceA, ids.serviceB],
+  );
+  assert.deepEqual(legacyRows.rows[0], { total: 2, safely_unlinked: 2 });
+
+  await db.query(
+    `insert into public.services (
+       id, business_id, theme_id, category_id, predefined_service_id,
+       name, category, price_paise, duration_minutes, short_description,
+       is_featured, status, display_order
+     ) values (
+       $1, $2, $3, $4, $5,
+       'Saved Curated Service', 'Preserved display category', 175000, 75,
+       'Owner-edited saved description', true, 'active', 4
+     )`,
+    [
+      ids.savedPredefinedA, ids.businessA, ids.themeA, ids.categoryA,
+      ids.predefinedA,
+    ],
+  );
+  await db.query(
+    `insert into public.services (
+       id, business_id, name, category, price_paise, duration_minutes,
+       short_description, status
+     ) values (
+       $1, $2, 'Manual Custom Service', 'Owner custom category', 99000, 45,
+       'Custom service remains unlinked', 'inactive'
+     )`,
+    [ids.savedManualA, ids.businessA],
+  );
+
+  const saved = await db.query(
+    `select business_id, theme_id, category_id, predefined_service_id,
+            name, category, price_paise, duration_minutes, short_description,
+            is_featured, status::text, display_order
+     from public.services where id = $1`,
+    [ids.savedPredefinedA],
+  );
+  assert.deepEqual(
+    {
+      ...saved.rows[0],
+      price_paise: Number(saved.rows[0].price_paise),
+    },
+    {
+      business_id: ids.businessA,
+      theme_id: ids.themeA,
+      category_id: ids.categoryA,
+      predefined_service_id: ids.predefinedA,
+      name: 'Saved Curated Service',
+      category: 'Preserved display category',
+      price_paise: 175000,
+      duration_minutes: 75,
+      short_description: 'Owner-edited saved description',
+      is_featured: true,
+      status: 'active',
+      display_order: 4,
+    },
+  );
+
+  const manual = await db.query(
+    `select business_id, theme_id, category_id, predefined_service_id,
+            name, category, price_paise, duration_minutes, short_description,
+            status::text
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+  assert.deepEqual(
+    {
+      ...manual.rows[0],
+      price_paise: Number(manual.rows[0].price_paise),
+    },
+    {
+      business_id: ids.businessA,
+      theme_id: null,
+      category_id: null,
+      predefined_service_id: null,
+      name: 'Manual Custom Service',
+      category: 'Owner custom category',
+      price_paise: 99000,
+      duration_minutes: 45,
+      short_description: 'Custom service remains unlinked',
+      status: 'inactive',
+    },
+  );
+
+  await expectReject(
+    () => db.query(
+      `insert into public.services (
+         business_id, theme_id, category_id, predefined_service_id,
+         name, price_paise, duration_minutes
+       ) values ($1, $2, $3, $4, 'Wrong Theme Link', 10000, 15)`,
+      [ids.businessA, ids.themeB, ids.categoryB, ids.predefinedA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.services (
+         business_id, theme_id, category_id, predefined_service_id,
+         name, price_paise, duration_minutes
+       ) values ($1, $2, $3, $4, 'Wrong Category Link', 10000, 15)`,
+      [ids.businessA, ids.themeA, ids.categoryB, ids.predefinedA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.services (
+         business_id, predefined_service_id, name, price_paise, duration_minutes
+       ) values ($1, $2, 'Incomplete Provenance', 10000, 15)`,
+      [ids.businessA, ids.predefinedA],
+    ),
+    /check constraint|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `update public.services
+       set theme_id = $1, category_id = $2
+       where id = $3`,
+      [ids.themeB, ids.categoryB, ids.savedPredefinedA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query('delete from public.predefined_services where id = $1', [ids.predefinedA]),
+    /foreign key|violates/i,
+  );
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    const rows = await db.query(
+      'select id from public.services where id in ($1, $2) order by id',
+      [ids.savedPredefinedA, ids.savedManualA],
+    );
+    assert.deepEqual(rows.rows.map((row) => row.id), [ids.savedPredefinedA, ids.savedManualA]);
+  });
+  await asRole('authenticated', ids.ownerB, async () => {
+    const rows = await db.query(
+      'select id from public.services where id in ($1, $2)',
+      [ids.savedPredefinedA, ids.savedManualA],
+    );
+    assert.equal(rows.rows.length, 0);
+  });
+});
+
+await test('P — five-theme seed exactly matches the Phase 2–6 application datasets', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+
+  const themes = await db.query(
+    `select theme_id, name, description, target_audience, ui_config,
+            sort_order, is_active
+     from public.themes
+     order by sort_order, theme_id`,
+  );
+  assert.deepEqual(themes.rows.map((row) => row.theme_id), seededThemeIds);
+  themes.rows.forEach((row, sortOrder) => {
+    assert.equal(row.name, THEME_LABELS[row.theme_id]);
+    assert.equal(row.sort_order, sortOrder);
+    assert.equal(row.is_active, true);
+    assert.ok(row.description.length > 0);
+    assert.ok(row.target_audience.length > 0);
+    assert.equal(row.ui_config.tokens.id, row.theme_id);
+  });
+
+  let expectedCategoryCount = 0;
+  let expectedServiceCount = 0;
+  let expectedSuggestedCount = 0;
+
+  for (const themeId of seededThemeIds) {
+    const categories = await db.query(
+      `select c.name, c.sort_order
+       from public.service_categories c
+       join public.themes t on t.id = c.theme_id
+       where t.theme_id = $1
+       order by c.sort_order, c.name`,
+      [themeId],
+    );
+    const expectedCategories = THEME_CATEGORIES[themeId].map((name, sortOrder) => ({
+      name,
+      sort_order: sortOrder,
+    }));
+    assert.deepEqual(categories.rows, expectedCategories);
+    expectedCategoryCount += expectedCategories.length;
+
+    const aliases = SUGGESTED_SERVICE_ALIASES[themeId] ?? {};
+    const suggestionByCanonicalName = new Map(
+      SUGGESTED_SERVICE_NAMES[themeId].map((suggestedLabel, suggestedSortOrder) => [
+        aliases[suggestedLabel] ?? suggestedLabel,
+        { suggestedLabel, suggestedSortOrder },
+      ]),
+    );
+    const expectedServices = SERVICES_BY_THEME[themeId].map((service, sortOrder) => {
+      const suggestion = suggestionByCanonicalName.get(service.name);
+      return {
+        name: service.name,
+        category: service.category,
+        description: service.description,
+        sort_order: sortOrder,
+        is_suggested: Boolean(suggestion),
+        suggested_label: suggestion?.suggestedLabel ?? null,
+        suggested_sort_order: suggestion?.suggestedSortOrder ?? null,
+        default_price_paise: service.price * 100,
+        default_duration_minutes: service.duration,
+        is_active: true,
+      };
+    });
+    const services = await db.query(
+      `select ps.name, c.name as category, ps.description, ps.sort_order,
+              ps.is_suggested, ps.suggested_label,
+              ps.suggested_sort_order, ps.default_price_paise,
+              ps.default_duration_minutes, ps.is_active
+       from public.predefined_services ps
+       join public.themes t on t.id = ps.theme_id
+       join public.service_categories c on c.id = ps.category_id
+       where t.theme_id = $1
+       order by ps.sort_order, ps.name`,
+      [themeId],
+    );
+    assert.deepEqual(services.rows, expectedServices);
+    expectedServiceCount += expectedServices.length;
+
+    const suggestedLabels = services.rows
+      .filter((service) => service.is_suggested)
+      .sort((left, right) => left.suggested_sort_order - right.suggested_sort_order)
+      .map((service) => service.suggested_label);
+    assert.deepEqual(suggestedLabels, SUGGESTED_SERVICE_NAMES[themeId]);
+    expectedSuggestedCount += suggestedLabels.length;
+  }
+
+  const totals = await db.query(`
+    select
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined,
+      (select count(*)::int from public.predefined_services where is_suggested) as suggested,
+      (select count(distinct (theme_id, name))::int from public.service_categories) as unique_categories,
+      (select count(distinct (theme_id, name))::int from public.predefined_services) as unique_predefined
+  `);
+  assert.deepEqual(totals.rows[0], {
+    categories: expectedCategoryCount,
+    predefined: expectedServiceCount,
+    suggested: expectedSuggestedCount,
+    unique_categories: expectedCategoryCount,
+    unique_predefined: expectedServiceCount,
+  });
+  assert.deepEqual(
+    { expectedCategoryCount, expectedServiceCount, expectedSuggestedCount },
+    { expectedCategoryCount: 17, expectedServiceCount: 78, expectedSuggestedCount: 30 },
+  );
+});
+
+await test('Q — theme catalog RPC database-filters each of the five UI catalogs', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+  const seenThemeDatabaseIds = new Set();
+
+  for (const themeId of seededThemeIds) {
+    const result = await db.query(
+      'select public.get_theme_service_catalog($1) as catalog',
+      [themeId],
+    );
+    const catalog = result.rows[0].catalog;
+    assert.equal(catalog.theme.theme_id, themeId);
+    assert.equal(seenThemeDatabaseIds.has(catalog.theme.id), false);
+    seenThemeDatabaseIds.add(catalog.theme.id);
+
+    const categoryIds = new Set(catalog.categories.map((category) => {
+      assert.equal(category.theme_id, catalog.theme.id);
+      return category.id;
+    }));
+    assert.deepEqual(
+      catalog.categories.map((category) => category.name),
+      THEME_CATEGORIES[themeId],
+    );
+
+    const expectedServices = SERVICES_BY_THEME[themeId];
+    assert.deepEqual(
+      catalog.predefined_services.map((service) => service.name),
+      expectedServices.map((service) => service.name),
+    );
+    catalog.predefined_services.forEach((service, index) => {
+      const expected = expectedServices[index];
+      assert.equal(service.theme_id, catalog.theme.id);
+      assert.equal(categoryIds.has(service.category_id), true);
+      assert.equal(service.description, expected.description);
+      assert.equal(Number(service.default_price_paise), expected.price * 100);
+      assert.equal(service.default_duration_minutes, expected.duration);
+    });
+
+    const predefinedIds = new Set(catalog.predefined_services.map((service) => service.id));
+    catalog.suggested_services.forEach((service) => {
+      assert.equal(service.theme_id, catalog.theme.id);
+      assert.equal(categoryIds.has(service.category_id), true);
+      assert.equal(predefinedIds.has(service.id), true);
+      assert.equal(service.is_suggested, true);
+    });
+    assert.deepEqual(
+      catalog.suggested_services.map((service) => service.suggested_label),
+      SUGGESTED_SERVICE_NAMES[themeId],
+    );
+  }
+
+  const unsupported = await db.query(
+    `select public.get_theme_service_catalog('hair') as original_theme,
+            public.get_theme_service_catalog('not-a-theme') as missing_theme`,
+  );
+  assert.equal(unsupported.rows[0].original_theme, null);
+  assert.equal(unsupported.rows[0].missing_theme, null);
+});
+
+await test('R — Add Selected saves all five themes once with tenant-safe exact provenance', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+  const suggestedIdsByTheme = new Map();
+
+  for (const themeId of seededThemeIds) {
+    const rows = await db.query(
+      `select ps.id
+       from public.predefined_services ps
+       join public.themes t on t.id = ps.theme_id
+       where t.theme_id = $1 and ps.is_active and ps.is_suggested
+       order by ps.suggested_sort_order`,
+      [themeId],
+    );
+    assert.equal(rows.rows.length, 6);
+    suggestedIdsByTheme.set(themeId, rows.rows.map((row) => row.id));
+  }
+
+  const customBefore = await db.query(
+    `select business_id, name, category, short_description, price_paise,
+            duration_minutes, status::text, theme_id, category_id,
+            predefined_service_id
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    for (const themeId of seededThemeIds) {
+      const selectedIds = suggestedIdsByTheme.get(themeId);
+      const save = await db.query(
+        `select public.save_predefined_services(
+           $1,
+           string_to_array($2, ',')::uuid[]
+         ) as result`,
+        [themeId, selectedIds.join(',')],
+      );
+      const result = save.rows[0].result;
+      assert.equal(result.business_id, ids.businessA);
+      assert.equal(result.theme_id, themeId);
+      assert.equal(result.requested_count, 6);
+      assert.equal(result.services.length, 6);
+      assert.equal(result.inserted_count, themeId === 'barber_mens_grooming' ? 5 : 6);
+      assert.equal(result.existing_count, themeId === 'barber_mens_grooming' ? 1 : 0);
+      result.services.forEach((service) => {
+        assert.equal(service.business_id, ids.businessA);
+        assert.equal(service.theme_key, themeId);
+        assert.equal(selectedIds.includes(service.predefined_service_id), true);
+      });
+    }
+
+    const afterFirstSave = await db.query(
+      `select count(*)::int as count
+       from public.services
+       where business_id = $1 and predefined_service_id is not null`,
+      [ids.businessA],
+    );
+    assert.equal(afterFirstSave.rows[0].count, 30);
+
+    // Repeating every Add Selected request returns the existing rows and inserts
+    // nothing, even if the request itself repeats an ID.
+    for (const themeId of seededThemeIds) {
+      const selectedIds = suggestedIdsByTheme.get(themeId);
+      const repeatedInput = [...selectedIds, selectedIds[0]];
+      const repeat = await db.query(
+        `select public.save_predefined_services(
+           $1,
+           string_to_array($2, ',')::uuid[]
+         ) as result`,
+        [themeId, repeatedInput.join(',')],
+      );
+      assert.equal(repeat.rows[0].result.requested_count, 6);
+      assert.equal(repeat.rows[0].result.inserted_count, 0);
+      assert.equal(repeat.rows[0].result.existing_count, 6);
+      assert.equal(repeat.rows[0].result.services.length, 6);
+    }
+
+    const afterRepeat = await db.query(
+      `select count(*)::int as count
+       from public.services
+       where business_id = $1 and predefined_service_id is not null`,
+      [ids.businessA],
+    );
+    assert.equal(afterRepeat.rows[0].count, 30);
+
+    const mismatches = await db.query(
+      `select count(*)::int as count
+       from public.services s
+       join public.predefined_services ps on ps.id = s.predefined_service_id
+       join public.service_categories c on c.id = ps.category_id
+       where s.business_id = $1
+         and s.id <> $2
+         and (
+           s.theme_id is distinct from ps.theme_id
+           or s.category_id is distinct from ps.category_id
+           or s.name is distinct from ps.name
+           or s.category is distinct from c.name
+           or s.short_description is distinct from ps.description
+           or s.price_paise is distinct from ps.default_price_paise
+           or s.duration_minutes is distinct from ps.default_duration_minutes
+           or s.status <> 'active'
+         )`,
+      [ids.businessA, ids.savedPredefinedA],
+    );
+    assert.equal(mismatches.rows[0].count, 0);
+
+    // Skin Fade existed before Session 2 with owner-edited fields. ON CONFLICT
+    // must preserve it rather than overwrite/convert it.
+    const preservedExisting = await db.query(
+      `select name, category, short_description, price_paise,
+              duration_minutes, status::text
+       from public.services where id = $1`,
+      [ids.savedPredefinedA],
+    );
+    assert.deepEqual(
+      {
+        ...preservedExisting.rows[0],
+        price_paise: Number(preservedExisting.rows[0].price_paise),
+      },
+      {
+        name: 'Saved Curated Service',
+        category: 'Preserved display category',
+        short_description: 'Owner-edited saved description',
+        price_paise: 175000,
+        duration_minutes: 75,
+        status: 'active',
+      },
+    );
+
+    await expectReject(
+      () => db.query(
+        `select public.save_predefined_services(
+           'barber_mens_grooming',
+           array[$1::uuid]
+         )`,
+        [suggestedIdsByTheme.get('hair_studio_color_bar')[0]],
+      ),
+      /do not belong to the active theme/i,
+    );
+
+    await expectReject(
+      () => db.query(
+        `insert into public.services (
+           business_id, theme_id, category_id, predefined_service_id,
+           name, price_paise, duration_minutes
+         )
+         select business_id, theme_id, category_id, predefined_service_id,
+                'Duplicate direct insert', price_paise, duration_minutes
+         from public.services where id = $1`,
+        [ids.savedPredefinedA],
+      ),
+      /unique|duplicate/i,
+    );
+  });
+
+  // The same predefined row can be saved by a different authenticated tenant,
+  // and ownership is derived server-side from that user's membership.
+  await asRole('authenticated', ids.ownerB, async () => {
+    const selectedId = suggestedIdsByTheme.get('nail_lash_studio')[0];
+    const save = await db.query(
+      `select public.save_predefined_services(
+         'nail_lash_studio', array[$1::uuid]
+       ) as result`,
+      [selectedId],
+    );
+    assert.equal(save.rows[0].result.business_id, ids.businessB);
+    assert.equal(save.rows[0].result.inserted_count, 1);
+  });
+
+  await asRole('authenticated', '', async () => {
+    await expectReject(
+      () => db.query(
+        `select public.save_predefined_services(
+           'nail_lash_studio', array[$1::uuid]
+         )`,
+        [suggestedIdsByTheme.get('nail_lash_studio')[0]],
+      ),
+      /log in/i,
+    );
+  });
+
+  const customAfter = await db.query(
+    `select business_id, name, category, short_description, price_paise,
+            duration_minutes, status::text, theme_id, category_id,
+            predefined_service_id
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+  assert.deepEqual(customAfter.rows, customBefore.rows);
+});
+
+await test('S — refresh, management, theme switching, and tenant isolation remain safe', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+  const globalBefore = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined
+  `);
+  let managedServiceId;
+  let managedPredefinedId;
+  let relationshipBefore;
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    // Existing → five database themes → Existing is represented by the five
+    // exact scoped loads plus the unsupported original-theme NULL contract.
+    for (const themeId of seededThemeIds) {
+      const firstLoad = await db.query(
+        'select public.get_saved_services_for_theme($1) as result',
+        [themeId],
+      );
+      const secondLoad = await db.query(
+        'select public.get_saved_services_for_theme($1) as result',
+        [themeId],
+      );
+      assert.equal(firstLoad.rows[0].result.business_id, ids.businessA);
+      assert.equal(firstLoad.rows[0].result.theme_id, themeId);
+      assert.equal(firstLoad.rows[0].result.services.length, 6);
+      assert.deepEqual(secondLoad.rows[0].result, firstLoad.rows[0].result);
+      assert.equal(
+        new Set(firstLoad.rows[0].result.services.map((service) => service.predefined_service_id)).size,
+        6,
+      );
+      firstLoad.rows[0].result.services.forEach((service) => {
+        assert.equal(service.business_id, ids.businessA);
+        assert.equal(service.theme_key, themeId);
+      });
+
+      if (themeId === 'hair_studio_color_bar') {
+        managedServiceId = firstLoad.rows[0].result.services[0].id;
+        managedPredefinedId = firstLoad.rows[0].result.services[0].predefined_service_id;
+      }
+    }
+
+    const before = await db.query(
+      `select theme_id, category_id, predefined_service_id
+       from public.services where id = $1`,
+      [managedServiceId],
+    );
+    relationshipBefore = before.rows[0];
+
+    const globalPredefinedBefore = await db.query(
+      `select theme_id, category_id, name, description, is_active
+       from public.predefined_services where id = $1`,
+      [managedPredefinedId],
+    );
+
+    const edited = await db.query(
+      `select public.update_saved_service(
+         $1, 'Owner Edited Service', 'Owner edited description', 222200, 88
+       ) as result`,
+      [managedServiceId],
+    );
+    assert.equal(edited.rows[0].result.name, 'Owner Edited Service');
+    assert.equal(edited.rows[0].result.description, 'Owner edited description');
+    assert.equal(Number(edited.rows[0].result.price_paise), 222200);
+    assert.equal(edited.rows[0].result.duration_minutes, 88);
+
+    const relationAfterEdit = await db.query(
+      `select theme_id, category_id, predefined_service_id
+       from public.services where id = $1`,
+      [managedServiceId],
+    );
+    assert.deepEqual(relationAfterEdit.rows[0], relationshipBefore);
+
+    const globalPredefinedAfterEdit = await db.query(
+      `select theme_id, category_id, name, description, is_active
+       from public.predefined_services where id = $1`,
+      [managedPredefinedId],
+    );
+    assert.deepEqual(globalPredefinedAfterEdit.rows, globalPredefinedBefore.rows);
+
+    const deactivated = await db.query(
+      'select public.set_saved_service_active($1, false) as result',
+      [managedServiceId],
+    );
+    assert.equal(deactivated.rows[0].result.status, 'inactive');
+    const globalStillActive = await db.query(
+      'select is_active from public.predefined_services where id = $1',
+      [managedPredefinedId],
+    );
+    assert.equal(globalStillActive.rows[0].is_active, true);
+
+    const refreshAfterEdit = await db.query(
+      `select public.get_saved_services_for_theme('hair_studio_color_bar') as result`,
+    );
+    const refreshed = refreshAfterEdit.rows[0].result.services.find(
+      (service) => service.id === managedServiceId,
+    );
+    assert.equal(refreshed.name, 'Owner Edited Service');
+    assert.equal(refreshed.status, 'inactive');
+    assert.equal(refreshed.predefined_service_id, managedPredefinedId);
+  });
+
+  await asRole('authenticated', ids.ownerB, async () => {
+    await expectReject(
+      () => db.query(
+        `select public.update_saved_service(
+           $1, 'Cross Salon Edit', 'Blocked', 10000, 10
+         )`,
+        [managedServiceId],
+      ),
+      /not found for your salon/i,
+    );
+    await expectReject(
+      () => db.query('select public.delete_saved_service($1)', [managedServiceId]),
+      /not found for your salon/i,
+    );
+
+    const directUpdate = await db.query(
+      `update public.services set name = 'Cross Salon Direct Edit'
+       where id = $1 returning id`,
+      [managedServiceId],
+    );
+    const directDelete = await db.query(
+      'delete from public.services where id = $1 returning id',
+      [managedServiceId],
+    );
+    assert.equal(directUpdate.rows.length, 0);
+    assert.equal(directDelete.rows.length, 0);
+
+    const ownNailServices = await db.query(
+      `select public.get_saved_services_for_theme('nail_lash_studio') as result`,
+    );
+    assert.equal(ownNailServices.rows[0].result.business_id, ids.businessB);
+    assert.equal(ownNailServices.rows[0].result.services.length, 1);
+
+    await expectReject(
+      () => db.query('delete from public.predefined_services where id = $1', [managedPredefinedId]),
+      /permission denied/i,
+    );
+  });
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    const deleted = await db.query(
+      'select public.delete_saved_service($1) as id',
+      [managedServiceId],
+    );
+    assert.equal(deleted.rows[0].id, managedServiceId);
+    const afterDelete = await db.query(
+      `select public.get_saved_services_for_theme('hair_studio_color_bar') as result`,
+    );
+    assert.equal(afterDelete.rows[0].result.services.length, 5);
+  });
+
+  const savedDeleted = await db.query(
+    'select count(*)::int as count from public.services where id = $1',
+    [managedServiceId],
+  );
+  const globalPredefinedPreserved = await db.query(
+    'select count(*)::int as count from public.predefined_services where id = $1',
+    [managedPredefinedId],
+  );
+  const globalAfter = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined
+  `);
+  assert.equal(savedDeleted.rows[0].count, 0);
+  assert.equal(globalPredefinedPreserved.rows[0].count, 1);
+  assert.deepEqual(globalAfter.rows, globalBefore.rows);
+});
+
+assert.equal(passed, 19);
+console.log(`Functional tests: ${passed}/19 passed`);
 await db.close();

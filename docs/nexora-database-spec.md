@@ -1753,6 +1753,31 @@ Per P67: services.business_id; staff_members.business_id; staff_services(staff_i
 ### 5.14 Services/Packages Architecture
 
 - `services` + `packages` catalogs + `package_services` composition (P6–P8); single source shared by all screens; `short_description` holds final AI-reviewed copy (P24); soft archive (P69).
+- Phase 7.1 adds a separate global onboarding reference catalog:
+  `themes → service_categories → predefined_services`. These rows are platform
+  suggestions only and never replace or duplicate a business's user-owned
+  `services` rows. A composite `(category_id, theme_id)` foreign key prevents
+  cross-theme category/service relationships.
+- Phase 7.2 extends the existing business-owned `services` rows with nullable
+  `theme_id`, `category_id`, and `predefined_service_id` provenance. A composite
+  `(predefined_service_id, theme_id, category_id)` FK requires an exact catalog
+  match while leaving legacy/custom services safely unlinked.
+- Phase 7.3 idempotently seeds the exact five Phase 2–6 catalogs: 5 themes,
+  17 categories, 78 canonical predefined services, and 30 suggested mappings.
+  Suggested labels/orders remain attributes of their canonical predefined row,
+  including aliases where chip and canonical names differ.
+- Phase 7.4 Session 1 exposes one read-only
+  `get_theme_service_catalog(p_theme_id)` boundary. SQL applies the mandatory
+  stable theme filter before returning that theme's categories, predefined
+  services, and `is_suggested=true` relationships to the unchanged UI.
+- Phase 7.4 Session 2 adds authenticated `save_predefined_services`: tenant is
+  derived from `auth.uid()` membership, the full catalog chain is validated,
+  and partial uniqueness on `(business_id, predefined_service_id)` makes Add
+  Selected replay-safe without restricting custom NULL provenance rows.
+- Phase 7.4 Session 3 adds tenant-derived saved-service refresh and mutable-field
+  management. Edit cannot change catalog provenance; deactivate touches only the
+  saved status; delete targets only the tenant's `services` row and never global
+  theme/category/predefined records.
 
 ### 5.15 Website/Publishing Architecture
 
@@ -1813,5 +1838,11 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 13. **M13** storage buckets + policies
 14. **M14** indexes/constraints (final CHECKs, UNIQUEs, indexes)
 15. **M15** backfill/data migration (localStorage → DB, owner memberships, defaults) — dev seed script separate (P82)
+16. **M16** Phase 7.1 global theme/service reference architecture (themes, categories, predefined services; no dataset seed)
+17. **M17** Phase 7.2 nullable catalog provenance on existing business-owned saved services
+18. **M18** Phase 7.3 exact, generated, idempotent five-theme catalog seed
+19. **M19** Phase 7.4 Session 1 mandatory theme-filtered catalog read RPC
+20. **M20** Phase 7.4 Session 2 authenticated, tenant-derived, idempotent predefined-service saving
+21. **M21** Phase 7.4 Session 3 tenant-scoped refresh/edit/status/delete management
 
-**Execution gate:** M01–M15 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
+**Execution gate:** M01–M21 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
