@@ -1,11 +1,85 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-13** (session `arena/019ff8e8-new-tamplete-app`).
+> Last updated: **2026-08-13** (session `arena/019ff927-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
 
+- **Phase 8.3 — FINAL 5-THEME ACCEPTANCE TEST: PASSED. Phase 8 is complete.**
+  - 94 acceptance tests (66 data + 28 UI) across all five themes, run against
+    REAL PostgreSQL (M01–M23), the REAL `@supabase/supabase-js` client, and the
+    REAL `StepServices` React component mounted in jsdom with genuine DOM
+    interaction. Nothing in the app is stubbed.
+  - Per theme, all verified: correct UI, theme_id, categories, predefined
+    services, suggested services, zero-typing selection, name/description
+    auto-fill, Select All, Add Selected, price, duration, edit,
+    activate/deactivate, delete, duplicate prevention, Custom Service / Other.
+  - The full 12-step switch sequence (Existing → 5 → 5 → Existing) leaves no
+    stale selections, chips, categories, services or cache — asserted in both
+    the data layer and the rendered DOM, including on revisit.
+  - Refresh is idempotent; database relationships show 0 broken chains, 0
+    mismatches, 0 orphans; tenant isolation holds; pre-existing NULL-provenance
+    data is byte-identical after the run.
+  - Two harness bugs were found and root-caused (bigint assertion; `motion`'s
+    rAF loop + PGlite's worker MessagePort keeping the event loop alive). No
+    application defect was found — every product assertion passed first time.
+  - Details: `docs/phase-8.3-final-acceptance.md`. Run with
+    `npm run test:phase-8.3`, or `npm run test:phase-8` for all 161 tests.
+
+- **Phase 8.2 — validation, security and error handling completed:**
+  - **Closed a real privilege-escalation hole.** The M17 FKs only require the
+    provenance tuple to be self-consistent, so a tenant could directly
+    `UPDATE` their own saved row onto a *different* theme's valid tuple
+    (PostgREST path, RLS satisfied). M23 adds
+    `enforce_saved_service_provenance()`, making `business_id`, `theme_id`,
+    `category_id` and `predefined_service_id` immutable after insert.
+  - The same trigger validates the full chain on insert and now rejects links to
+    **inactive** themes/predefined services, which the FKs alone allowed.
+  - Verified by attack, not assumption: a user cannot view, add, edit or delete
+    another salon's services through either the RPCs or direct table access;
+    non-members and anonymous visitors are fully locked out. Global catalog
+    tables reject all six tenant verbs.
+  - `theme_id` → active theme, `category_id` → belongs to theme,
+    `predefined_service_id` → belongs to category + theme, tested as
+    permutations across all five themes.
+  - UI states completed: loading, empty list, invalid theme/category, inactive
+    service, database error (with retry), duplicate, and failed
+    Add Selected/Edit/Delete. Add Selected batches are atomic.
+  - Stale-theme protection strengthened: the saved list is gated on
+    `savedStatusTheme === theme`, and a **failed** load leaves the gate closed so
+    a previous theme's services can never appear.
+  - `rpcError()` now allow-lists our own messages; raw PostgreSQL text
+    (tables/constraints/SQL) is logged for developers but never rendered.
+  - Details: `docs/phase-8.2-validation-security.md`. Validation: M01–M23 replay
+    x2, tests A–T 20/20, catalog 4/4, saving 14/14, management 9/9, and a new
+    adversarial security suite **20/20** (`npm run test:service-security`).
+
+- **Phase 8.1 — service management workflow completed (all five themes):**
+  - Added M22 completing saved-service management: `create_saved_service`,
+    patch-semantics `update_saved_service`, `set_saved_service_status`,
+    `set_saved_service_active` and a package/staff-aware `delete_saved_service`.
+  - Add Service now persists to the database for the five themes with explicit
+    provenance. A predefined link is kept only when the picked row still belongs
+    to the selected category of the current theme; Custom / "Other" always sends
+    `predefined_service_id NULL` and is never inferred from the typed name.
+  - Edit, Update Price, Update Duration, Update Description and Change Status
+    are independent operations. Relationship columns are absent from every edit
+    signature, `SET` list, client type and UI control, so `theme_id`,
+    `category_id` and `predefined_service_id` survive every change.
+  - Delete removes only the tenant's `public.services` row, refuses when the
+    service is still in one of the salon's packages, and never targets global
+    `themes` / `service_categories` / `predefined_services`.
+  - Duplicate prevention: existing predefined uniqueness plus a new partial
+    unique index on `(business_id, theme_id, lower(btrim(name)))` for custom
+    rows, with readable pre-checks on add and rename. Archived rows are excluded
+    so retired services can be re-created. M22 fails closed on pre-existing
+    duplicates rather than deleting or merging owner data.
+  - Duplicating a service now always creates a NEW custom row, so the original
+    predefined link stays unique to the original saved service.
+  - Details: `docs/phase-8.1-service-management.md`. Validation: M01–M22 replay
+    x2, tests A–T 20/20, catalog 4/4, saving 11/11, and a new real-database E2E
+    suite 9/9 (`npm run test:service-management`).
 - **Phase 7.4 Session 3 — final integration completed:**
   - Removed cross-theme in-memory service snapshots. Theme changes clear
     services/packages; Step Services resets suggestion/category/predefined/form
@@ -162,12 +236,14 @@
     *"Authentication form is ready, but Supabase is not connected. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app."*
   - TopBar account action includes a graceful loading fallback so buttons never permanently disappear during session verification.
   - Automated regression suite added in `scripts/test-auth-modal.mjs` (`npm run test:auth`).
-- `supabase/migrations/` now contains **21 ordered DRAFT migrations (M01–M21)**:
+- `supabase/migrations/` now contains **23 ordered DRAFT migrations (M01–M23)**:
   M01–M15 follow the 90-point specification §5.25; M16–M21 complete the Phase 7
-  catalog, provenance, seed, read, save, refresh, and management architecture.
-- `scripts/validate-migrations.mjs` source-checks M18, applies all 21 files twice, and runs
-  the expanded functional acceptance set A–S using `@electric-sql/pglite` (real PostgreSQL).
-- Validation is green: **21/21 clean apply on pass 1, 21/21 on pass 2, 19/19
+  catalog, provenance, seed, read, save, refresh, and management architecture;
+  M22 completes the Phase 8.1 service-management workflow; M23 adds the Phase 8.2
+  security hardening (provenance/ownership immutability + active-row validation).
+- `scripts/validate-migrations.mjs` source-checks M18, applies all 23 files twice, and runs
+  the expanded functional acceptance set A–T using `@electric-sql/pglite` (real PostgreSQL).
+- Validation is green: **23/23 clean apply on pass 1, 23/23 on pass 2, 20/20
   functional tests, and 14/14 auth regression tests**.
 - **No migration has been applied to local, staging, or live Supabase.** The SQL
   is a reviewed/testable draft only.
@@ -250,7 +326,7 @@ Do not infer its complete state from the repository.
 - Historical booking snapshots, payment verification/idempotency, audit events,
   auto-save/resume, plan/white-label gates.
 
-### 3. Checked-in M01–M21 drafts
+### 3. Checked-in M01–M23 drafts
 
 The draft creates a clean target schema only when no known legacy collision is
 present. **M02 deliberately raises an exception** when it finds known live/legacy
@@ -260,7 +336,7 @@ parallel business model.
 
 Because the known live project has several of those objects, M02 must be
 regenerated after read-only introspection with explicit preserving
-rename/ALTER/backfill steps. M03–M21 may also need adjustments based on the
+rename/ALTER/backfill steps. M03–M23 may also need adjustments based on the
 actual types, keys, policies and data.
 
 The optional `payment_refunds` table is deferred until a real refund backend is
@@ -274,10 +350,18 @@ npm run lint                # TypeScript type check (tsc --noEmit)
 npm run test:auth           # Auth modal and login reliability regression tests
 node verify-22-screens.js   # Static verification of all 25 screens & features
 npm run generate:theme-seed # regenerate M18 from the TypeScript source
-npm run validate:migrations # source-check M18 + apply M01–M21 twice + tests A–S
+npm run validate:migrations # source-check M18 + apply M01–M23 twice + tests A–T
 npm run test:theme-catalog # five-theme DB/RPC/UI read-boundary checks
 npm run test:service-saving # refresh/CRUD/ownership/provenance checks
+npm run test:service-management # Phase 8.1 real-database management E2E
+npm run test:service-security # Phase 8.2 adversarial security/validation suite
+npm run test:acceptance    # Phase 8.3 five-theme acceptance (data + integration)
+npm run test:acceptance-ui # Phase 8.3 five-theme acceptance (real React UI)
 npm run test:phase-7.4-final # complete Phase 7.4 validation
+npm run test:phase-8.1     # complete Phase 8.1 validation
+npm run test:phase-8.2     # complete Phase 8.2 validation
+npm run test:phase-8.3     # complete Phase 8.3 final acceptance
+npm run test:phase-8       # every Phase 7-8 suite (161 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -285,13 +369,17 @@ Expected output:
 - `lint`: 0 errors
 - `test:auth`: 14/14 passed
 - `verify-22-screens`: 25/25 verified
-- `validate:migrations`: M18 source check + 21/21 applied cleanly x2, 19/19 tests passed
+- `validate:migrations`: M18 source check + 23/23 applied cleanly x2, 20/20 tests passed
 - `test:theme-catalog`: 4/4 passed
-- `test:service-saving`: 6/6 passed
+- `test:service-saving`: 14/14 passed
+- `test:service-management`: 9/9 passed
+- `test:service-security`: 20/20 passed
+- `test:acceptance`: 66/66 passed
+- `test:acceptance-ui`: 28/28 passed
 
 ## Guardrails / gotchas
 
-- **Do not apply M01–M21 yet.** Draft generation and PGlite validation are not
+- **Do not apply M01–M23 yet.** Draft generation and PGlite validation are not
   execution approval.
 - Read-only live introspection comes first; sanitize outputs before committing.
 - Regenerate M02 rather than bypassing its collision exception.
@@ -313,9 +401,9 @@ Expected output:
 2. **Regenerate M02** and adapt downstream drafts to preserve the actual schema/data.
 3. Re-run clean replay, legacy-upgrade fixtures and security review.
 4. Obtain a **separate explicit go-ahead** for database execution.
-5. Apply M01–M21 in order via Supabase CLI (preferred) or SQL editor.
-6. Run P88 acceptance tests **A–L** plus Phase tests **M–S** on the approved environment.
+5. Apply M01–M23 in order via Supabase CLI (preferred) or SQL editor.
+6. Run P88 acceptance tests **A–L** plus Phase tests **M–T** on the approved environment.
 7. Generate/commit Supabase **TypeScript types** per P72 and wire the service layer.
 
-In short: **live Supabase introspection → M02 regenerate → approved M01–M21
-apply → acceptance A–S → TypeScript types**.
+In short: **live Supabase introspection → M02 regenerate → approved M01–M23
+apply → acceptance A–T → TypeScript types**.

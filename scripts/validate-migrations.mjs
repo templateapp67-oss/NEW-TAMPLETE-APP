@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 21, 'expected exactly M01-M21');
+assert.equal(migrationFiles.length, 23, 'expected exactly M01-M23');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/21 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/23 applied cleanly`);
 }
 
 const ids = {
@@ -606,7 +606,7 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        ) values ($1, $2, $3, $4, 'Wrong Theme Link', 10000, 15)`,
       [ids.businessA, ids.themeB, ids.categoryB, ids.predefinedA],
     ),
-    /foreign key|violates/i,
+    /foreign key|violates|belongs to another theme/i,
   );
   await expectReject(
     () => db.query(
@@ -616,7 +616,7 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        ) values ($1, $2, $3, $4, 'Wrong Category Link', 10000, 15)`,
       [ids.businessA, ids.themeA, ids.categoryB, ids.predefinedA],
     ),
-    /foreign key|violates/i,
+    /foreign key|violates|does not belong to this theme/i,
   );
   await expectReject(
     () => db.query(
@@ -625,7 +625,7 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        ) values ($1, $2, 'Incomplete Provenance', 10000, 15)`,
       [ids.businessA, ids.predefinedA],
     ),
-    /check constraint|violates/i,
+    /check constraint|violates|must reference a theme/i,
   );
   await expectReject(
     () => db.query(
@@ -634,7 +634,8 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        where id = $3`,
       [ids.themeB, ids.categoryB, ids.savedPredefinedA],
     ),
-    /foreign key|violates/i,
+    // M23 now blocks this earlier, and for ALL themes, via provenance immutability.
+    /foreign key|violates|provenance is immutable/i,
   );
   await expectReject(
     () => db.query('delete from public.predefined_services where id = $1', [ids.predefinedA]),
@@ -1206,6 +1207,388 @@ await test('S — refresh, management, theme switching, and tenant isolation rem
   assert.deepEqual(globalAfter.rows, globalBefore.rows);
 });
 
-assert.equal(passed, 19);
-console.log(`Functional tests: ${passed}/19 passed`);
+await test('T — Phase 8.1 full saved-service management across all five themes', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+
+  const globalBefore = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined,
+      (select count(*)::int from public.predefined_services where is_active) as predefined_active
+  `);
+  const otherTenantBefore = await db.query(
+    `select id, name, price_paise, duration_minutes, short_description, status::text,
+            theme_id, category_id, predefined_service_id
+     from public.services where business_id = $1 order by id`,
+    [ids.businessB],
+  );
+  const legacyCustomBefore = await db.query(
+    `select id, name, price_paise, duration_minutes, short_description, status::text,
+            theme_id, category_id, predefined_service_id
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+
+  for (const themeId of seededThemeIds) {
+    // An unsaved predefined row of this theme, used for the Add Service path.
+    const candidate = await db.query(
+      `select ps.id, ps.category_id, ps.name, ps.description,
+              ps.default_price_paise, ps.default_duration_minutes, ps.theme_id
+       from public.predefined_services ps
+       join public.themes t on t.id = ps.theme_id
+       where t.theme_id = $1
+         and ps.is_active
+         and not exists (
+           select 1 from public.services s
+           where s.business_id = $2 and s.predefined_service_id = ps.id
+         )
+       order by ps.sort_order, ps.id
+       limit 1`,
+      [themeId, ids.businessA],
+    );
+    assert.equal(candidate.rows.length, 1, `${themeId}: expected an unsaved predefined service`);
+    const predefined = candidate.rows[0];
+
+    let addedPredefinedId;
+    let addedCustomId;
+
+    await asRole('authenticated', ids.ownerA, async () => {
+      // ---- ADD SERVICE (predefined-linked) --------------------------------
+      const added = await db.query(
+        `select public.create_saved_service(
+           $1, $2, $3, $4, $5, $6, $7, 'active'
+         ) as result`,
+        [
+          themeId, predefined.category_id, predefined.name,
+          predefined.description ?? '', predefined.default_price_paise,
+          predefined.default_duration_minutes, predefined.id,
+        ],
+      );
+      const addedRow = added.rows[0].result;
+      addedPredefinedId = addedRow.id;
+      assert.equal(addedRow.business_id, ids.businessA);
+      assert.equal(addedRow.theme_key, themeId);
+      assert.equal(addedRow.theme_id, predefined.theme_id);
+      assert.equal(addedRow.category_id, predefined.category_id);
+      assert.equal(addedRow.predefined_service_id, predefined.id);
+      assert.equal(addedRow.status, 'active');
+
+      // ---- ADD SERVICE (Custom / Other → predefined_service_id NULL) ------
+      const custom = await db.query(
+        `select public.create_saved_service(
+           $1, $2, $3, 'Owner-written custom description', 123400, 55, null, 'active'
+         ) as result`,
+        [themeId, predefined.category_id, `Custom Signature ${themeId}`],
+      );
+      const customRow = custom.rows[0].result;
+      addedCustomId = customRow.id;
+      assert.equal(customRow.predefined_service_id, null);
+      assert.equal(customRow.theme_id, predefined.theme_id);
+      assert.equal(customRow.category_id, predefined.category_id);
+      assert.equal(customRow.theme_key, themeId);
+
+      // ---- DUPLICATE PREVENTION -------------------------------------------
+      await expectReject(
+        () => db.query(
+          `select public.create_saved_service(
+             $1, $2, $3, '', $4, $5, $6, 'active'
+           )`,
+          [
+            themeId, predefined.category_id, `${predefined.name} renamed`,
+            predefined.default_price_paise, predefined.default_duration_minutes,
+            predefined.id,
+          ],
+        ),
+        /already saved/i,
+      );
+      await expectReject(
+        () => db.query(
+          `select public.create_saved_service(
+             $1, $2, $3, 'Second copy', 100000, 30, null, 'active'
+           )`,
+          [themeId, predefined.category_id, `custom signature ${themeId}`.toUpperCase()],
+        ),
+        /already saved/i,
+      );
+
+      // ---- CROSS-THEME / CROSS-CATEGORY ADDS ARE REJECTED ------------------
+      const foreign = await db.query(
+        `select ps.id, ps.category_id
+         from public.predefined_services ps
+         join public.themes t on t.id = ps.theme_id
+         where t.theme_id <> $1 and ps.is_active
+         order by ps.id limit 1`,
+        [themeId],
+      );
+      await expectReject(
+        () => db.query(
+          `select public.create_saved_service(
+             $1, $2, 'Cross theme attempt', '', 10000, 15, $3, 'active'
+           )`,
+          [themeId, predefined.category_id, foreign.rows[0].id],
+        ),
+        /does not belong to this theme and category/i,
+      );
+      await expectReject(
+        () => db.query(
+          `select public.create_saved_service(
+             $1, $2, 'Cross category attempt', '', 10000, 15, null, 'active'
+           )`,
+          [themeId, foreign.rows[0].category_id],
+        ),
+        /category does not belong to this theme/i,
+      );
+
+      const relationshipBefore = await db.query(
+        `select business_id, theme_id, category_id, predefined_service_id
+         from public.services where id = $1`,
+        [addedPredefinedId],
+      );
+
+      // ---- UPDATE PRICE ONLY ----------------------------------------------
+      const priced = await db.query(
+        'select public.update_saved_service($1, null, null, 654300, null, null) as result',
+        [addedPredefinedId],
+      );
+      assert.equal(Number(priced.rows[0].result.price_paise), 654300);
+      assert.equal(priced.rows[0].result.name, predefined.name);
+      assert.equal(priced.rows[0].result.duration_minutes, predefined.default_duration_minutes);
+      assert.equal(priced.rows[0].result.predefined_service_id, predefined.id);
+
+      // ---- UPDATE DURATION ONLY -------------------------------------------
+      const timed = await db.query(
+        'select public.update_saved_service($1, null, null, null, 95, null) as result',
+        [addedPredefinedId],
+      );
+      assert.equal(timed.rows[0].result.duration_minutes, 95);
+      assert.equal(Number(timed.rows[0].result.price_paise), 654300);
+
+      // ---- UPDATE DESCRIPTION ONLY ----------------------------------------
+      const described = await db.query(
+        `select public.update_saved_service($1, null, 'Phase 8.1 owner description', null, null, null) as result`,
+        [addedPredefinedId],
+      );
+      assert.equal(described.rows[0].result.description, 'Phase 8.1 owner description');
+      assert.equal(described.rows[0].result.name, predefined.name);
+
+      // ---- EDIT SERVICE (name + everything at once) ------------------------
+      const edited = await db.query(
+        `select public.update_saved_service(
+           $1, $2, 'Fully edited description', 777700, 40, 'active'
+         ) as result`,
+        [addedPredefinedId, `Renamed ${predefined.name}`],
+      );
+      assert.equal(edited.rows[0].result.name, `Renamed ${predefined.name}`);
+      assert.equal(Number(edited.rows[0].result.price_paise), 777700);
+      assert.equal(edited.rows[0].result.duration_minutes, 40);
+
+      // ---- DEACTIVATE / ACTIVATE ------------------------------------------
+      const deactivated = await db.query(
+        'select public.set_saved_service_active($1, false) as result',
+        [addedPredefinedId],
+      );
+      assert.equal(deactivated.rows[0].result.status, 'inactive');
+      const reactivated = await db.query(
+        'select public.set_saved_service_active($1, true) as result',
+        [addedPredefinedId],
+      );
+      assert.equal(reactivated.rows[0].result.status, 'active');
+
+      // ---- CHANGE SERVICE STATUS ------------------------------------------
+      for (const status of ['inactive', 'archived', 'active']) {
+        const changed = await db.query(
+          'select public.set_saved_service_status($1, $2) as result',
+          [addedPredefinedId, status],
+        );
+        assert.equal(changed.rows[0].result.status, status);
+      }
+      await expectReject(
+        () => db.query('select public.set_saved_service_status($1, $2)', [addedPredefinedId, 'deleted']),
+        /status must be active, inactive, or archived/i,
+      );
+
+      // ---- RELATIONSHIP PRESERVED THROUGH EVERY EDIT -----------------------
+      const relationshipAfter = await db.query(
+        `select business_id, theme_id, category_id, predefined_service_id
+         from public.services where id = $1`,
+        [addedPredefinedId],
+      );
+      assert.deepEqual(relationshipAfter.rows, relationshipBefore.rows);
+
+      // Custom rows keep NULL provenance through the same operations.
+      await db.query(
+        `select public.update_saved_service($1, 'Renamed custom', 'New custom copy', 222200, 25, 'inactive')`,
+        [addedCustomId],
+      );
+      const customAfter = await db.query(
+        `select theme_id, category_id, predefined_service_id, status::text
+         from public.services where id = $1`,
+        [addedCustomId],
+      );
+      assert.equal(customAfter.rows[0].predefined_service_id, null);
+      assert.equal(customAfter.rows[0].theme_id, predefined.theme_id);
+      assert.equal(customAfter.rows[0].category_id, predefined.category_id);
+      assert.equal(customAfter.rows[0].status, 'inactive');
+
+      // ---- VALIDATION ------------------------------------------------------
+      await expectReject(
+        () => db.query('select public.update_saved_service($1, null, null, -1, null, null)', [addedPredefinedId]),
+        /price cannot be negative/i,
+      );
+      await expectReject(
+        () => db.query('select public.update_saved_service($1, null, null, null, 0, null)', [addedPredefinedId]),
+        /duration must be positive/i,
+      );
+      await expectReject(
+        () => db.query(`select public.update_saved_service($1, '   ', null, null, null, null)`, [addedPredefinedId]),
+        /name is required/i,
+      );
+
+      // ---- REFRESH SHOWS THE MANAGED STATE --------------------------------
+      const refreshed = await db.query(
+        'select public.get_saved_services_for_theme($1) as result',
+        [themeId],
+      );
+      const rows = refreshed.rows[0].result.services;
+      const refreshedPredefined = rows.find((row) => row.id === addedPredefinedId);
+      const refreshedCustom = rows.find((row) => row.id === addedCustomId);
+      assert.equal(refreshedPredefined.predefined_service_id, predefined.id);
+      assert.equal(refreshedPredefined.name, `Renamed ${predefined.name}`);
+      assert.equal(refreshedCustom.predefined_service_id, null);
+      assert.equal(refreshedCustom.status, 'inactive');
+    });
+
+    // ---- CROSS-TENANT MANAGEMENT IS BLOCKED --------------------------------
+    await asRole('authenticated', ids.ownerB, async () => {
+      await expectReject(
+        () => db.query(
+          `select public.update_saved_service($1, 'Hijack', null, null, null, null)`,
+          [addedPredefinedId],
+        ),
+        /not found for your salon/i,
+      );
+      await expectReject(
+        () => db.query('select public.set_saved_service_status($1, $2)', [addedPredefinedId, 'archived']),
+        /not found for your salon/i,
+      );
+      await expectReject(
+        () => db.query('select public.delete_saved_service($1)', [addedCustomId]),
+        /not found for your salon/i,
+      );
+    });
+
+    // ---- DELETE removes only the salon's own saved rows --------------------
+    await asRole('authenticated', ids.ownerA, async () => {
+      const deletedPredefined = await db.query(
+        'select public.delete_saved_service($1) as id',
+        [addedPredefinedId],
+      );
+      const deletedCustom = await db.query(
+        'select public.delete_saved_service($1) as id',
+        [addedCustomId],
+      );
+      assert.equal(deletedPredefined.rows[0].id, addedPredefinedId);
+      assert.equal(deletedCustom.rows[0].id, addedCustomId);
+      await expectReject(
+        () => db.query('select public.delete_saved_service($1)', [addedPredefinedId]),
+        /not found for your salon/i,
+      );
+    });
+
+    const gone = await db.query(
+      'select count(*)::int as count from public.services where id in ($1, $2)',
+      [addedPredefinedId, addedCustomId],
+    );
+    assert.equal(gone.rows[0].count, 0);
+
+    // The global predefined row survives the tenant delete.
+    const predefinedStillThere = await db.query(
+      'select is_active from public.predefined_services where id = $1',
+      [predefined.id],
+    );
+    assert.equal(predefinedStillThere.rows[0].is_active, true);
+  }
+
+  // A saved service used by a package cannot be silently deleted.
+  await asRole('authenticated', ids.ownerA, async () => {
+    const created = await db.query(
+      `select public.create_saved_service(
+         'barber_mens_grooming', $1, 'Package Linked Service', 'Linked', 100000, 30, null, 'active'
+       ) as result`,
+      [
+        (await db.query(
+          `select c.id from public.service_categories c
+           join public.themes t on t.id = c.theme_id
+           where t.theme_id = 'barber_mens_grooming' order by c.sort_order limit 1`,
+        )).rows[0].id,
+      ],
+    );
+    const linkedId = created.rows[0].result.id;
+    const pkg = await db.query(
+      `insert into public.packages (business_id, name, price_paise)
+       values ($1, 'Phase 8.1 Combo', 150000) returning id`,
+      [ids.businessA],
+    );
+    await db.query(
+      'insert into public.package_services (package_id, service_id) values ($1, $2)',
+      [pkg.rows[0].id, linkedId],
+    );
+    await expectReject(
+      () => db.query('select public.delete_saved_service($1)', [linkedId]),
+      /remove this service from its package/i,
+    );
+    await db.query('delete from public.package_services where service_id = $1', [linkedId]);
+    await db.query('delete from public.packages where id = $1', [pkg.rows[0].id]);
+    const deleted = await db.query('select public.delete_saved_service($1) as id', [linkedId]);
+    assert.equal(deleted.rows[0].id, linkedId);
+  });
+
+  // Anonymous/logged-out callers get nothing.
+  await asRole('authenticated', '', async () => {
+    await expectReject(
+      () => db.query(
+        `select public.create_saved_service('barber_mens_grooming', gen_random_uuid(), 'X', '', 1, 1, null, 'active')`,
+      ),
+      /log in/i,
+    );
+    await expectReject(
+      () => db.query('select public.delete_saved_service(gen_random_uuid())'),
+      /log in/i,
+    );
+  });
+
+  // Global catalog and other tenants are byte-for-byte untouched.
+  const globalAfter = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined,
+      (select count(*)::int from public.predefined_services where is_active) as predefined_active
+  `);
+  const otherTenantAfter = await db.query(
+    `select id, name, price_paise, duration_minutes, short_description, status::text,
+            theme_id, category_id, predefined_service_id
+     from public.services where business_id = $1 order by id`,
+    [ids.businessB],
+  );
+  const legacyCustomAfter = await db.query(
+    `select id, name, price_paise, duration_minutes, short_description, status::text,
+            theme_id, category_id, predefined_service_id
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+  assert.deepEqual(globalAfter.rows, globalBefore.rows);
+  assert.deepEqual(otherTenantAfter.rows, otherTenantBefore.rows);
+  assert.deepEqual(legacyCustomAfter.rows, legacyCustomBefore.rows);
+});
+
+assert.equal(passed, 20);
+console.log(`Functional tests: ${passed}/20 passed`);
 await db.close();

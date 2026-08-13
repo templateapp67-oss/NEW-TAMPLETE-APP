@@ -2,7 +2,7 @@ import { Sparkles, Mic, ArrowLeft, ArrowRight, Plus, Check, Copy, Trash2, GripVe
 import { SalonData, Service, Package } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, FormEvent, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useState, FormEvent, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import {
   THEME_LABELS,
   getThemeCategories as getStaticThemeCategories,
@@ -20,12 +20,14 @@ import {
   type ThemeServiceCatalog,
 } from '../lib/themeCatalogService';
 import {
+  createSavedService,
   deleteSavedService,
   loadSavedServicesForTheme,
   savePredefinedServices,
-  setSavedServiceActive,
+  setSavedServiceStatus,
   updateSavedService,
-  type SavedPredefinedService,
+  type SavedService,
+  type SavedServiceStatus,
 } from '../lib/savedServiceService';
 
 // Generates a professional, customer-friendly, category-specific service description.
@@ -110,7 +112,7 @@ interface Props {
   onSave?: () => void;
 }
 
-const savedServiceToUi = (service: SavedPredefinedService): Service => ({
+const savedServiceToUi = (service: SavedService): Service => ({
   id: service.id,
   businessId: service.businessId,
   themeId: service.themeId,
@@ -168,12 +170,19 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [saveSelectedNotice, setSaveSelectedNotice] = useState('');
   const [savedServicesLoading, setSavedServicesLoading] = useState(usesDatabaseCatalog);
   const [savedServicesError, setSavedServicesError] = useState('');
+  // Which theme the currently held saved-service list belongs to. Null while a
+  // load is in flight or after a failed load.
+  const [savedStatusTheme, setSavedStatusTheme] = useState<string | null>(
+    usesDatabaseCatalog ? null : theme,
+  );
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editServiceName, setEditServiceName] = useState('');
   const [editServiceDescription, setEditServiceDescription] = useState('');
   const [editServicePrice, setEditServicePrice] = useState(0);
   const [editServiceDuration, setEditServiceDuration] = useState(30);
+  const [editServiceStatus, setEditServiceStatus] = useState<SavedServiceStatus>('active');
   const [managingServiceId, setManagingServiceId] = useState<string | null>(null);
+  const [pendingDeleteServiceId, setPendingDeleteServiceId] = useState<string | null>(null);
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingPackage, setIsAddingPackage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -189,6 +198,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [newServiceDescTouched, setNewServiceDescTouched] = useState(false);
   const [pendingDescSuggestion, setPendingDescSuggestion] = useState('');
   const [showDescConfirm, setShowDescConfirm] = useState(false);
+  // Provenance of the Add Service form. It is set ONLY when the owner picks a
+  // row from the current theme's predefined list, and stays null for
+  // Custom / "Other" services so they are never converted into predefined ones.
+  const [newServicePredefinedId, setNewServicePredefinedId] = useState<string | null>(null);
+  const [isCreatingService, setIsCreatingService] = useState(false);
+  const [addServiceError, setAddServiceError] = useState('');
 
   // Service Name combobox state
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
@@ -244,46 +259,70 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   // Database themes always hydrate saved salon services from the authenticated
   // tenant after mount/refresh. Clear localStorage/snapshot rows immediately so
   // they cannot flash while the current theme-scoped request is in flight.
-  useEffect(() => {
+  //
+  // `savedStatusTheme` records which theme the CURRENT saved-service state
+  // belongs to. Until it equals the active theme, the list renders nothing —
+  // that is what guarantees a previous theme's services can never be shown
+  // while a new theme is loading (or after its load failed).
+  const runSavedServicesLoad = useCallback((targetTheme: typeof theme) => {
     const requestId = savedLoadRequestRef.current + 1;
     savedLoadRequestRef.current = requestId;
-    let cancelled = false;
+
     setSavedServicesError('');
     setEditingServiceId(null);
     setManagingServiceId(null);
+    setPendingDeleteServiceId(null);
 
-    if (!usesDatabaseCatalog) {
+    if (!isDatabaseCatalogTheme(targetTheme)) {
       setSavedServicesLoading(false);
-      return () => {
-        cancelled = true;
-      };
+      setSavedStatusTheme(targetTheme);
+      return;
     }
 
+    setSavedStatusTheme(null);
     setSavedServicesLoading(true);
-    setData((previous) => normalizeThemeId(previous.templateId) === theme
+    // Drop any previous-theme/localStorage rows before the request starts.
+    setData((previous) => normalizeThemeId(previous.templateId) === targetTheme
       ? { ...previous, services: [] }
       : previous
     );
 
-    loadSavedServicesForTheme(theme)
+    loadSavedServicesForTheme(targetTheme)
       .then((services) => {
-        if (cancelled || savedLoadRequestRef.current !== requestId) return;
-        setData((previous) => normalizeThemeId(previous.templateId) === theme
+        if (savedLoadRequestRef.current !== requestId) return;
+        setData((previous) => normalizeThemeId(previous.templateId) === targetTheme
           ? { ...previous, services: services.map(savedServiceToUi) }
           : previous
         );
         setSavedServicesLoading(false);
+        setSavedStatusTheme(targetTheme);
       })
       .catch((error: unknown) => {
-        if (cancelled || savedLoadRequestRef.current !== requestId) return;
+        if (savedLoadRequestRef.current !== requestId) return;
         setSavedServicesLoading(false);
-        setSavedServicesError(error instanceof Error ? error.message : 'Unable to load saved services.');
+        // Deliberately leave savedStatusTheme null: a failed load must not
+        // render a partial or stale list.
+        setSavedServicesError(
+          error instanceof Error ? error.message : 'Unable to load saved services.',
+        );
       });
+  }, [setData]);
 
+  useEffect(() => {
+    runSavedServicesLoad(theme);
     return () => {
-      cancelled = true;
+      // Invalidate the in-flight request so a late response cannot paint.
+      savedLoadRequestRef.current += 1;
     };
-  }, [theme, usesDatabaseCatalog, setData]);
+  }, [theme, runSavedServicesLoad]);
+
+  /** Retry handler for the saved-service error state. */
+  const reloadSavedServices = () => runSavedServicesLoad(theme);
+
+  // The saved list renders ONLY when the held state provably belongs to the
+  // active theme. This is the single guard that prevents a previous theme's
+  // services from appearing while a new theme loads or after a load error.
+  const showSavedServices = savedStatusTheme === theme;
 
   // When the theme changes, clear ALL theme-specific selections and temporary
   // buffers so nothing from a previous theme leaks into the current one:
@@ -310,7 +349,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setEditServiceDescription('');
     setEditServicePrice(0);
     setEditServiceDuration(30);
+    setEditServiceStatus('active');
     setManagingServiceId(null);
+    setPendingDeleteServiceId(null);
+    setNewServicePredefinedId(null);
+    setIsCreatingService(false);
+    setAddServiceError('');
 
     // Add-service form: database themes intentionally start empty until their
     // current theme-scoped response arrives; the original theme stays unchanged.
@@ -370,6 +414,18 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, []);
+
+  /** Only database catalog rows carry a real predefined UUID; static theme rows
+   * (the preserved `hair` theme) never produce a predefined link. */
+  const predefinedIdOf = (service: PredefinedService): string | null => {
+    if (!usesDatabaseCatalog) return null;
+    const id = (service as { id?: unknown }).id;
+    return typeof id === 'string' && id ? id : null;
+  };
+
+  /** The current theme's category UUID for a category display name. */
+  const categoryIdOf = (categoryName: string): string | null =>
+    activeCatalog?.categories.find((category) => category.name === categoryName)?.id ?? null;
 
   const findCurrentPredefinedService = (value: string): PredefinedService | undefined => {
     if (!usesDatabaseCatalog) return findStaticPredefinedService(theme, value);
@@ -564,6 +620,8 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setCustomService(false);
     setServiceDropdownOpen(false);
     setNewServiceName('');
+    setNewServicePredefinedId(null);
+    setAddServiceError('');
     setNewServiceDesc(suggestServiceDescription(newServiceCategory, ''));
     setNewServiceDescTouched(false);
     setShowDescConfirm(false);
@@ -572,8 +630,16 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
   const handleServiceNameInput = (value: string) => {
     setNewServiceName(value);
+    setAddServiceError('');
     if (!serviceDropdownOpen) setServiceDropdownOpen(true);
-    if (customService) return;
+    if (customService) {
+      // Custom / "Other" never acquires predefined provenance from typing.
+      setNewServicePredefinedId(null);
+      if (!newServiceDescTouched) {
+        setNewServiceDesc(suggestServiceDescription(newServiceCategory, value));
+      }
+      return;
+    }
     const match = findCurrentPredefinedService(value);
     if (match) {
       // Exact predefined match (or a family suggested alias) → canonicalise
@@ -584,9 +650,14 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       setNewServiceDuration(match.duration);
       setNewServiceDesc(match.description);
       setNewServiceDescTouched(false);
-    } else if (!newServiceDescTouched) {
-      // Still typing → keep a live, relevant description suggestion.
-      setNewServiceDesc(suggestServiceDescription(newServiceCategory, value));
+      setNewServicePredefinedId(predefinedIdOf(match));
+    } else {
+      // A partially typed name is not a predefined service.
+      setNewServicePredefinedId(null);
+      if (!newServiceDescTouched) {
+        // Still typing → keep a live, relevant description suggestion.
+        setNewServiceDesc(suggestServiceDescription(newServiceCategory, value));
+      }
     }
   };
 
@@ -597,10 +668,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setNewServiceDuration(s.duration);
     setNewServiceDesc(s.description);
     setNewServiceDescTouched(false);
+    setNewServicePredefinedId(predefinedIdOf(s));
     setCustomService(false);
     setServiceDropdownOpen(false);
     setShowDescConfirm(false);
     setPendingDescSuggestion('');
+    setAddServiceError('');
   };
 
   const enableCustom = () => {
@@ -610,18 +683,26 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setNewServiceDescTouched(false);
     setNewServicePrice(50);
     setNewServiceDuration(30);
+    // Custom Service / Other keeps predefined_service_id NULL.
+    setNewServicePredefinedId(null);
     setServiceDropdownOpen(false);
+    setAddServiceError('');
   };
 
   const backToPredefined = () => {
     setCustomService(false);
     setNewServiceName('');
+    setNewServicePredefinedId(null);
     setServiceDropdownOpen(true);
+    setAddServiceError('');
   };
 
   const handleCategoryChange = (cat: string) => {
     setNewServiceCategory(cat);
     setServiceDropdownOpen(true);
+    setAddServiceError('');
+    // A different category invalidates any previously matched predefined row.
+    setNewServicePredefinedId(null);
     if (!customService) {
       // Service names differ per category — reset the selection.
       setNewServiceName('');
@@ -651,33 +732,112 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setPendingDescSuggestion('');
   };
 
-  const handleCreateService = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newServiceName.trim()) return;
-    const created: Service = {
-      id: 'custom-' + Date.now(),
-      themeId: null,
-      categoryId: null,
-      predefinedServiceId: null,
-      name: newServiceName,
-      category: newServiceCategory || 'General',
-      description: newServiceDesc || 'Custom salon service.',
-      price: Number(newServicePrice) || 0,
-      duration: Number(newServiceDuration) || 30,
-    };
-    setData({
-      ...data,
-      services: [...data.services, created],
-    });
+  const closeAddServiceForm = () => {
     setNewServiceName('');
     setNewServiceDesc('');
     setNewServiceDescTouched(false);
+    setNewServicePredefinedId(null);
     setCustomService(false);
     setServiceDropdownOpen(false);
     setShowDescConfirm(false);
     setPendingDescSuggestion('');
+    setAddServiceError('');
     setIsAddingService(false);
-    if (onSave) onSave();
+  };
+
+  const handleCreateService = async (e: FormEvent) => {
+    e.preventDefault();
+    const name = newServiceName.trim();
+    if (!name || isCreatingService) return;
+
+    const price = Number(newServicePrice) || 0;
+    const duration = Number(newServiceDuration) || 30;
+    const description = newServiceDesc || 'Custom salon service.';
+
+    // Preserved original theme keeps its existing in-memory behavior.
+    if (!isDatabaseCatalogTheme(theme)) {
+      const created: Service = {
+        id: 'custom-' + Date.now(),
+        themeId: null,
+        categoryId: null,
+        predefinedServiceId: null,
+        name,
+        category: newServiceCategory || 'General',
+        description,
+        price,
+        duration,
+      };
+      setData({
+        ...data,
+        services: [...data.services, created],
+      });
+      closeAddServiceForm();
+      if (onSave) onSave();
+      return;
+    }
+
+    if (!activeCatalog) {
+      setAddServiceError('Wait for this theme’s services to finish loading.');
+      return;
+    }
+    const categoryId = categoryIdOf(newServiceCategory);
+    if (!categoryId) {
+      setAddServiceError('Select a category from this theme before saving.');
+      return;
+    }
+
+    // Predefined provenance is only kept when the picked row still belongs to
+    // the selected category of the current theme. Otherwise it stays NULL and
+    // the service is saved as a Custom / "Other" service.
+    const predefinedMatch = newServicePredefinedId
+      ? activeCatalog.predefinedServices.find((service) =>
+          service.id === newServicePredefinedId && service.categoryId === categoryId)
+      : undefined;
+    const predefinedServiceId = customService ? null : (predefinedMatch?.id ?? null);
+
+    // Prevent duplicates before hitting the database.
+    const duplicate = data.services.some((service) =>
+      (predefinedServiceId !== null && service.predefinedServiceId === predefinedServiceId)
+      || (service.status !== 'archived'
+        && service.name.trim().toLowerCase() === name.toLowerCase())
+    );
+    if (duplicate) {
+      setAddServiceError('This service is already saved for your salon.');
+      return;
+    }
+
+    const requestId = saveRequestRef.current + 1;
+    saveRequestRef.current = requestId;
+    setIsCreatingService(true);
+    setAddServiceError('');
+    try {
+      const saved = await createSavedService(theme, {
+        categoryId,
+        name,
+        description,
+        price,
+        duration,
+        predefinedServiceId,
+        status: 'active',
+      });
+      if (saveRequestRef.current !== requestId) return;
+      setData((previous) => normalizeThemeId(previous.templateId) === theme
+        ? {
+            ...previous,
+            services: previous.services.some((item) => item.id === saved.id)
+              ? previous.services
+              : [...previous.services, savedServiceToUi(saved)],
+          }
+        : previous
+      );
+      closeAddServiceForm();
+      if (onSave) onSave();
+    } catch (error) {
+      if (saveRequestRef.current !== requestId) return;
+      setAddServiceError(error instanceof Error ? error.message : 'Unable to add this service.');
+    } finally {
+      if (saveRequestRef.current === requestId) setIsCreatingService(false);
+    }
   };
 
   const handleCreatePackage = (e: FormEvent) => {
@@ -700,54 +860,99 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     if (onSave) onSave();
   };
 
+  /** A saved (database-backed) service of the current theme. */
+  const isSavedService = (service: Service): boolean =>
+    Boolean(service.businessId) && isDatabaseCatalogTheme(theme);
+
   const beginEditService = (service: Service) => {
-    if (!service.businessId || !isDatabaseCatalogTheme(theme)) return;
+    if (!isSavedService(service)) return;
     setEditingServiceId(service.id);
     setEditServiceName(service.name);
     setEditServiceDescription(service.description);
     setEditServicePrice(service.price);
     setEditServiceDuration(service.duration);
+    setEditServiceStatus(service.status ?? 'active');
     setSavedServicesError('');
   };
 
-  const handleUpdateSavedService = async (service: Service) => {
-    if (!isDatabaseCatalogTheme(theme) || !service.businessId) return;
+  /**
+   * Applies mutable field changes only. `theme_id`, `category_id` and
+   * `predefined_service_id` are never sent, so the original theme/category/
+   * predefined relationship (or the Custom NULL provenance) always survives.
+   */
+  const applySavedServiceChanges = async (
+    service: Service,
+    changes: {
+      name?: string;
+      description?: string;
+      price?: number;
+      duration?: number;
+      status?: SavedServiceStatus;
+    },
+    fallbackMessage: string,
+  ): Promise<boolean> => {
+    if (!isDatabaseCatalogTheme(theme) || !service.businessId) return false;
     const requestId = saveRequestRef.current + 1;
     saveRequestRef.current = requestId;
     setManagingServiceId(service.id);
     setSavedServicesError('');
     try {
-      const updated = await updateSavedService(theme, service.id, {
-        name: editServiceName,
-        description: editServiceDescription,
-        price: editServicePrice,
-        duration: editServiceDuration,
-      });
-      if (saveRequestRef.current !== requestId) return;
+      const updated = await updateSavedService(theme, service.id, changes);
+      if (saveRequestRef.current !== requestId) return false;
       setData((previous) => ({
         ...previous,
         services: previous.services.map((item) =>
           item.id === service.id ? savedServiceToUi(updated) : item
         ),
       }));
-      setEditingServiceId(null);
       if (onSave) onSave();
+      return true;
     } catch (error) {
-      if (saveRequestRef.current !== requestId) return;
-      setSavedServicesError(error instanceof Error ? error.message : 'Unable to update this service.');
+      if (saveRequestRef.current !== requestId) return false;
+      setSavedServicesError(error instanceof Error ? error.message : fallbackMessage);
+      return false;
     } finally {
       if (saveRequestRef.current === requestId) setManagingServiceId(null);
     }
   };
 
-  const handleToggleSavedService = async (service: Service) => {
+  /** Edit Service — name, description, price, duration and status together. */
+  const handleUpdateSavedService = async (service: Service) => {
+    const saved = await applySavedServiceChanges(
+      service,
+      {
+        name: editServiceName,
+        description: editServiceDescription,
+        price: editServicePrice,
+        duration: editServiceDuration,
+        status: editServiceStatus,
+      },
+      'Unable to update this service.',
+    );
+    if (saved) setEditingServiceId(null);
+  };
+
+  /** Update Price only. */
+  const handleUpdateServicePrice = (service: Service, price: number) =>
+    applySavedServiceChanges(service, { price }, 'Unable to update the price.');
+
+  /** Update Duration only. */
+  const handleUpdateServiceDuration = (service: Service, duration: number) =>
+    applySavedServiceChanges(service, { duration }, 'Unable to update the duration.');
+
+  /** Update Description only. */
+  const handleUpdateServiceDescription = (service: Service, description: string) =>
+    applySavedServiceChanges(service, { description }, 'Unable to update the description.');
+
+  /** Change service status (active / inactive / archived). */
+  const handleChangeServiceStatus = async (service: Service, status: SavedServiceStatus) => {
     if (!isDatabaseCatalogTheme(theme) || !service.businessId) return;
     const requestId = saveRequestRef.current + 1;
     saveRequestRef.current = requestId;
     setManagingServiceId(service.id);
     setSavedServicesError('');
     try {
-      const updated = await setSavedServiceActive(theme, service.id, service.status !== 'active');
+      const updated = await setSavedServiceStatus(theme, service.id, status);
       if (saveRequestRef.current !== requestId) return;
       setData((previous) => ({
         ...previous,
@@ -764,6 +969,14 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     }
   };
 
+  /** Activate / Deactivate toggle. */
+  const handleToggleSavedService = (service: Service) =>
+    handleChangeServiceStatus(service, service.status === 'active' ? 'inactive' : 'active');
+
+  /**
+   * Deletes the salon's own saved service row only. Global themes,
+   * service_categories and predefined_services are never targeted.
+   */
   const handleDeleteService = async (service: Service) => {
     if (service.businessId && isDatabaseCatalogTheme(theme)) {
       const requestId = saveRequestRef.current + 1;
@@ -777,10 +990,13 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
         if (saveRequestRef.current !== requestId) return;
         setSavedServicesError(error instanceof Error ? error.message : 'Unable to delete this service.');
         setManagingServiceId(null);
+        setPendingDeleteServiceId(null);
         return;
       }
       if (saveRequestRef.current === requestId) setManagingServiceId(null);
     }
+    setPendingDeleteServiceId(null);
+    if (editingServiceId === service.id) setEditingServiceId(null);
     setData((previous) => ({
       ...previous,
       services: previous.services.filter((item) => item.id !== service.id),
@@ -788,7 +1004,45 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     if (onSave) onSave();
   };
 
-  const handleDuplicateService = (s: Service) => {
+  /**
+   * A duplicate is always a NEW custom service: it never inherits the source
+   * row's predefined link, so the original predefined relationship stays
+   * unique to the original saved service.
+   */
+  const handleDuplicateService = async (s: Service) => {
+    const copyName = `${s.name} (Copy)`;
+
+    if (s.businessId && isDatabaseCatalogTheme(theme) && s.categoryId) {
+      const requestId = saveRequestRef.current + 1;
+      saveRequestRef.current = requestId;
+      setManagingServiceId(s.id);
+      setSavedServicesError('');
+      try {
+        const saved = await createSavedService(theme, {
+          categoryId: s.categoryId,
+          name: copyName,
+          description: s.description,
+          price: s.price,
+          duration: s.duration,
+          // Copies are custom services; provenance is intentionally NULL.
+          predefinedServiceId: null,
+          status: 'active',
+        });
+        if (saveRequestRef.current !== requestId) return;
+        setData((previous) => ({
+          ...previous,
+          services: [...previous.services, savedServiceToUi(saved)],
+        }));
+        if (onSave) onSave();
+      } catch (error) {
+        if (saveRequestRef.current !== requestId) return;
+        setSavedServicesError(error instanceof Error ? error.message : 'Unable to duplicate this service.');
+      } finally {
+        if (saveRequestRef.current === requestId) setManagingServiceId(null);
+      }
+      return;
+    }
+
     const dup: Service = {
       ...s,
       id: 'dup-' + Date.now(),
@@ -798,7 +1052,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       categoryId: null,
       predefinedServiceId: null,
       status: 'active',
-      name: `${s.name} (Copy)`,
+      name: copyName,
     };
     setData((previous) => ({
       ...previous,
@@ -948,22 +1202,44 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
             {/* My Services List */}
             <div className="flex flex-col gap-4">
-              <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">MY SERVICES ({data.services.length})</h3>
+              <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">
+                MY SERVICES ({showSavedServices ? data.services.length : 0})
+              </h3>
               {savedServicesLoading && usesDatabaseCatalog && (
-                <p className="text-xs text-[#5f5e5e]">Loading saved services…</p>
+                <p className="text-xs text-[#5f5e5e]" role="status">Loading saved services…</p>
               )}
               {savedServicesError && (
-                <p className="text-xs text-red-600" role="alert">{savedServicesError}</p>
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <p className="text-xs text-red-700" role="alert">{savedServicesError}</p>
+                  <button
+                    type="button"
+                    onClick={reloadSavedServices}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 shrink-0"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {/* Empty state — only once the current theme has actually loaded,
+                  so it never flashes while a request is still in flight. */}
+              {showSavedServices && !savedServicesError && data.services.length === 0 && (
+                <div className="rounded-lg border border-dashed border-[#eeeeee] bg-white p-6 text-center">
+                  <p className="text-sm font-semibold text-[#1a1c1c]">No services yet</p>
+                  <p className="text-xs text-[#5f5e5e] mt-1">
+                    Pick from the suggested services above, or use “Add Service” to create your own.
+                  </p>
+                </div>
               )}
 
               <AnimatePresence>
-                {data.services.map((s) => (
+                {showSavedServices && data.services.map((s) => (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     key={s.id}
-                    className={`bg-white border border-[#eeeeee] rounded-lg p-5 shadow-sm flex flex-col gap-4 group hover:border-[#ac0053]/40 transition-colors ${s.status === 'inactive' ? 'opacity-65' : ''}`}
+                    className={`bg-white border border-[#eeeeee] rounded-lg p-5 shadow-sm flex flex-col gap-4 group hover:border-[#ac0053]/40 transition-colors ${s.status && s.status !== 'active' ? 'opacity-65' : ''}`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-start gap-4">
@@ -981,6 +1257,16 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                             {s.status === 'inactive' && (
                               <span className="bg-gray-100 text-gray-600 font-medium text-[10px] px-2 py-0.5 rounded-full">
                                 Inactive
+                              </span>
+                            )}
+                            {s.status === 'archived' && (
+                              <span className="bg-amber-50 text-amber-700 font-medium text-[10px] px-2 py-0.5 rounded-full">
+                                Archived
+                              </span>
+                            )}
+                            {s.businessId && !s.predefinedServiceId && (
+                              <span className="bg-[#f1f5ff] text-[#31456a] font-medium text-[10px] px-2 py-0.5 rounded-full">
+                                Custom
                               </span>
                             )}
                           </div>
@@ -1029,46 +1315,138 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                           <Copy className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteService(s)}
+                          onClick={() => (s.businessId
+                            ? setPendingDeleteServiceId(s.id)
+                            : handleDeleteService(s))}
                           disabled={managingServiceId === s.id}
-                          title="Delete"
+                          title="Delete Service"
                           className="p-2 text-[#5f5e5e] hover:text-red-600 hover:bg-red-50 rounded-full transition-colors disabled:opacity-40"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
+
+                    {/* Delete confirmation — removes only this salon's saved
+                        service; the global theme catalog is never touched. */}
+                    {pendingDeleteServiceId === s.id && (
+                      <div className="border-t border-[#eeeeee] pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <p className="text-xs text-[#5f5e5e]">
+                          Delete <span className="font-semibold text-[#1a1c1c]">{s.name}</span> from your salon’s services?
+                          The theme’s predefined service stays available.
+                        </p>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteServiceId(null)}
+                            className="px-3 py-1.5 text-xs font-semibold text-[#5f5e5e] bg-white border border-[#eeeeee] rounded-lg hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteService(s)}
+                            disabled={managingServiceId === s.id}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-40"
+                          >
+                            {managingServiceId === s.id ? 'Deleting…' : 'Delete Service'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {editingServiceId === s.id && (
                       <div className="border-t border-[#eeeeee] pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input
-                          value={editServiceName}
-                          onChange={(event) => setEditServiceName(event.target.value)}
-                          placeholder="Service name"
-                          className="px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          value={editServicePrice}
-                          onChange={(event) => setEditServicePrice(Number(event.target.value))}
-                          placeholder="Price"
-                          className="px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                        />
-                        <input
-                          type="number"
-                          min="1"
-                          value={editServiceDuration}
-                          onChange={(event) => setEditServiceDuration(Number(event.target.value))}
-                          placeholder="Duration"
-                          className="px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                        />
-                        <textarea
-                          value={editServiceDescription}
-                          onChange={(event) => setEditServiceDescription(event.target.value)}
-                          placeholder="Description"
-                          rows={2}
-                          className="px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
-                        />
+                        {/* Editing changes only these fields. The saved
+                            theme/category/predefined link is never sent. */}
+                        <div className="md:col-span-2 text-[11px] text-[#5f5e5e]">
+                          {s.predefinedServiceId
+                            ? <>Linked to the <span className="font-semibold text-[#1a1c1c]">{themeDisplayName}</span> catalog · <span className="font-semibold text-[#1a1c1c]">{s.category}</span>. Editing keeps that link.</>
+                            : <>Custom service in <span className="font-semibold text-[#1a1c1c]">{s.category}</span>. It stays independent of the predefined catalog.</>}
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Service Name</label>
+                          <input
+                            value={editServiceName}
+                            onChange={(event) => setEditServiceName(event.target.value)}
+                            placeholder="Service name"
+                            className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Status</label>
+                          <select
+                            value={editServiceStatus}
+                            onChange={(event) => setEditServiceStatus(event.target.value as SavedServiceStatus)}
+                            className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
+                          >
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="archived">Archived</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Price (₹)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={editServicePrice}
+                              onChange={(event) => setEditServicePrice(Number(event.target.value))}
+                              placeholder="Price"
+                              className="flex-1 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateServicePrice(s, editServicePrice)}
+                              disabled={managingServiceId === s.id || editServicePrice < 0}
+                              title="Update price only"
+                              className="px-3 py-2 border border-[#eeeeee] rounded-lg text-[11px] font-semibold text-[#ac0053] hover:bg-[#fff1f4] disabled:opacity-40"
+                            >
+                              Update
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Duration (mins)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              value={editServiceDuration}
+                              onChange={(event) => setEditServiceDuration(Number(event.target.value))}
+                              placeholder="Duration"
+                              className="flex-1 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateServiceDuration(s, editServiceDuration)}
+                              disabled={managingServiceId === s.id || editServiceDuration <= 0}
+                              title="Update duration only"
+                              className="px-3 py-2 border border-[#eeeeee] rounded-lg text-[11px] font-semibold text-[#ac0053] hover:bg-[#fff1f4] disabled:opacity-40"
+                            >
+                              Update
+                            </button>
+                          </div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Description</label>
+                          <textarea
+                            value={editServiceDescription}
+                            onChange={(event) => setEditServiceDescription(event.target.value)}
+                            placeholder="Description"
+                            rows={2}
+                            className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateServiceDescription(s, editServiceDescription)}
+                            disabled={managingServiceId === s.id}
+                            title="Update description only"
+                            className="mt-2 px-3 py-1.5 border border-[#eeeeee] rounded-lg text-[11px] font-semibold text-[#ac0053] hover:bg-[#fff1f4] disabled:opacity-40"
+                          >
+                            Update description
+                          </button>
+                        </div>
                         <div className="md:col-span-2 flex justify-end gap-2">
                           <button
                             type="button"
@@ -1097,7 +1475,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                 <form onSubmit={handleCreateService} className="bg-white border-2 border-[#ac0053] rounded-lg p-5 shadow-md space-y-4">
                   <div className="flex justify-between items-center border-b border-[#eeeeee] pb-3">
                     <h4 className="font-bold text-[#1a1c1c]">Add New Service</h4>
-                    <button type="button" onClick={() => setIsAddingService(false)} className="text-[#5f5e5e] hover:text-black">
+                    <button type="button" onClick={closeAddServiceForm} className="text-[#5f5e5e] hover:text-black">
                       <X className="w-5 h-5" />
                     </button>
                   </div>
@@ -1249,12 +1627,19 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                       </div>
                     )}
                   </div>
+                  {addServiceError && (
+                    <p className="text-xs text-red-600" role="alert">{addServiceError}</p>
+                  )}
                   <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={() => setIsAddingService(false)} className="px-4 py-2 text-sm text-[#5f5e5e] hover:bg-gray-100 rounded-lg">
+                    <button type="button" onClick={closeAddServiceForm} className="px-4 py-2 text-sm text-[#5f5e5e] hover:bg-gray-100 rounded-lg">
                       Cancel
                     </button>
-                    <button type="submit" className="px-5 py-2 text-sm bg-[#ac0053] text-white font-semibold rounded-lg hover:bg-[#ba005b]">
-                      Save Service
+                    <button
+                      type="submit"
+                      disabled={isCreatingService || !newServiceName.trim() || currentCatalogLoading}
+                      className="px-5 py-2 text-sm bg-[#ac0053] text-white font-semibold rounded-lg hover:bg-[#ba005b] disabled:opacity-40"
+                    >
+                      {isCreatingService ? 'Saving…' : 'Save Service'}
                     </button>
                   </div>
                 </form>

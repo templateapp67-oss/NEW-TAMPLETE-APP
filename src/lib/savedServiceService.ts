@@ -2,21 +2,34 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DatabaseCatalogThemeId } from './themeCatalogService';
 import { requireSupabase } from './supabaseClient';
 
-export interface SavedPredefinedService {
+export type SavedServiceStatus = 'active' | 'inactive' | 'archived';
+
+/**
+ * One saved salon service row.
+ *
+ * `predefinedServiceId` is `null` for Custom / "Other" services — that NULL is
+ * the provenance contract and must never be replaced with a guessed predefined
+ * row. `themeId` / `categoryId` / `predefinedServiceId` are read-only here: no
+ * client call can ever send them to an edit/status RPC.
+ */
+export interface SavedService {
   id: string;
   businessId: string;
   themeId: string;
   themeKey: DatabaseCatalogThemeId;
   categoryId: string;
-  predefinedServiceId: string;
+  predefinedServiceId: string | null;
   name: string;
   category: string;
   description: string;
   price: number;
   duration: number;
-  status: 'active' | 'inactive' | 'archived';
+  status: SavedServiceStatus;
   featured: boolean;
 }
+
+/** Retained name for existing Phase 7.4 callers/tests. */
+export type SavedPredefinedService = SavedService;
 
 export interface SavePredefinedServicesResult {
   businessId: string;
@@ -24,7 +37,7 @@ export interface SavePredefinedServicesResult {
   requestedCount: number;
   insertedCount: number;
   existingCount: number;
-  services: SavedPredefinedService[];
+  services: SavedService[];
 }
 
 export class SavedServiceError extends Error {
@@ -58,15 +71,67 @@ const asNumber = (value: unknown, label: string): number => {
   return number;
 };
 
+/** Custom / "Other" services legitimately carry a NULL predefined link. */
+const asNullableString = (value: unknown, label: string): string | null => {
+  if (value === null || value === undefined) return null;
+  return asString(value, label);
+};
+
+/** Surfaces the readable database message when the RPC raised one. */
+/**
+ * Deliberate, user-facing messages raised by our own RPCs with `raise
+ * exception`. Anything not matching these patterns is treated as an internal
+ * database fault and replaced with a generic message, so raw PostgreSQL text
+ * (table names, constraint names, SQL fragments) is never rendered in the UI.
+ */
+const SAFE_MESSAGE_PATTERNS: RegExp[] = [
+  /please log in/i,
+  /no manageable salon/i,
+  /multiple salons are linked/i,
+  /not found for your salon/i,
+  /already saved/i,
+  /does not belong to this theme/i,
+  /does not belong to this theme and category/i,
+  /category does not belong to this theme/i,
+  /do not belong to the active theme/i,
+  /no active service catalog exists/i,
+  /name is required/i,
+  /price cannot be negative/i,
+  /duration must be positive/i,
+  /status must be active, inactive, or archived/i,
+  /remove this service from its package/i,
+  /provenance is immutable/i,
+  /ownership is immutable/i,
+  /is inactive, or belongs to another theme/i,
+  /must reference a theme/i,
+  /must reference its category/i,
+];
+
+const rpcError = (error: unknown, fallback: string): SavedServiceError => {
+  const raw = error && typeof error === 'object' && 'message' in error
+    ? String((error as { message?: unknown }).message ?? '').trim()
+    : '';
+
+  // Always keep the full detail in the console for developers…
+  if (raw) console.error('Saved service RPC failed:', error);
+
+  // …but only surface messages we deliberately authored.
+  if (raw && SAFE_MESSAGE_PATTERNS.some((pattern) => pattern.test(raw))) {
+    return new SavedServiceError(raw);
+  }
+  return new SavedServiceError(fallback);
+};
+
 const mapSavedService = (
   rawValue: unknown,
   expectedBusinessId: string,
   expectedThemeId: DatabaseCatalogThemeId,
   allowedPredefinedIds?: Set<string>,
-): SavedPredefinedService => {
+): SavedService => {
   const raw = asRecord(rawValue, 'saved service');
-  const predefinedServiceId = asString(raw.predefined_service_id, 'predefined_service_id');
-  if (allowedPredefinedIds && !allowedPredefinedIds.has(predefinedServiceId)) {
+  const predefinedServiceId = asNullableString(raw.predefined_service_id, 'predefined_service_id');
+  if (allowedPredefinedIds
+    && (predefinedServiceId === null || !allowedPredefinedIds.has(predefinedServiceId))) {
     throw new SavedServiceError('The database returned an unrequested predefined service.');
   }
   if (asString(raw.business_id, 'service business_id') !== expectedBusinessId) {
@@ -167,11 +232,11 @@ export function savePredefinedServices(
 export async function loadSavedServicesForThemeWithClient(
   client: SupabaseClient,
   themeId: DatabaseCatalogThemeId,
-): Promise<SavedPredefinedService[]> {
+): Promise<SavedService[]> {
   const { data, error } = await client.rpc('get_saved_services_for_theme', {
     p_theme_id: themeId,
   });
-  if (error) throw new SavedServiceError();
+  if (error) throw rpcError(error, 'Unable to load saved services.');
   const payload = asRecord(data, 'saved services response');
   if (asString(payload.theme_id, 'saved services theme_id') !== themeId) {
     throw new SavedServiceError('The database returned saved services for a different theme.');
@@ -183,15 +248,77 @@ export async function loadSavedServicesForThemeWithClient(
 
 export function loadSavedServicesForTheme(
   themeId: DatabaseCatalogThemeId,
-): Promise<SavedPredefinedService[]> {
+): Promise<SavedService[]> {
   return loadSavedServicesForThemeWithClient(requireSupabase(), themeId);
 }
 
-export interface SavedServiceChanges {
+/**
+ * Add Service input.
+ *
+ * `predefinedServiceId` is optional and stays NULL for Custom / "Other"
+ * services. It is validated server-side against the exact theme+category chain,
+ * so a name typed by the owner can never be converted into a predefined link.
+ */
+export interface NewSavedService {
+  categoryId: string;
   name: string;
   description: string;
   price: number;
   duration: number;
+  predefinedServiceId?: string | null;
+  status?: SavedServiceStatus;
+}
+
+export async function createSavedServiceWithClient(
+  client: SupabaseClient,
+  themeId: DatabaseCatalogThemeId,
+  input: NewSavedService,
+): Promise<SavedService> {
+  const name = input.name.trim();
+  if (!name) throw new SavedServiceError('Service name is required.');
+  if (!input.categoryId) throw new SavedServiceError('Select a category for this service.');
+  if (!Number.isFinite(input.price) || input.price < 0) {
+    throw new SavedServiceError('Service price cannot be negative.');
+  }
+  if (!Number.isFinite(input.duration) || input.duration <= 0) {
+    throw new SavedServiceError('Service duration must be positive.');
+  }
+
+  const { data, error } = await client.rpc('create_saved_service', {
+    p_theme_id: themeId,
+    p_category_id: input.categoryId,
+    p_name: name,
+    p_description: input.description ?? '',
+    p_price_paise: Math.round(input.price * 100),
+    p_duration_minutes: Math.round(input.duration),
+    // Explicitly NULL for custom services; never inferred from the name.
+    p_predefined_service_id: input.predefinedServiceId ?? null,
+    p_status: input.status ?? 'active',
+  });
+  if (error) throw rpcError(error, 'Unable to add this service.');
+  const raw = asRecord(data, 'created saved service');
+  return mapSavedService(raw, asString(raw.business_id, 'created business_id'), themeId);
+}
+
+export function createSavedService(
+  themeId: DatabaseCatalogThemeId,
+  input: NewSavedService,
+): Promise<SavedService> {
+  return createSavedServiceWithClient(requireSupabase(), themeId, input);
+}
+
+/**
+ * Editable fields only. Every property is optional so "update price",
+ * "update duration", "update description" and "change status" are independent
+ * operations. There is intentionally no way to express a theme, category,
+ * predefined-service or business change.
+ */
+export interface SavedServiceChanges {
+  name?: string;
+  description?: string;
+  price?: number;
+  duration?: number;
+  status?: SavedServiceStatus;
 }
 
 export async function updateSavedServiceWithClient(
@@ -199,15 +326,26 @@ export async function updateSavedServiceWithClient(
   themeId: DatabaseCatalogThemeId,
   serviceId: string,
   changes: SavedServiceChanges,
-): Promise<SavedPredefinedService> {
+): Promise<SavedService> {
+  if (changes.name !== undefined && !changes.name.trim()) {
+    throw new SavedServiceError('Service name is required.');
+  }
+  if (changes.price !== undefined && (!Number.isFinite(changes.price) || changes.price < 0)) {
+    throw new SavedServiceError('Service price cannot be negative.');
+  }
+  if (changes.duration !== undefined && (!Number.isFinite(changes.duration) || changes.duration <= 0)) {
+    throw new SavedServiceError('Service duration must be positive.');
+  }
+
   const { data, error } = await client.rpc('update_saved_service', {
     p_service_id: serviceId,
-    p_name: changes.name,
-    p_description: changes.description,
-    p_price_paise: Math.round(changes.price * 100),
-    p_duration_minutes: changes.duration,
+    p_name: changes.name === undefined ? null : changes.name.trim(),
+    p_description: changes.description === undefined ? null : changes.description,
+    p_price_paise: changes.price === undefined ? null : Math.round(changes.price * 100),
+    p_duration_minutes: changes.duration === undefined ? null : Math.round(changes.duration),
+    p_status: changes.status ?? null,
   });
-  if (error) throw new SavedServiceError();
+  if (error) throw rpcError(error, 'Unable to update this service.');
   const raw = asRecord(data, 'updated saved service');
   return mapSavedService(raw, asString(raw.business_id, 'updated business_id'), themeId);
 }
@@ -216,21 +354,73 @@ export function updateSavedService(
   themeId: DatabaseCatalogThemeId,
   serviceId: string,
   changes: SavedServiceChanges,
-): Promise<SavedPredefinedService> {
+): Promise<SavedService> {
   return updateSavedServiceWithClient(requireSupabase(), themeId, serviceId, changes);
 }
 
+/** Update Price only. */
+export function updateSavedServicePrice(
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  price: number,
+): Promise<SavedService> {
+  return updateSavedService(themeId, serviceId, { price });
+}
+
+/** Update Duration only. */
+export function updateSavedServiceDuration(
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  duration: number,
+): Promise<SavedService> {
+  return updateSavedService(themeId, serviceId, { duration });
+}
+
+/** Update Description only. */
+export function updateSavedServiceDescription(
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  description: string,
+): Promise<SavedService> {
+  return updateSavedService(themeId, serviceId, { description });
+}
+
+/** Change service status (active / inactive / archived). */
+export async function setSavedServiceStatusWithClient(
+  client: SupabaseClient,
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  status: SavedServiceStatus,
+): Promise<SavedService> {
+  const { data, error } = await client.rpc('set_saved_service_status', {
+    p_service_id: serviceId,
+    p_status: status,
+  });
+  if (error) throw rpcError(error, 'Unable to change service status.');
+  const raw = asRecord(data, 'saved service status');
+  return mapSavedService(raw, asString(raw.business_id, 'status business_id'), themeId);
+}
+
+export function setSavedServiceStatus(
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  status: SavedServiceStatus,
+): Promise<SavedService> {
+  return setSavedServiceStatusWithClient(requireSupabase(), themeId, serviceId, status);
+}
+
+/** Activate / Deactivate shortcut. */
 export async function setSavedServiceActiveWithClient(
   client: SupabaseClient,
   themeId: DatabaseCatalogThemeId,
   serviceId: string,
   isActive: boolean,
-): Promise<SavedPredefinedService> {
+): Promise<SavedService> {
   const { data, error } = await client.rpc('set_saved_service_active', {
     p_service_id: serviceId,
     p_is_active: isActive,
   });
-  if (error) throw new SavedServiceError();
+  if (error) throw rpcError(error, 'Unable to change service status.');
   const raw = asRecord(data, 'saved service status');
   return mapSavedService(raw, asString(raw.business_id, 'status business_id'), themeId);
 }
@@ -239,10 +429,14 @@ export function setSavedServiceActive(
   themeId: DatabaseCatalogThemeId,
   serviceId: string,
   isActive: boolean,
-): Promise<SavedPredefinedService> {
+): Promise<SavedService> {
   return setSavedServiceActiveWithClient(requireSupabase(), themeId, serviceId, isActive);
 }
 
+/**
+ * Deletes only this salon's saved service row. Global themes,
+ * service_categories and predefined_services are never targeted.
+ */
 export async function deleteSavedServiceWithClient(
   client: SupabaseClient,
   serviceId: string,
@@ -250,7 +444,7 @@ export async function deleteSavedServiceWithClient(
   const { data, error } = await client.rpc('delete_saved_service', {
     p_service_id: serviceId,
   });
-  if (error) throw new SavedServiceError('Unable to delete this saved service.');
+  if (error) throw rpcError(error, 'Unable to delete this saved service.');
   if (data !== serviceId) throw new SavedServiceError('The database deleted a different service.');
   return serviceId;
 }
