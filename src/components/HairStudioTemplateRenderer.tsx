@@ -1,17 +1,21 @@
 import type { CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
-import { getSalonNameStyle } from '../lib/brandIdentity';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
+import SiteFooter from './SiteFooter';
+import SiteFloatingActions from './SiteFloatingActions';
+import SiteBookingHost from './SiteBookingHost';
+import SiteAnnouncementBar from './SiteAnnouncementBar';
+import SiteSalonStatus from './SiteSalonStatus';
+import { openSiteBooking } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
   activeCatalogItems,
-  announcementOffer,
   featuredServices,
   headerModeOf,
   resolveSectionState,
@@ -66,7 +70,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance('hair_studio_color_bar');
   const t = surfacesOf(HAIR_STUDIO_SURFACES, appearance);
-  const { ink, inkSoft, paper, paperDeep, rose, roseBright, roseSoft, roseDeep, line, muted, card, footerBg } = t;
+  const { ink, inkSoft, paper, paperDeep, rose, roseBright, roseSoft, roseDeep, line, muted, card } = t;
   const isDark = appearance === 'dark';
   const S = { ...siteText('hair_studio_color_bar', locale), ...structureText('hair_studio_color_bar', locale) };
   const X = structureCopyFrom(S);
@@ -75,7 +79,6 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
   const services = activeCatalogItems(data.services);
   const packages = activeCatalogItems(data.packages);
   const featured = featuredServices(data.services);
-  const promo = announcementOffer(data);
   const servicesState = resolveSectionState('services', services);
   const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
@@ -85,11 +88,6 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
   const locationState = resolveSectionState('location', ['ready']);
-
-  // Keep the owner's chosen font style for the salon name; footer is a dark
-  // slab in both appearances so the fallback stays paper-light there.
-  const nameStyle = { ...getSalonNameStyle(data) };
-  if (!nameStyle.color) nameStyle.color = '#faf8f5';
 
   const btnRose: CSSProperties = {
     backgroundColor: rose,
@@ -103,7 +101,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
   ];
 
   return (
-    <div className={`shadow-xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)}`} style={{ borderColor: line, backgroundColor: card }}>
+    <div className={`relative shadow-xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)} ${mode === 'mobile' ? 'site-has-mobile-dock' : ''}`} style={{ borderColor: line, backgroundColor: card }}>
       {/* Browser/Phone Header Bar (mock chrome — not part of the website) */}
       {mode !== 'mobile' ? (
         <div className="h-10 flex items-center px-4 gap-2 shrink-0 border-b" style={{ backgroundColor: paper, borderColor: line }}>
@@ -124,10 +122,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
 
       {/* Scrollable Website Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll pb-20" style={{ backgroundColor: paper, color: ink }}>
-        <div {...sectionProps('announcement', 'ready')} className="site-section px-4 py-2.5 flex flex-wrap items-center justify-center gap-2 text-center border-b" style={{ backgroundColor: paperDeep, borderColor: line, color: ink }}>
-          <span className="text-[9px] uppercase tracking-[0.28em] font-semibold" style={{ color: roseDeep }}>{promo?.badge || S.announceBadge}</span>
-          <p className="text-[11px] font-medium min-w-0 break-words">{promo ? promo.title : S.announceDefault}</p>
-        </div>
+        <SiteAnnouncementBar themeId="hair_studio_color_bar" data={data} />
         <SiteHeader themeId="hair_studio_color_bar" data={data} mode={headerMode} />
 
         <div id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative px-5 md:px-8 py-16 md:py-20 text-center overflow-hidden" style={{ backgroundColor: paperDeep }}>
@@ -150,7 +145,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
               {data.about || S.heroFallbackAbout}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
-              <button className="px-9 py-3.5 text-[11px] uppercase tracking-[0.25em] font-semibold transition-all hover:brightness-110" style={btnRose}>
+              <button data-open-booking="true" onClick={openSiteBooking} className="px-9 py-3.5 text-[11px] uppercase tracking-[0.25em] font-semibold transition-all hover:brightness-110" style={btnRose}>
                 {S.heroPrimaryCta}
               </button>
               <button className="px-9 py-3.5 text-[11px] uppercase tracking-[0.25em] font-semibold border transition-colors" style={{ borderColor: ink, color: ink, backgroundColor: 'transparent' }}>
@@ -194,7 +189,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                         </div>
                         <ServicePrice service={s} offers={data.offers} style={{ color: roseDeep }} compact dark={isDark} />
                       </div>
-                      <button className="site-touch mt-4 text-[10px] uppercase tracking-[0.2em] font-semibold underline underline-offset-4" style={{ color: roseDeep }}>{S['common.bookThisService']}</button>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch mt-4 text-[10px] uppercase tracking-[0.2em] font-semibold underline underline-offset-4" style={{ color: roseDeep }}>{S['common.bookThisService']}</button>
                     </div>
                   );
                 })}
@@ -241,7 +236,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                         <div className="min-w-0">
                           <h4 className="text-sm font-serif font-semibold break-words" style={{ color: ink }}>{shown.name}</h4>
                           <p className="text-[11px] mt-1 leading-relaxed line-clamp-2 break-words" style={{ color: muted }}>{shown.description}</p>
-                          <button className="text-[10px] uppercase tracking-[0.2em] font-semibold mt-2 underline underline-offset-4 transition-colors" style={{ color: roseDeep }}>
+                          <button data-open-booking="true" onClick={openSiteBooking} className="text-[10px] uppercase tracking-[0.2em] font-semibold mt-2 underline underline-offset-4 transition-colors" style={{ color: roseDeep }}>
                             {S['common.bookThisService']}
                           </button>
                         </div>
@@ -281,7 +276,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                       </div>
                       <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
                         <BundlePrice bundle={p} offers={data.offers} style={{ color: roseDeep }} dark={isDark} />
-                        <button className="px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-110" style={btnRose}>
+                        <button data-open-booking="true" onClick={openSiteBooking} className="px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-110" style={btnRose}>
                           {S['common.bookPackage']}
                         </button>
                       </div>
@@ -411,7 +406,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                           <p className="text-[10px] uppercase tracking-[0.25em] mt-1" style={{ color: roseDeep }}>{pub.role}</p>
                         </div>
                       </div>
-                      <button className="site-touch w-full py-2.5 text-[10px] uppercase tracking-[0.25em] font-semibold border" style={{ borderColor: ink, color: ink }}>{S['common.bookWith'].replace('{name}', pub.name.split(' ')[0])}</button>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch w-full py-2.5 text-[10px] uppercase tracking-[0.25em] font-semibold border" style={{ borderColor: ink, color: ink }}>{S['common.bookWith'].replace('{name}', pub.name.split(' ')[0])}</button>
                     </div>
                   );
                 })}
@@ -473,6 +468,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                 <h4 className="font-serif font-semibold text-sm flex items-center gap-2" style={{ color: ink }}>
                   <Clock className="w-4 h-4" style={{ color: roseDeep }} /> {S['common.openingHours']}
                 </h4>
+                <SiteSalonStatus themeId="hair_studio_color_bar" data={data} placement="contact" />
                 <div className="space-y-2 text-xs" style={{ color: muted }}>
                   {data.openingHours ? (
                     Object.entries(data.openingHours).map(([day, sch]) => (
@@ -505,7 +501,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
               <button className="py-3 text-white font-semibold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all hover:brightness-110" style={{ backgroundColor: '#25D366' }}>
                 <MessageCircle className="w-4 h-4" /> {S['common.whatsApp']}
               </button>
-              <button className="py-3 font-semibold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all hover:brightness-110" style={btnRose}>
+              <button data-open-booking="true" onClick={openSiteBooking} className="py-3 font-semibold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all hover:brightness-110" style={btnRose}>
                 <CalendarCheck className="w-4 h-4" /> {S['common.bookOnline']}
               </button>
             </div>
@@ -522,21 +518,12 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        <FinalBookingCta title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} sharp />
-
-        <footer {...sectionProps('footer', 'ready')} className="site-section px-5 md:px-8 py-10 text-center text-xs" style={{ backgroundColor: footerBg, color: '#cfcac4' }}>
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Scissors className="w-4 h-4" style={{ color: roseBright }} />
-            <p className="font-serif font-semibold text-sm tracking-wide" style={nameStyle}>{data.salonName || 'Atelier Hair Studio'}</p>
-          </div>
-          <p className="uppercase tracking-[0.25em] text-[9px] font-medium mb-4" style={{ color: roseBright }}>
-            {data.tagline || S.footerFallbackTagline}
-          </p>
-          <p className="text-[9px] uppercase tracking-[0.2em]" style={{ color: '#8c8782' }}>
-            © 2026 {data.salonName || 'Salon'}. {S['common.poweredBy']}
-          </p>
-        </footer>
+        <FinalBookingCta themeId="hair_studio_color_bar" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} sharp />
+        <SiteFooter themeId="hair_studio_color_bar" data={data} />
+        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
+      <SiteFloatingActions themeId="hair_studio_color_bar" data={data} mode={mode} />
+      <SiteBookingHost data={data} />
     </div>
   );
 }

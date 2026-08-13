@@ -34,3 +34,19 @@
   min-height: 44px;
   min-width: 44px;
 }
+
+/* PHASE 10.4 — floating actions + mobile dock must not cover content */
+.site-fab {
+  min-height: 44px;
+  min-width: 44px;
+}
+.site-mobile-dock {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+.site-mobile-dock-spacer {
+  height: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+  flex-shrink: 0;
+}
+.site-has-mobile-dock .site-scroll {
+  padding-bottom: 0;
+}

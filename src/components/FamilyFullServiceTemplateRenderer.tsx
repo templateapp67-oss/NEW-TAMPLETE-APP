@@ -1,18 +1,22 @@
 import type { ReactNode } from 'react';
 import type { SalonData, Service, ServiceOffer } from '../types';
 import { getPublicStaffData } from '../types';
-import { getSalonNameStyle } from '../lib/brandIdentity';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
+import SiteFooter from './SiteFooter';
+import SiteFloatingActions from './SiteFloatingActions';
+import SiteBookingHost from './SiteBookingHost';
+import SiteAnnouncementBar from './SiteAnnouncementBar';
+import SiteSalonStatus from './SiteSalonStatus';
+import { openSiteBooking } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { FAMILY_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import type { FamilySurface } from '../lib/themeSurfaces';
 import { dayLabel, siteText } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
-  announcementOffer,
   featuredServices,
   headerModeOf,
   resolveSectionState,
@@ -30,7 +34,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
-  Facebook,
   HeartHandshake,
   Instagram,
   Mail,
@@ -47,7 +50,6 @@ import {
   Star,
   UserRound,
   Users,
-  Youtube,
 } from 'lucide-react';
 
 /**
@@ -321,10 +323,6 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   const palette = { accent: teal, text: ink, muted, card: t.card, line, invert: '#ffffff' };
   const headerMode = headerModeOf(mode);
   const featured = featuredServices(data.services);
-  const promo = announcementOffer(data);
-
-  const nameStyle = { ...getSalonNameStyle(data) };
-  if (!nameStyle.color) nameStyle.color = '#ffffff';
 
   const MENU_FOCUSES: { men: FocusItem[]; women: FocusItem[]; kids: FocusItem[]; combos: FocusItem[] } = {
     men: [
@@ -404,7 +402,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
 
   return (
     <div
-      className={`shadow-2xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode, 'rounded-2xl')} ${mode === 'mobile' ? 'rounded-[2rem] border-[8px]' : ''}`}
+      className={`relative shadow-2xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode, 'rounded-2xl')} ${mode === 'mobile' ? 'rounded-[2rem] border-[8px] site-has-mobile-dock' : ''}`}
       style={{ borderColor: mode === 'mobile' ? '#10243a' : line, backgroundColor: white }}
     >
       {/* Browser / phone chrome (mock chrome — not part of the website) */}
@@ -426,10 +424,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
       )}
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll" style={{ backgroundColor: t.page, color: ink }}>
-        <div {...sectionProps('announcement', 'ready')} className="site-section px-4 py-2.5 flex flex-wrap items-center justify-center gap-2 text-center" style={{ backgroundColor: teal, color: '#ffffff' }}>
-          <span className="text-[9px] font-extrabold uppercase tracking-[0.18em] px-2 py-1 rounded-full" style={{ backgroundColor: sun, color: '#12385b' }}>{promo?.badge || S.announceBadge}</span>
-          <p className="text-[11px] font-bold min-w-0 break-words">{promo ? promo.title : S.announceDefault}</p>
-        </div>
+        <SiteAnnouncementBar themeId="family_full_service" data={data} />
         <SiteHeader themeId="family_full_service" data={data} mode={headerMode} />
 
         <section id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative overflow-hidden px-5 md:px-8 py-8 md:py-12" style={{ backgroundColor: sky }}>
@@ -448,7 +443,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
                 {data.tagline || S.heroFallbackTagline}
               </p>
               <div className="flex flex-wrap gap-3 mt-7">
-                <a href="#section-contact" className="rounded-xl px-5 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center gap-2 shadow-lg transition-transform hover:-translate-y-0.5" style={{ backgroundColor: teal, color: '#ffffff' }}>
+                <a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="rounded-xl px-5 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center gap-2 shadow-lg transition-transform hover:-translate-y-0.5" style={{ backgroundColor: teal, color: '#ffffff' }}>
                   {S.heroPrimaryCta} <ArrowRight className="w-4 h-4" />
                 </a>
                 <a href="#section-services" className="rounded-xl px-5 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.14em] border transition-colors" style={{ borderColor: skyDeep, color: blue, backgroundColor: t.card }}>
@@ -507,7 +502,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
               {featured.map((service) => (
                 <div key={service.id} className="rounded-2xl border p-4 min-w-0 flex items-center justify-between gap-3" style={{ borderColor: line, backgroundColor: t.well }}>
                   <p className="text-sm font-extrabold break-words" style={{ color: ink }}>{service.name}</p>
-                  <a href="#section-contact" className="site-touch shrink-0 rounded-xl px-3 py-2 text-[9px] font-extrabold uppercase" style={{ backgroundColor: teal, color: '#ffffff' }}>{S['common.bookNow']}</a>
+                  <a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="site-touch shrink-0 rounded-xl px-3 py-2 text-[9px] font-extrabold uppercase" style={{ backgroundColor: teal, color: '#ffffff' }}>{S['common.bookNow']}</a>
                 </div>
               ))}
             </div>
@@ -542,7 +537,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
             <div>
               <SectionIntro eyebrow={S.menEyebrow} title={S.menTitle} body={S.menBody} t={t} />
               <FocusStrip items={MENU_FOCUSES.men} t={t} />
-              <a href="#section-contact" className="inline-flex items-center gap-2 mt-6 text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: blue }}>{S.menCta} <ArrowRight className="w-3.5 h-3.5" /></a>
+              <a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="inline-flex items-center gap-2 mt-6 text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: blue }}>{S.menCta} <ArrowRight className="w-3.5 h-3.5" /></a>
             </div>
             <div className="rounded-[1.75rem] p-5 md:p-6" style={{ backgroundColor: t.menBand }}>
               <div className="flex items-center justify-between gap-3 mb-2">
@@ -567,7 +562,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
             <div>
               <SectionIntro eyebrow={S.womenEyebrow} title={S.womenTitle} body={S.womenBody} t={t} />
               <FocusStrip items={MENU_FOCUSES.women} t={t} />
-              <a href="#section-contact" className="inline-flex items-center gap-2 mt-6 text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: tealDeep }}>{S.womenCta} <ArrowRight className="w-3.5 h-3.5" /></a>
+              <a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="inline-flex items-center gap-2 mt-6 text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: tealDeep }}>{S.womenCta} <ArrowRight className="w-3.5 h-3.5" /></a>
             </div>
           </div>
         </section>
@@ -601,7 +596,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
               {groups.combos.map((combo) => (
                 <div key={combo.id} className="rounded-2xl border p-5 flex items-center justify-between gap-4" style={{ borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.08)' }}>
                   <div className="min-w-0"><div className="flex items-center gap-2"><PackageIcon className="w-4 h-4 shrink-0" style={{ color: sun }} /><h3 className="text-sm font-extrabold text-white truncate">{combo.name}</h3></div><p className="text-[10px] leading-relaxed mt-2 text-white/65 line-clamp-2">{combo.description}</p><p className="text-[9px] mt-3 font-bold text-white/55">{combo.duration} {S['common.minutes']} · {S.comboOneBooking}</p></div>
-                  <div className="text-right shrink-0"><BundlePrice bundle={combo} offers={data.offers} style={{ color: sun }} dark /><a href="#section-contact" className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-white mt-2">{S['common.bookNow']} <ArrowRight className="w-3 h-3" /></a></div>
+                  <div className="text-right shrink-0"><BundlePrice bundle={combo} offers={data.offers} style={{ color: sun }} dark /><a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-white mt-2">{S['common.bookNow']} <ArrowRight className="w-3 h-3" /></a></div>
                 </div>
               ))}
             </div>
@@ -684,27 +679,25 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           <div className="grid md:grid-cols-[1fr_1fr] gap-8">
             <div>
               <SectionIntro eyebrow={S.contactEyebrow} title={S.contactTitle} body={S.contactBody} light t={t} />
-              <div className="grid grid-cols-3 gap-2 mt-7"><ContactButton href={`tel:${contactPhone}`} icon={Phone} t={t}>{S.contactCall}</ContactButton><ContactButton href={whatsappPhone ? `https://wa.me/${whatsappPhone}` : '#section-contact'} icon={MessageCircle} t={t}>{S['common.whatsApp']}</ContactButton><ContactButton href="#section-contact" icon={CalendarDays} primary t={t}>{S.contactBookOnline}</ContactButton></div>
+              <div className="grid grid-cols-3 gap-2 mt-7"><ContactButton href={`tel:${contactPhone}`} icon={Phone} t={t}>{S.contactCall}</ContactButton><ContactButton href={whatsappPhone ? `https://wa.me/${whatsappPhone}` : '#section-contact'} icon={MessageCircle} t={t}>{S['common.whatsApp']}</ContactButton><button type="button" data-open-booking="true" onClick={openSiteBooking} className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[10px] font-extrabold uppercase tracking-[0.13em] transition-all hover:-translate-y-0.5" style={{ backgroundColor: t.sun, color: '#12385b' }}><CalendarDays className="w-4 h-4" />{S.contactBookOnline}</button></div>
               <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-[10px] font-bold text-white/75"><span className="flex items-center gap-1.5"><HeartHandshake className="w-3.5 h-3.5" style={{ color: sun }} /> {S.contactNote1}</span><span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" style={{ color: sun }} /> {S.contactNote2}</span></div>
             </div>
             <div className="rounded-[1.75rem] p-5 md:p-6" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
               <div className="grid sm:grid-cols-2 gap-5">
                 <div><h3 className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-white flex items-center gap-2"><MapPin className="w-4 h-4" style={{ color: sun }} /> {S.contactVisitLabel}</h3><p className="text-xs leading-relaxed mt-3 text-white/75">{data.address?.fullAddress || 'Your salon address will appear here.'}</p><a href="#section-contact" className="inline-flex items-center gap-1.5 mt-4 text-[10px] font-extrabold text-white">{S['common.getDirections']} <Navigation className="w-3.5 h-3.5" /></a></div>
-                <div><h3 className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-white flex items-center gap-2"><Clock3 className="w-4 h-4" style={{ color: sun }} /> {S.contactHoursLabel}</h3><div className="space-y-2 mt-3">{hours.slice(0, 5).map(([day, schedule]) => <div key={day} className="flex justify-between gap-2 text-[10px] border-b pb-1.5 text-white/75" style={{ borderColor: 'rgba(255,255,255,0.16)' }}><span className="capitalize">{dayLabel(day as string, locale)}</span><span>{schedule.open ? `${schedule.startTime} – ${schedule.endTime}` : S['common.closed']}</span></div>)}</div></div>
+                <div><h3 className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-white flex items-center gap-2"><Clock3 className="w-4 h-4" style={{ color: sun }} /> {S.contactHoursLabel}</h3><div className="mt-3"><SiteSalonStatus themeId="family_full_service" data={data} placement="contact" inverted /></div><div className="space-y-2 mt-3">{hours.slice(0, 5).map(([day, schedule]) => <div key={day} className="flex justify-between gap-2 text-[10px] border-b pb-1.5 text-white/75" style={{ borderColor: 'rgba(255,255,255,0.16)' }}><span className="capitalize">{dayLabel(day as string, locale)}</span><span>{schedule.open ? `${schedule.startTime} – ${schedule.endTime}` : S['common.closed']}</span></div>)}</div></div>
               </div>
               <div className="mt-5 pt-4 border-t flex flex-wrap items-center justify-between gap-2 text-[10px] text-white/70" style={{ borderColor: 'rgba(255,255,255,0.16)' }}><span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" style={{ color: sun }} /> {data.email || 'hello@familysalon.com'}</span><span>{data.phone || S.contactPhoneFallback}</span></div>
             </div>
           </div>
         </section>
 
-        <FinalBookingCta title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
-
-        {/* Footer — deep navy slab in both appearances */}
-        <footer {...sectionProps('footer', 'ready')} className="site-section px-5 md:px-8 py-8" style={{ backgroundColor: t.footerBg }}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5"><div><div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: teal }}><Users className="w-4 h-4 text-white" /></span><p className="font-extrabold text-sm" style={nameStyle}>{data.salonName || 'The Family Salon'}</p></div><p className="text-[10px] mt-3 text-white/55 max-w-xs">{data.tagline || S.footerFallbackTagline}</p></div><div className="flex items-center gap-3 text-white/65"><a href={data.socialProfiles?.instagram || '#section-footer'} aria-label="Instagram"><Instagram className="w-4 h-4 hover:text-white" /></a><a href={data.socialProfiles?.facebook || '#section-footer'} aria-label="Facebook"><Facebook className="w-4 h-4 hover:text-white" /></a><a href={data.socialProfiles?.youtube || '#section-footer'} aria-label="YouTube"><Youtube className="w-4 h-4 hover:text-white" /></a></div></div>
-          <div className="mt-7 pt-4 border-t flex flex-col sm:flex-row justify-between gap-2 text-[9px] uppercase tracking-[0.16em] text-white/40" style={{ borderColor: 'rgba(255,255,255,0.13)' }}><span>© 2026 {data.salonName || 'Salon'}</span><span>{S['common.poweredBy']}</span></div>
-        </footer>
+        <FinalBookingCta themeId="family_full_service" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
+        <SiteFooter themeId="family_full_service" data={data} />
+        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
+      <SiteFloatingActions themeId="family_full_service" data={data} mode={mode} />
+      <SiteBookingHost data={data} />
     </div>
   );
 }

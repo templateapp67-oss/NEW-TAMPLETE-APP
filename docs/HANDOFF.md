@@ -1,10 +1,34 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-13** (session `arena/019ffa99-new-tamplete-app`).
+> Last updated: **2026-08-13** (session `arena/019ffaae-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **Phase 10.5 — ANNOUNCEMENT BAR & LIVE SALON STATUS: COMPLETE for all five themes.**
+  - Dated festival / seasonal / important / custom announcements with
+    active/inactive, start/end dates, optional theme scope, EN/HI and CTA.
+    Expired and inactive rows auto-hide.
+  - Live salon status (Open Now, Closed, Closing Soon, Opens at [time],
+    Closed Today, Holiday) from weekly hours + holiday dates + local clock.
+  - Shown in the announcement strip, contact hours card and existing booking
+    flow — not in the footer or floating actions.
+  - Header, Language, Dark Mode, Footer and 10.4 CTAs/FABs are untouched.
+    Details: `docs/phase-10.5-announcement-live-status.md`.
+    Run `npm run test:phase-10` (10.1 + 10.2 + 10.3 + 10.4 + 10.5).
+
+- **Phase 10.4 — FINAL CTA, FOOTER & FLOATING ACTIONS: COMPLETE for all five themes.**
+  - Global Book Appointment CTAs open the existing `CustomerBookingPreview`
+    flow (header Book still scrolls to `section-contact` as in 10.1).
+  - Themed final CTA sits immediately before a complete footer (logo, links,
+    services, contact, address, hours, social, privacy, terms, cancellation,
+    copyright) on every theme.
+  - Desktop/tablet floating Call + WhatsApp + Back to Top; mobile sticky
+    Call | WhatsApp | Book dock with safe-area insets.
+  - Header, Language, Dark Mode and 10.3 section order are untouched.
+    Details: `docs/phase-10.4-final-cta-footer-floating.md`.
+    Run `npm run test:phase-10` (10.1 + 10.2 + 10.3 + 10.4).
 
 - **Phase 10.3 — RESPONSIVE WEBSITE STRUCTURE: COMPLETE for all five themes.**
   - One canonical public-website order on every theme: Announcement → Header →
@@ -18,7 +42,7 @@
     `src/lib/siteStructure.ts`.
   - Header, Language and Dark Mode from 10.1 / 10.2 are untouched.
     Details: `docs/phase-10.3-responsive-website-structure.md`.
-    Run `npm run test:phase-10` (10.1 80/80 + 10.2 49/49 + 10.3 86/86).
+    Run `npm run test:phase-10` (10.1 + 10.2 + 10.3 + 10.4 + 10.5).
 
 - **Phase 10.2 — GLOBAL LANGUAGE & DARK MODE: COMPLETE for all five themes.**
   - New `src/lib/siteI18n.ts`: one namespaced EN/HI copy table per theme +

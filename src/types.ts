@@ -200,6 +200,50 @@ export interface SalonOpeningHours {
   sunday: DaySchedule;
 }
 
+/** Festival / seasonal / important / short custom website announcement. */
+export type SalonAnnouncementKind = 'festival' | 'seasonal' | 'important' | 'custom';
+export type SalonAnnouncementStatus = 'active' | 'inactive';
+export type SalonAnnouncementCtaTarget = 'booking' | 'offers' | 'contact';
+
+export interface SalonAnnouncementVariant {
+  message: string;
+  messageHi?: string;
+  badge?: string;
+  badgeHi?: string;
+  ctaLabel?: string;
+  ctaLabelHi?: string;
+}
+
+export interface SalonAnnouncement {
+  id: string;
+  kind: SalonAnnouncementKind;
+  status: SalonAnnouncementStatus;
+  /** Inclusive local calendar day `YYYY-MM-DD`. */
+  startDate: string;
+  /** Inclusive local calendar day `YYYY-MM-DD`. */
+  endDate: string;
+  /** When set, the announcement only appears on that theme. */
+  themeId?: string | null;
+  message: string;
+  messageHi?: string;
+  badge?: string;
+  badgeHi?: string;
+  ctaLabel?: string;
+  ctaLabelHi?: string;
+  ctaTarget?: SalonAnnouncementCtaTarget;
+  /** Optional per-theme copy override (same dates / status as the parent). */
+  variants?: Partial<Record<string, SalonAnnouncementVariant>>;
+}
+
+export interface SalonHoliday {
+  /** Local calendar day `YYYY-MM-DD`. */
+  date: string;
+  name?: string;
+  nameHi?: string;
+  /** Defaults to closed when omitted. */
+  closed?: boolean;
+}
+
 export interface EnabledContactOptions {
   callNow: boolean;
   whatsapp: boolean;
@@ -257,6 +301,10 @@ export interface SalonData {
   socialVideos?: SocialVideo[];
   address?: SalonAddress;
   openingHours?: SalonOpeningHours;
+  /** Dated website announcements (festival / seasonal / important / custom). */
+  announcements?: SalonAnnouncement[];
+  /** Special closed dates. Weekly holidays remain `openingHours[day].open = false`. */
+  holidays?: SalonHoliday[];
   services: Service[];
   packages: Package[];
   /** Theme-scoped promotions loaded for the current five-theme catalog. */
@@ -373,6 +421,69 @@ export const initialData: SalonData = {
     saturday: { open: true, startTime: '10:00', endTime: '20:00' },
     sunday: { open: false, startTime: '10:00', endTime: '20:00' }
   },
+  announcements: [
+    {
+      id: 'ann-rakhi-2026',
+      kind: 'festival',
+      status: 'active',
+      startDate: '2026-08-01',
+      endDate: '2026-08-20',
+      message: 'Rakhi week — complimentary hot-towel finish with every booking.',
+      messageHi: 'राखी सप्ताह — हर बुकिंग पर मुफ़्त हॉट-टॉवल फिनिश।',
+      badge: 'Festival',
+      badgeHi: 'त्योहार',
+      ctaLabel: 'Book now',
+      ctaLabelHi: 'अभी बुक करें',
+      ctaTarget: 'booking',
+      variants: {
+        hair_studio_color_bar: {
+          message: 'Rakhi color bar — complimentary gloss with every consult.',
+          messageHi: 'राखी कलर बार — हर कंसल्ट पर मुफ़्त ग्लॉस।',
+          badge: 'Festival',
+          badgeHi: 'त्योहार',
+          ctaLabel: 'Reserve a chair',
+          ctaLabelHi: 'कुर्सी रिज़र्व करें',
+        },
+        beauty_skin_spa: {
+          message: 'Rakhi glow ritual — complimentary add-on with every facial.',
+          messageHi: 'राखी ग्लो रिचुअल — हर फेशियल पर मुफ़्त ऐड-ऑन।',
+        },
+        family_full_service: {
+          message: 'Rakhi family week — book the whole crew in one visit.',
+          messageHi: 'राखी फ़ैमिली वीक — पूरे परिवार को एक विज़िट में बुक करें।',
+        },
+        nail_lash_studio: {
+          message: 'Rakhi glow edit — complimentary art accent on every set.',
+          messageHi: 'राखी ग्लो एडिट — हर सेट पर मुफ़्त आर्ट एक्सेंट।',
+        },
+      },
+    },
+    {
+      id: 'ann-winter-expired',
+      kind: 'seasonal',
+      status: 'active',
+      startDate: '2026-01-01',
+      endDate: '2026-01-15',
+      message: 'Winter spa nights — 20% off evening slots.',
+      messageHi: 'विंटर स्पा नाइट्स — शाम के स्लॉट पर 20% छूट।',
+      badge: 'Seasonal',
+      badgeHi: 'सीज़न',
+    },
+    {
+      id: 'ann-important-off',
+      kind: 'important',
+      status: 'inactive',
+      startDate: '2026-08-01',
+      endDate: '2026-12-31',
+      message: 'Temporary renovation — appointments by booking only.',
+      messageHi: 'अस्थायी नवीनीकरण — केवल बुकिंग पर अपॉइंटमेंट।',
+      badge: 'Notice',
+      badgeHi: 'सूचना',
+    },
+  ],
+  holidays: [
+    { date: '2026-08-15', name: 'Independence Day', nameHi: 'स्वतंत्रता दिवस', closed: true },
+  ],
   socialVideos: [
     {
       id: 'v1',

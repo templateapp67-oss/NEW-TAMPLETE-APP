@@ -1,17 +1,21 @@
 import type { CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
-import { getSalonNameStyle } from '../lib/brandIdentity';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
+import SiteFooter from './SiteFooter';
+import SiteFloatingActions from './SiteFloatingActions';
+import SiteBookingHost from './SiteBookingHost';
+import SiteAnnouncementBar from './SiteAnnouncementBar';
+import SiteSalonStatus from './SiteSalonStatus';
+import { openSiteBooking } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { BARBER_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
   activeCatalogItems,
-  announcementOffer,
   featuredServices,
   headerModeOf,
   resolveSectionState,
@@ -21,7 +25,7 @@ import {
 } from '../lib/siteStructure';
 import type { ViewportMode } from '../lib/siteStructure';
 import {
-  Scissors, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
+  Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard,
 } from 'lucide-react';
 
@@ -51,7 +55,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance('barber_mens_grooming');
   const t = surfacesOf(BARBER_SURFACES, appearance);
-  const { gold, goldBright, goldSoft, charcoal, charcoalSoft, muted, line, text, textStrong, card, well, chipLine, accentText, footerBg } = t;
+  const { gold, goldBright, goldSoft, charcoal, charcoalSoft, muted, line, text, textStrong, card, well, chipLine, accentText } = t;
   const S = { ...siteText('barber_mens_grooming', locale), ...structureText('barber_mens_grooming', locale) };
   const X = structureCopyFrom(S);
   const palette = { accent: gold, text: textStrong, muted, card, line, invert: '#141414' };
@@ -59,7 +63,6 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
   const services = activeCatalogItems(data.services);
   const packages = activeCatalogItems(data.packages);
   const featured = featuredServices(data.services);
-  const promo = announcementOffer(data);
   const servicesState = resolveSectionState('services', services);
   const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
@@ -70,18 +73,13 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
   const locationState = resolveSectionState('location', data.address?.fullAddress ? [data.address.fullAddress] : ['fallback']);
 
-  // Keep the owner's chosen font style for the salon name; the barber footer
-  // is a dark slab in both appearances, so the fallback stays light.
-  const nameStyle = { ...getSalonNameStyle(data) };
-  if (!nameStyle.color) nameStyle.color = '#f5efe0';
-
   const btnGold: CSSProperties = {
     backgroundColor: gold,
     color: '#141414',
   };
 
   return (
-    <div className={`bg-black border shadow-xl flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)}`} style={{ borderColor: line }}>
+    <div className={`relative bg-black border shadow-xl flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)} ${mode === 'mobile' ? 'site-has-mobile-dock' : ''}`} style={{ borderColor: line }}>
       {/* Browser/Phone Header Bar (mock chrome — not part of the website) */}
       {mode !== 'mobile' ? (
         <div className="h-10 border-b flex items-center px-4 gap-2 shrink-0 bg-[#0c0c0c]" style={{ borderColor: '#262626' }}>
@@ -102,10 +100,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
 
       {/* Scrollable Website Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll pb-20" style={{ backgroundColor: t.page, color: text }}>
-        <div {...sectionProps('announcement', 'ready')} className="site-section px-4 py-2.5 flex flex-wrap items-center justify-center gap-2 text-center" style={{ backgroundColor: gold, color: '#141414' }}>
-          <span className="text-[9px] font-black uppercase tracking-[0.22em] px-2 py-1" style={{ backgroundColor: '#141414', color: gold }}>{promo?.badge || S.announceBadge}</span>
-          <p className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.14em] min-w-0 break-words">{promo ? promo.title : S.announceDefault}</p>
-        </div>
+        <SiteAnnouncementBar themeId="barber_mens_grooming" data={data} />
         <SiteHeader themeId="barber_mens_grooming" data={data} mode={headerMode} />
 
         {/* Hero */}
@@ -139,7 +134,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
               {data.about || S.heroFallbackAbout}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <button className="site-touch px-8 py-3.5 text-xs font-black uppercase tracking-[0.2em] transition-all hover:brightness-110" style={btnGold}>
+              <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-8 py-3.5 text-xs font-black uppercase tracking-[0.2em] transition-all hover:brightness-110" style={btnGold}>
                 {S['common.bookAppointment']}
               </button>
               <button className="site-touch px-8 py-3.5 text-xs font-black uppercase tracking-[0.2em] border transition-all hover:bg-white/5" style={{ borderColor: gold, color: accentText }}>
@@ -185,7 +180,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                         </div>
                         <ServicePrice service={s} offers={data.offers} style={{ color: accentText }} compact dark={appearance === 'dark'} />
                       </div>
-                      <button className="site-touch mt-4 w-full py-2.5 text-[10px] font-black uppercase tracking-[0.15em]" style={btnGold}>{S['common.bookSlot']}</button>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch mt-4 w-full py-2.5 text-[10px] font-black uppercase tracking-[0.15em]" style={btnGold}>{S['common.bookSlot']}</button>
                     </div>
                   );
                 })}
@@ -236,7 +231,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                   </p>
                   <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: line }}>
                     <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: muted }}>{S.serviceNote}</span>
-                    <button className="site-touch px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all hover:brightness-110" style={btnGold}>
+                    <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all hover:brightness-110" style={btnGold}>
                       {S['common.bookSlot']}
                     </button>
                   </div>
@@ -275,7 +270,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                     </div>
                     <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
                       <BundlePrice bundle={p} offers={data.offers} style={{ color: accentText }} dark={appearance === 'dark'} />
-                      <button className="site-touch px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all hover:brightness-110" style={btnGold}>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all hover:brightness-110" style={btnGold}>
                         {S['common.bookBundle']}
                       </button>
                     </div>
@@ -413,7 +408,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                           “{pub.bio}”
                         </p>
                       )}
-                      <button className="site-touch w-full py-2.5 text-xs font-black uppercase tracking-[0.2em] transition-all hover:brightness-110 mt-auto" style={btnGold}>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch w-full py-2.5 text-xs font-black uppercase tracking-[0.2em] transition-all hover:brightness-110 mt-auto" style={btnGold}>
                         {S['common.bookWith'].replace('{name}', pub.name.split(' ')[0])}
                       </button>
                     </div>
@@ -483,6 +478,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                 <h4 className="font-black text-sm uppercase tracking-wider flex items-center gap-2" style={{ color: textStrong }}>
                   <Clock className="w-4 h-4" style={{ color: gold }} /> {S['common.openingHours']}
                 </h4>
+                <SiteSalonStatus themeId="barber_mens_grooming" data={data} placement="contact" />
                 <div className="space-y-2 text-xs" style={{ color: muted }}>
                   {data.openingHours ? (
                     Object.entries(data.openingHours).map(([day, sch]) => (
@@ -515,7 +511,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
               <button className="py-3 text-white font-black text-[11px] uppercase tracking-[0.15em] flex items-center justify-center gap-2 transition-all hover:brightness-110" style={{ backgroundColor: '#25D366' }}>
                 <MessageCircle className="w-4 h-4" /> {S['common.whatsApp']}
               </button>
-              <button className="py-3 font-black text-[11px] uppercase tracking-[0.15em] flex items-center justify-center gap-2 transition-all hover:brightness-110" style={btnGold}>
+              <button data-open-booking="true" onClick={openSiteBooking} className="py-3 font-black text-[11px] uppercase tracking-[0.15em] flex items-center justify-center gap-2 transition-all hover:brightness-110" style={btnGold}>
                 <CalendarCheck className="w-4 h-4" /> {S['common.bookOnline']}
               </button>
             </div>
@@ -532,19 +528,12 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        <FinalBookingCta title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={{ ...palette, accent: gold }} sharp />
-
-        <footer {...sectionProps('footer', 'ready')} className="site-section px-6 py-10 text-center text-xs border-t" style={{ backgroundColor: footerBg, borderColor: gold }}>
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Scissors className="w-4 h-4" style={{ color: gold }} />
-            <p className="font-black text-sm uppercase tracking-[0.18em]" style={nameStyle}>{data.salonName || 'The Grooming Co.'}</p>
-          </div>
-          <p className="uppercase tracking-[0.2em] text-[10px] font-bold mb-4" style={{ color: '#a6a49b' }}>{data.tagline || S.footerFallbackTagline}</p>
-          <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: '#55534c' }}>
-            © 2026 {data.salonName || 'Salon'}. {S['common.poweredBy']}
-          </p>
-        </footer>
+        <FinalBookingCta themeId="barber_mens_grooming" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={{ ...palette, accent: gold }} sharp />
+        <SiteFooter themeId="barber_mens_grooming" data={data} />
+        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
+      <SiteFloatingActions themeId="barber_mens_grooming" data={data} mode={mode} />
+      <SiteBookingHost data={data} />
     </div>
   );
 }
