@@ -4,9 +4,22 @@ import { getSalonNameStyle } from '../lib/brandIdentity';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import { displayService } from '../lib/displayService';
 import { BEAUTY_SPA_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
+import { structureText } from '../lib/siteStructureI18n';
+import {
+  activeCatalogItems,
+  announcementOffer,
+  featuredServices,
+  headerModeOf,
+  resolveSectionState,
+  sectionProps,
+  siteFrameClass,
+  siteGrid,
+} from '../lib/siteStructure';
+import type { ViewportMode } from '../lib/siteStructure';
 import {
   Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard, Leaf, Flower2, Sparkles, Droplets,
@@ -14,7 +27,7 @@ import {
 
 interface Props {
   data: SalonData;
-  mode: 'desktop' | 'mobile';
+  mode: ViewportMode;
 }
 
 /**
@@ -41,7 +54,23 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const t = surfacesOf(BEAUTY_SPA_SURFACES, appearance);
   const { emerald, emeraldDeep, emeraldMid, emeraldSoft, beigeSoft, cream, blush, sage, text, muted, line, card, bandBg, bandText, bandMuted, footerBg } = t;
   const isDark = appearance === 'dark';
-  const S = siteText('beauty_skin_spa', locale);
+  const S = { ...siteText('beauty_skin_spa', locale), ...structureText('beauty_skin_spa', locale) };
+  const X = structureCopyFrom(S);
+  const palette = { accent: emerald, text, muted, card, line, invert: '#ffffff' };
+  const headerMode = headerModeOf(mode);
+  const services = activeCatalogItems(data.services);
+  const packages = activeCatalogItems(data.packages);
+  const featured = featuredServices(data.services);
+  const promo = announcementOffer(data);
+  const servicesState = resolveSectionState('services', services);
+  const featuredState = resolveSectionState('featured', featured);
+  const offersState = resolveSectionState('offers', packages);
+  const galleryState = resolveSectionState('gallery', data.gallery);
+  const videosState = resolveSectionState('videos', data.socialVideos);
+  const teamState = resolveSectionState('team', data.team);
+  const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
+  const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
+  const locationState = resolveSectionState('location', ['ready']);
 
   // Keep the owner's chosen font style for the salon name; footer is a deep
   // emerald slab in both appearances so the fallback stays mist-light.
@@ -81,9 +110,8 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const FACIAL_FALLBACKS = [S.facial1, S.facial2, S.facial3, S.facial4];
 
   return (
-    <div className="shadow-xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full w-full max-w-[950px] rounded-xl" style={{ borderColor: line, backgroundColor: card }}>
-      {/* Browser/Phone Header Bar (mock chrome — not part of the website) */}
-      {mode === 'desktop' ? (
+    <div className={`shadow-xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)}`} style={{ borderColor: line, backgroundColor: card }}>
+      {mode !== 'mobile' ? (
         <div className="h-10 flex items-center px-4 gap-2 shrink-0 border-b" style={{ backgroundColor: cream, borderColor: line }}>
           <div className="flex gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-red-400"></div>
@@ -101,12 +129,14 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
       )}
 
       {/* Scrollable Website Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar pb-16" style={{ backgroundColor: cream, color: text }}>
-        {/* Navigation — Phase 10.1 global header (beauty spa design) */}
-        <SiteHeader themeId="beauty_skin_spa" data={data} mode={mode} />
+      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll pb-20" style={{ backgroundColor: cream, color: text }}>
+        <div {...sectionProps('announcement', 'ready')} className="site-section px-4 py-2.5 flex flex-wrap items-center justify-center gap-2 text-center" style={{ backgroundColor: emerald, color: '#ffffff' }}>
+          <span className="text-[9px] uppercase tracking-[0.22em] font-semibold px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.16)' }}>{promo?.badge || S.announceBadge}</span>
+          <p className="text-[11px] font-medium min-w-0 break-words">{promo ? promo.title : S.announceDefault}</p>
+        </div>
+        <SiteHeader themeId="beauty_skin_spa" data={data} mode={headerMode} />
 
-        {/* Hero — soft, airy */}
-        <div id="section-hero" className="relative px-8 py-20 text-center overflow-hidden" style={{ background: isDark ? `linear-gradient(160deg, ${emeraldSoft} 0%, ${cream} 55%, ${beigeSoft} 100%)` : `linear-gradient(160deg, ${emeraldSoft} 0%, ${cream} 55%, ${beigeSoft} 100%)` }}>
+        <div id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative px-5 md:px-8 py-16 md:py-20 text-center overflow-hidden" style={{ background: `linear-gradient(160deg, ${emeraldSoft} 0%, ${cream} 55%, ${beigeSoft} 100%)` }}>
           {/* soft floating pastel blobs */}
           <div className="absolute -top-10 -left-10 w-56 h-56 rounded-full opacity-50 pointer-events-none" style={{ backgroundColor: sage }}></div>
           <div className="absolute -bottom-16 -right-10 w-64 h-64 rounded-full opacity-50 pointer-events-none" style={{ backgroundColor: blush }}></div>
@@ -133,8 +163,47 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        {/* Services — soft rounded cards */}
-        <div id="section-services" className="px-8 py-16" style={{ backgroundColor: cream }}>
+        <div {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: beigeSoft }}>
+          <div className="max-w-3xl mx-auto text-center">
+            <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.trustEyebrow}</span>
+            <h2 className="text-xl md:text-2xl font-serif mt-2" style={{ color: text }}>{S.trustTitle}</h2>
+            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 1 })}`}>
+              {[{ v: S.trust1Value, l: S.trust1Label }, { v: S.trust2Value, l: S.trust2Label }, { v: S.trust3Value, l: S.trust3Label }].map((stat) => (
+                <div key={stat.l} className="rounded-3xl border p-4 min-w-0" style={{ borderColor: line, backgroundColor: card }}>
+                  <p className="text-2xl font-serif" style={{ color: emerald }}>{stat.v}</p>
+                  <p className="text-[10px] uppercase tracking-[0.16em] mt-1" style={{ color: muted }}>{stat.l}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div {...sectionProps('featured', featuredState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: cream }}>
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-8">
+              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.featuredEyebrow}</span>
+              <h2 className="text-2xl font-serif mt-2" style={{ color: text }}>{S.featuredTitle}</h2>
+            </div>
+            {featuredState === 'ready' ? (
+              <div className={`grid gap-4 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
+                {featured.map((s) => {
+                  const shown = displayService(s, locale);
+                  return (
+                    <div key={s.id} className="rounded-3xl border p-5 min-w-0" style={{ borderColor: line, backgroundColor: card }}>
+                      <div className="flex justify-between gap-3">
+                        <h4 className="font-serif font-semibold text-sm break-words" style={{ color: text }}>{shown.name}</h4>
+                        <ServicePrice service={s} offers={data.offers} style={{ color: emerald }} compact dark={isDark} />
+                      </div>
+                      <button className="site-touch mt-4 rounded-full px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookNow']}</button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <SectionStatePanel status={featuredState} copy={X} palette={palette} emptyTitle={S.featuredEmpty} />}
+          </div>
+        </div>
+
+        <div {...sectionProps('services', servicesState)} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: cream }}>
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-12">
               <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.servicesEyebrow}</span>
@@ -144,8 +213,9 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
               </p>
             </div>
 
-            <div className={`grid gap-5 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {data.services && data.services.map((s) => {
+            {servicesState !== 'ready' ? <SectionStatePanel status={servicesState} copy={X} palette={palette} emptyTitle={S.servicesEmpty} /> : (
+            <div className={`grid gap-5 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
+              {services.map((s) => {
                 const shown = displayService(s, locale);
                 return (
                 <div key={s.id} className="rounded-3xl p-6 border transition-all hover:-translate-y-0.5 min-w-0" style={{ backgroundColor: card, borderColor: line, boxShadow: isDark ? 'none' : '0 2px 10px rgba(0,0,0,0.03)' }}>
@@ -168,40 +238,35 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                 );
               })}
             </div>
-
-            {/* Packages — Phase 10.1: anchor target for the global Offers nav item */}
-            {data.packages && data.packages.length > 0 && (
-              <div id="section-offers" className="mt-14 pt-10 border-t" style={{ borderColor: line }}>
-                <div className="text-center mb-8">
-                  <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.packagesEyebrow}</span>
-                  <h3 className="text-xl font-serif mt-2" style={{ color: text }}>{S.packagesTitle}</h3>
-                </div>
-                <div className="grid gap-4 grid-cols-1">
-                  {data.packages.map((p) => (
-                    <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl border" style={{ backgroundColor: card, borderColor: line }}>
-                      <div className="space-y-1 max-w-xl">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-serif font-semibold text-sm" style={{ color: text }}>{p.name}</h4>
-                          <span className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: blush, color: isDark ? '#ffd9ef' : emeraldDeep }}>{S['common.bestValue']}</span>
-                        </div>
-                        <p className="text-xs leading-relaxed" style={{ color: muted }}>{p.description}</p>
-                        <div className="text-[10px] uppercase tracking-[0.2em] font-medium flex items-center gap-2 pt-1" style={{ color: muted }}>
-                          <span>⏱ {p.duration} {S['common.mins']}</span>
-                          <span>•</span>
-                          <span>{S.packagesMeta}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                        <BundlePrice bundle={p} offers={data.offers} style={{ color: emerald }} dark={isDark} />
-                        <button className="px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-105" style={btnEmerald}>
-                          {S['common.bookPackage']}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             )}
+          </div>
+        </div>
+
+        <div {...sectionProps('offers', offersState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: beigeSoft }}>
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-8">
+              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.packagesEyebrow}</span>
+              <h3 className="text-xl font-serif mt-2" style={{ color: text }}>{S.packagesTitle}</h3>
+            </div>
+            {offersState === 'ready' ? (
+              <div className="grid gap-4 grid-cols-1">
+                {packages.map((p) => (
+                  <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl border min-w-0" style={{ backgroundColor: card, borderColor: line }}>
+                    <div className="space-y-1 max-w-xl min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-serif font-semibold text-sm break-words" style={{ color: text }}>{p.name}</h4>
+                        <span className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: blush, color: isDark ? '#ffd9ef' : emeraldDeep }}>{S['common.bestValue']}</span>
+                      </div>
+                      <p className="text-xs leading-relaxed break-words" style={{ color: muted }}>{p.description}</p>
+                    </div>
+                    <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
+                      <BundlePrice bundle={p} offers={data.offers} style={{ color: emerald }} dark={isDark} />
+                      <button className="site-touch px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookPackage']}</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <SectionStatePanel status={offersState} copy={X} palette={palette} emptyTitle={S.offersEmpty} />}
           </div>
         </div>
 
@@ -216,7 +281,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="absolute -bottom-5 -right-5 rounded-2xl px-5 py-4 shadow-lg" style={{ backgroundColor: emerald }}>
+              <div className="absolute bottom-3 right-3 rounded-2xl px-5 py-4 shadow-lg" style={{ backgroundColor: emerald }}>
                 <p className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/80">{S.signatureBadge}</p>
                 <p className="text-sm font-serif font-semibold text-white">{S.signatureTitle}</p>
               </div>
@@ -302,114 +367,104 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        {/* Gallery */}
-        {data.gallery && data.gallery.length > 0 && (
-          <div id="section-gallery" className="px-8 py-16" style={{ backgroundColor: cream }}>
-            <div className="max-w-3xl mx-auto">
-              <div className="text-center mb-12">
-                <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.galleryEyebrow}</span>
-                <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.galleryTitle}</h3>
-              </div>
-              <div className={`grid gap-4 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                {data.gallery.map((item) => (
+        <div {...sectionProps('gallery', galleryState)} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: cream }}>
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-12">
+              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.galleryEyebrow}</span>
+              <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.galleryTitle}</h3>
+            </div>
+            {galleryState === 'ready' ? (
+              <div className={`grid gap-4 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
+                {(data.gallery || []).map((item) => (
                   <div key={item.id} className="relative aspect-square rounded-[1.75rem] overflow-hidden border group" style={{ borderColor: line }}>
                     <img src={item.url} alt={item.alt || S['common.defaultPhotoAlt']} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                    <div className="absolute inset-0 flex items-end p-3 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'linear-gradient(to top, rgba(21,89,74,0.8), transparent)' }}>
-                      <span className="text-[9px] uppercase tracking-[0.18em] font-semibold px-2.5 py-1 rounded-full text-white" style={{ backgroundColor: emerald }}>
-                        {translateCategory(item.category || 'General', locale)}
-                      </span>
-                    </div>
                   </div>
                 ))}
               </div>
-            </div>
+            ) : <SectionStatePanel status={galleryState} copy={X} palette={palette} emptyTitle={S.galleryEmpty} />}
           </div>
-        )}
+        </div>
 
-        {/* About / Founder */}
-        {data.ownerName && (
-          <div id="section-owner" className="px-8 py-14 border-y" style={{ backgroundColor: beigeSoft, borderColor: line }}>
+        <div {...sectionProps('videos', videosState)} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: beigeSoft }}>
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-12">
+              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold flex items-center justify-center gap-2" style={{ color: emerald }}>
+                <Video className="w-3 h-3" /> {S.videosEyebrow}
+              </span>
+              <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.videosTitle}</h3>
+            </div>
+            {videosState === 'ready' ? (
+              <div className={`grid gap-4 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
+                {(data.socialVideos || []).map((video) => (
+                  <div key={video.id} className="relative aspect-[9/16] rounded-[1.5rem] overflow-hidden group border" style={{ borderColor: line }}>
+                    <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(21,89,74,0.85), transparent)' }}></div>
+                    <div className="absolute bottom-3 left-3 right-3 text-white"><p className="text-xs font-serif font-semibold line-clamp-2">{video.title}</p></div>
+                  </div>
+                ))}
+              </div>
+            ) : <SectionStatePanel status={videosState} copy={X} palette={palette} emptyTitle={S.videosEmpty} />}
+          </div>
+        </div>
+
+        <div {...sectionProps('about', aboutState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: cream }}>
+          <div className="max-w-2xl mx-auto text-center">
+            <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.aboutEyebrow}</span>
+            <h3 className="text-2xl font-serif mt-3" style={{ color: text }}>{S.aboutTitle}</h3>
+            <p className="text-xs mt-4 leading-relaxed" style={{ color: muted }}>{data.about || S.heroFallbackAbout}</p>
+          </div>
+        </div>
+
+        <div {...sectionProps('owner', ownerState)} className="site-section px-5 md:px-8 py-14 border-y" style={{ backgroundColor: beigeSoft, borderColor: line }}>
+          {ownerState === 'ready' ? (
             <div className="max-w-2xl mx-auto flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
               <div className="w-28 h-28 rounded-full overflow-hidden shrink-0 border-4" style={{ borderColor: emeraldSoft }}>
-                <OwnerAvatar
-                  photoUrl={data.ownerPhotoUrl}
-                  name={data.ownerName}
-                  className="w-full h-full text-3xl"
-                  alt="Founder"
-                />
+                <OwnerAvatar photoUrl={data.ownerPhotoUrl} name={data.ownerName} className="w-full h-full text-3xl" alt="Founder" />
               </div>
-              <div>
-                <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>
-                  {data.ownerRole || S.ownerFallbackRole}
-                </span>
-                <h3 className="text-2xl font-serif mt-1" style={{ color: text }}>{data.ownerName}</h3>
-                <p className="text-xs mt-2 leading-relaxed italic" style={{ color: muted }}>
-                  “{data.reviewedContent?.ownerIntro || S.ownerFallbackIntro}”
-                </p>
+              <div className="min-w-0">
+                <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{data.ownerRole || S.ownerFallbackRole}</span>
+                <h3 className="text-2xl font-serif mt-1 break-words" style={{ color: text }}>{data.ownerName}</h3>
+                <p className="text-xs mt-2 leading-relaxed italic" style={{ color: muted }}>“{data.reviewedContent?.ownerIntro || S.ownerFallbackIntro}”</p>
               </div>
             </div>
-          </div>
-        )}
+          ) : <div className="max-w-3xl mx-auto"><SectionStatePanel status={ownerState} copy={X} palette={palette} emptyTitle={S.ownerEmptyTitle} emptyBody={S.ownerEmptyBody} /></div>}
+        </div>
 
-        {/* Team */}
-        {data.team && data.team.length > 0 && (
-          <div id="section-team" className="px-8 py-16" style={{ backgroundColor: cream }}>
-            <div className="max-w-3xl mx-auto">
-              <div className="text-center mb-12">
-                <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.teamEyebrow}</span>
-                <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.teamTitle}</h3>
-              </div>
-
-              <div className={`grid gap-6 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <div {...sectionProps('team', teamState)} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: cream }}>
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-12">
+              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.teamEyebrow}</span>
+              <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.teamTitle}</h3>
+            </div>
+            {teamState === 'ready' ? (
+              <div className={`grid gap-6 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
                 {data.team.map((member) => {
                   const pub = getPublicStaffData(member);
                   return (
-                    <div key={pub.id} className="rounded-3xl border p-6 flex flex-col gap-4" style={{ borderColor: line, backgroundColor: card }}>
+                    <div key={pub.id} className="rounded-3xl border p-6 flex flex-col gap-4 min-w-0" style={{ borderColor: line, backgroundColor: card }}>
                       <div className="flex items-center gap-4">
                         <img src={pub.imageUrl} alt={pub.name} className="w-16 h-16 rounded-full object-cover border-2 shrink-0" style={{ borderColor: emeraldSoft }} />
                         <div className="min-w-0">
-                          <h4 className="font-serif font-semibold text-base" style={{ color: text }}>{pub.name}</h4>
+                          <h4 className="font-serif font-semibold text-base break-words" style={{ color: text }}>{pub.name}</h4>
                           <p className="text-[10px] uppercase tracking-[0.25em] mt-1" style={{ color: emerald }}>{pub.role}</p>
-                          {pub.phone && (
-                            <p className="text-[11px] mt-1 flex items-center gap-1" style={{ color: muted }}>
-                              <Phone className="w-3 h-3" />{pub.phone}
-                            </p>
-                          )}
                         </div>
                       </div>
-                      {pub.specialties && pub.specialties.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {pub.specialties.map((spec, i) => (
-                            <span key={i} className="text-[10px] uppercase tracking-[0.15em] px-3 py-1 rounded-full" style={{ backgroundColor: emeraldSoft, color: isDark ? '#bfe3d6' : emeraldDeep }}>
-                              {spec}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {pub.bio && (
-                        <p className="text-xs leading-relaxed italic line-clamp-2" style={{ color: muted }}>
-                          “{pub.bio}”
-                        </p>
-                      )}
-                      <button className="w-full py-2.5 rounded-full text-[10px] uppercase tracking-[0.25em] font-semibold transition-all hover:brightness-105 mt-auto" style={btnEmerald}>
-                        {S['common.bookWith'].replace('{name}', pub.name.split(' ')[0])}
-                      </button>
+                      <button className="site-touch w-full py-2.5 rounded-full text-[10px] uppercase tracking-[0.25em] font-semibold mt-auto" style={btnEmerald}>{S['common.bookWith'].replace('{name}', pub.name.split(' ')[0])}</button>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            ) : <SectionStatePanel status={teamState} copy={X} palette={palette} />}
           </div>
-        )}
+        </div>
 
-        {/* Client Reviews (theme-specific static content — no DB in this phase) */}
-        <div id="section-reviews" className="px-8 py-16" style={{ backgroundColor: beigeSoft }}>
+        <div {...sectionProps('reviews', 'ready')} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: beigeSoft }}>
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-12">
               <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.reviewsEyebrow}</span>
               <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.reviewsTitle}</h3>
             </div>
-            <div className={`grid gap-6 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-1'}`}>
+            <div className={`grid gap-6 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 1 })}`}>
               {REVIEWS.map((r, i) => (
                 <div key={i} className="rounded-3xl border p-6 flex flex-col gap-3" style={{ borderColor: line, backgroundColor: card }}>
                   <div className="flex gap-0.5">
@@ -462,7 +517,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
         )}
 
         {/* Location & Hours */}
-        <div id="section-location" className="px-8 py-16 border-t" style={{ backgroundColor: beigeSoft, borderColor: line }}>
+        <div {...sectionProps('location', locationState)} className="site-section px-5 md:px-8 py-16 border-t" style={{ backgroundColor: beigeSoft, borderColor: line }}>
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-12">
               <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S['common.visitEyebrow']}</span>
@@ -535,8 +590,9 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        {/* Footer — deep emerald slab in both appearances */}
-        <footer id="section-footer" className="px-8 py-10 text-center text-xs" style={{ backgroundColor: footerBg, color: '#cfe3dd' }}>
+        <FinalBookingCta title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
+
+        <footer {...sectionProps('footer', 'ready')} className="site-section px-5 md:px-8 py-10 text-center text-xs" style={{ backgroundColor: footerBg, color: '#cfe3dd' }}>
           <div className="flex items-center justify-center gap-2 mb-3">
             <Leaf className="w-4 h-4" style={{ color: '#9fd3c3' }} />
             <p className="font-serif font-semibold text-sm tracking-wide" style={nameStyle}>{data.salonName || 'Serenity Beauty & Spa'}</p>

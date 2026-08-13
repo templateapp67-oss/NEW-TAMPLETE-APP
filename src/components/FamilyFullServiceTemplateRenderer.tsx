@@ -3,11 +3,24 @@ import type { SalonData, Service, ServiceOffer } from '../types';
 import { getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import { displayService } from '../lib/displayService';
 import { FAMILY_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import type { FamilySurface } from '../lib/themeSurfaces';
 import { dayLabel, siteText } from '../lib/siteI18n';
+import { structureText } from '../lib/siteStructureI18n';
+import {
+  announcementOffer,
+  featuredServices,
+  headerModeOf,
+  resolveSectionState,
+  sectionProps,
+  siteFrameClass,
+  siteGrid,
+} from '../lib/siteStructure';
+import type { ViewportMode } from '../lib/siteStructure';
 import {
   ArrowRight,
   Baby,
@@ -51,7 +64,7 @@ import {
  */
 interface Props {
   data: SalonData;
-  mode: 'desktop' | 'mobile';
+  mode: ViewportMode;
 }
 
 const PREVIEW_GALLERY_BASE = [
@@ -230,7 +243,7 @@ function GalleryTile({
 }: {
   image: GalleryImageTile;
   index: number;
-  mode: 'desktop' | 'mobile';
+  mode: ViewportMode;
   key?: string;
 }) {
   const isWide = mode === 'desktop' && index === 0;
@@ -303,7 +316,12 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   const appearance = useThemeAppearance('family_full_service');
   const t = surfacesOf(FAMILY_SURFACES, appearance);
   const { navy, blue, sky, skyDeep, teal, tealDeep, tealSoft, sun, sunSoft, coral, ink, muted, line, white } = t;
-  const S = siteText('family_full_service', locale);
+  const S = { ...siteText('family_full_service', locale), ...structureText('family_full_service', locale) };
+  const X = structureCopyFrom(S);
+  const palette = { accent: teal, text: ink, muted, card: t.card, line, invert: '#ffffff' };
+  const headerMode = headerModeOf(mode);
+  const featured = featuredServices(data.services);
+  const promo = announcementOffer(data);
 
   const nameStyle = { ...getSalonNameStyle(data) };
   if (!nameStyle.color) nameStyle.color = '#ffffff';
@@ -357,6 +375,15 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
       }))
     : FALLBACK_GALLERY;
   const publicTeam = (data.team || []).map(getPublicStaffData);
+  const featuredState = resolveSectionState('featured', featured);
+  const servicesState = resolveSectionState('services', data.services);
+  const offersState = resolveSectionState('offers', (data.packages || []));
+  const galleryState = resolveSectionState('gallery', data.gallery);
+  const videosState = resolveSectionState('videos', data.socialVideos);
+  const teamState = resolveSectionState('team', publicTeam);
+  const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
+  const aboutState = resolveSectionState('about', [data.about || '1']);
+  const locationState = resolveSectionState('location', ['ready']);
   const heroImage = data.heroImageUrl || PREVIEW_GALLERY_BASE[0].url;
   const secondaryImage = gallery[1]?.url || PREVIEW_GALLERY_BASE[1].url;
   const contactPhone = data.phone || '';
@@ -377,13 +404,11 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
 
   return (
     <div
-      className={`shadow-2xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${
-        mode === 'desktop' ? 'w-full max-w-[980px] rounded-2xl' : 'w-[375px] max-w-full max-h-[812px] rounded-[2rem] border-[8px] border-[#10243a]'
-      }`}
-      style={{ borderColor: mode === 'desktop' ? line : '#10243a', backgroundColor: white }}
+      className={`shadow-2xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode, 'rounded-2xl')} ${mode === 'mobile' ? 'rounded-[2rem] border-[8px]' : ''}`}
+      style={{ borderColor: mode === 'mobile' ? '#10243a' : line, backgroundColor: white }}
     >
       {/* Browser / phone chrome (mock chrome — not part of the website) */}
-      {mode === 'desktop' ? (
+      {mode !== 'mobile' ? (
         <div className="h-10 flex items-center gap-2 px-4 shrink-0" style={{ backgroundColor: appearance === 'dark' ? '#071627' : '#f4f9fc', borderBottom: `1px solid ${line}` }}>
           <div className="flex gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ff8073]" />
@@ -400,12 +425,14 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ backgroundColor: t.page, color: ink }}>
-        {/* Navigation — Phase 10.1 global header (family design, keeps its navy utility strip) */}
-        <SiteHeader themeId="family_full_service" data={data} mode={mode} />
+      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll" style={{ backgroundColor: t.page, color: ink }}>
+        <div {...sectionProps('announcement', 'ready')} className="site-section px-4 py-2.5 flex flex-wrap items-center justify-center gap-2 text-center" style={{ backgroundColor: teal, color: '#ffffff' }}>
+          <span className="text-[9px] font-extrabold uppercase tracking-[0.18em] px-2 py-1 rounded-full" style={{ backgroundColor: sun, color: '#12385b' }}>{promo?.badge || S.announceBadge}</span>
+          <p className="text-[11px] font-bold min-w-0 break-words">{promo ? promo.title : S.announceDefault}</p>
+        </div>
+        <SiteHeader themeId="family_full_service" data={data} mode={headerMode} />
 
-        {/* Hero: split layout with booking-oriented information architecture */}
-        <section id="section-hero" className="relative overflow-hidden px-5 md:px-8 py-8 md:py-12" style={{ backgroundColor: sky }}>
+        <section id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative overflow-hidden px-5 md:px-8 py-8 md:py-12" style={{ backgroundColor: sky }}>
           <div className="absolute -right-20 -top-24 w-64 h-64 rounded-full" style={{ backgroundColor: skyDeep, opacity: 0.7 }} />
           <div className="absolute right-24 bottom-[-70px] w-40 h-40 rounded-full border-[18px]" style={{ borderColor: 'rgba(7,159,154,0.12)' }} />
           <div className="relative z-10 grid md:grid-cols-[1.04fr_0.96fr] gap-8 items-center">
@@ -459,13 +486,42 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           </div>
         </section>
 
-        {/* High-density services navigation */}
-        <section id="section-services" className="px-5 md:px-8 py-8" style={{ backgroundColor: white, borderBottom: `1px solid ${line}` }}>
+        <section {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: t.well }}>
+          <div className="text-center max-w-xl mx-auto">
+            <SectionIntro eyebrow={S.trustEyebrow} title={S.trustTitle} align="center" t={t} />
+            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 1 })}`}>
+              {[{ v: S.trust1Value, l: S.trust1Label }, { v: S.trust2Value, l: S.trust2Label }, { v: S.trust3Value, l: S.trust3Label }].map((stat) => (
+                <div key={stat.l} className="rounded-2xl border p-4 min-w-0" style={{ borderColor: line, backgroundColor: t.card }}>
+                  <p className="text-2xl font-extrabold" style={{ color: teal }}>{stat.v}</p>
+                  <p className="text-[9px] font-bold mt-1" style={{ color: muted }}>{stat.l}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section {...sectionProps('featured', featuredState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
+          <SectionIntro eyebrow={S.featuredEyebrow} title={S.featuredTitle} body={S.featuredEmpty} t={t} />
+          {featuredState === 'ready' ? (
+            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
+              {featured.map((service) => (
+                <div key={service.id} className="rounded-2xl border p-4 min-w-0 flex items-center justify-between gap-3" style={{ borderColor: line, backgroundColor: t.well }}>
+                  <p className="text-sm font-extrabold break-words" style={{ color: ink }}>{service.name}</p>
+                  <a href="#section-contact" className="site-touch shrink-0 rounded-xl px-3 py-2 text-[9px] font-extrabold uppercase" style={{ backgroundColor: teal, color: '#ffffff' }}>{S['common.bookNow']}</a>
+                </div>
+              ))}
+            </div>
+          ) : <div className="mt-6"><SectionStatePanel status={featuredState} copy={X} palette={palette} emptyTitle={S.featuredEmpty} /></div>}
+        </section>
+
+        <section {...sectionProps('services', servicesState)} className="site-section px-5 md:px-8 py-8" style={{ backgroundColor: white, borderBottom: `1px solid ${line}` }}>
+          {servicesState !== 'ready' && <SectionStatePanel status={servicesState} copy={X} palette={palette} emptyTitle={S.servicesEmpty} />}
+          {servicesState === 'ready' && (<>
           <div className="flex items-end justify-between gap-4 mb-5">
             <SectionIntro eyebrow={S.servicesEyebrow} title={S.servicesTitle} body={S.servicesSubtitle} t={t} />
             <span className="hidden md:inline-flex rounded-full px-3 py-1.5 text-[9px] font-extrabold" style={{ backgroundColor: sky, color: blue }}>{S.servicesChip}</span>
           </div>
-          <div className={`grid gap-2 ${mode === 'desktop' ? 'grid-cols-4' : 'grid-cols-2'}`}>
+          <div className={`grid gap-2 ${siteGrid(mode, { desktop: 4, tablet: 2, mobile: 2 })}`}>
             {NAV_ITEMS.map(({ id, label }, index) => {
               const Icon = index === 0 ? UserRound : index === 1 ? Sparkles : index === 2 ? Baby : PackageIcon;
               const accent = index === 2 ? coral : index === 3 ? teal : blue;
@@ -477,6 +533,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
               );
             })}
           </div>
+          </>)}
         </section>
 
         {/* Men's services */}
@@ -534,13 +591,13 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
         </section>
 
         {/* Combos */}
-        <section id="section-combos" className="px-5 md:px-8 py-12" style={{ backgroundColor: t.bandBg }}>
+        <section {...sectionProps('offers', offersState, 'section-combos')} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: t.bandBg }}>
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-7">
             <SectionIntro eyebrow={S.combosEyebrow} title={S.combosTitle} body={S.combosBody} light t={t} />
             <span className="rounded-full px-3 py-1.5 text-[9px] font-extrabold self-start" style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: sun }}>{S.combosChip}</span>
           </div>
           {groups.combos.length > 0 ? (
-            <div className={`grid gap-3 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-3 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
               {groups.combos.map((combo) => (
                 <div key={combo.id} className="rounded-2xl border p-5 flex items-center justify-between gap-4" style={{ borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.08)' }}>
                   <div className="min-w-0"><div className="flex items-center gap-2"><PackageIcon className="w-4 h-4 shrink-0" style={{ color: sun }} /><h3 className="text-sm font-extrabold text-white truncate">{combo.name}</h3></div><p className="text-[10px] leading-relaxed mt-2 text-white/65 line-clamp-2">{combo.description}</p><p className="text-[9px] mt-3 font-bold text-white/55">{combo.duration} {S['common.minutes']} · {S.comboOneBooking}</p></div>
@@ -553,8 +610,29 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           )}
         </section>
 
+        {/* Gallery */}
+        <section {...sectionProps('gallery', galleryState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: sky }}>
+          <div className="flex items-end justify-between gap-4 mb-7"><SectionIntro eyebrow={S.galleryEyebrow} title={S.galleryTitle} body={S.galleryBody} t={t} /><a href={data.socialProfiles?.instagram || '#section-gallery'} className="hidden md:inline-flex items-center gap-1 text-[10px] font-extrabold" style={{ color: blue }}>Instagram <Instagram className="w-3.5 h-3.5" /></a></div>
+          <div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 2 })}`}>{gallery.map((image, index) => <GalleryTile key={`${image.url}-${index}`} image={image} index={index} mode={mode} />)}</div>
+        </section>
+
+        <section {...sectionProps('videos', videosState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
+          <SectionIntro eyebrow={S.featuredEyebrow} title={S.videosEmpty} t={t} />
+          {videosState === 'ready' ? (
+            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
+              {(data.socialVideos || []).map((video) => (
+                <div key={video.id} className="relative aspect-[9/16] overflow-hidden rounded-[1.5rem] min-w-0">
+                  <img src={video.thumbnailUrl} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#12385b]/80 to-transparent" />
+                  <p className="absolute left-3 right-3 bottom-3 text-xs font-extrabold text-white line-clamp-2">{video.title}</p>
+                </div>
+              ))}
+            </div>
+          ) : <div className="mt-6"><SectionStatePanel status={videosState} copy={X} palette={palette} emptyTitle={S.videosEmpty} /></div>}
+        </section>
+
         {/* About */}
-        <section id="section-about" className="px-5 md:px-8 py-12" style={{ backgroundColor: t.well }}>
+        <section {...sectionProps('about', aboutState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: t.well }}>
           <div className="grid md:grid-cols-[0.92fr_1.08fr] gap-8 items-center">
             <div className="relative min-h-[260px]">
               <div className="absolute inset-4 rounded-[2rem] rotate-3" style={{ backgroundColor: tealSoft }} />
@@ -570,30 +648,39 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           </div>
         </section>
 
+        <section {...sectionProps('owner', ownerState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
+          {ownerState === 'ready' ? (
+            <div className="max-w-2xl mx-auto flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+              <div className="w-24 h-24 rounded-full overflow-hidden shrink-0 border-4" style={{ borderColor: tealSoft }}>
+                <OwnerAvatar photoUrl={data.ownerPhotoUrl} name={data.ownerName} className="w-full h-full text-3xl" alt="Founder" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em]" style={{ color: tealDeep }}>{data.ownerRole || S.ownerEmptyTitle}</p>
+                <h3 className="text-2xl font-extrabold mt-1 break-words" style={{ color: t.heading }}>{data.ownerName}</h3>
+                <p className="text-xs mt-2 leading-relaxed" style={{ color: muted }}>{data.reviewedContent?.ownerIntro || data.about || S.aboutFallbackBody}</p>
+              </div>
+            </div>
+          ) : <SectionStatePanel status={ownerState} copy={X} palette={palette} emptyTitle={S.ownerEmptyTitle} emptyBody={S.ownerEmptyBody} />}
+        </section>
+
         {/* Team */}
-        <section id="section-team" className="px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
+        <section {...sectionProps('team', teamState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
           <div className="flex items-end justify-between gap-4 mb-7"><SectionIntro eyebrow={S.teamEyebrow} title={S.teamTitle} body={S.teamBody} t={t} /><BadgeCheck className="hidden md:block w-8 h-8" style={{ color: teal }} /></div>
-          {publicTeam.length > 0 ? (
-            <div className={`grid gap-3 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-2'}`}>{publicTeam.slice(0, 6).map((member) => <TeamCard key={member.id} member={member} t={t} />)}</div>
+          {teamState !== 'ready' ? <SectionStatePanel status={teamState} copy={X} palette={palette} emptyTitle={S.teamEmptyTitle} emptyBody={S.teamEmptyBody} /> : publicTeam.length > 0 ? (
+            <div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 2 })}`}>{publicTeam.slice(0, 6).map((member) => <TeamCard key={member.id} member={member} t={t} />)}</div>
           ) : (
             <div className="rounded-2xl border border-dashed p-8 text-center" style={{ borderColor: skyDeep, backgroundColor: sky }}><Users className="w-8 h-8 mx-auto" style={{ color: blue }} /><p className="text-sm font-extrabold mt-3" style={{ color: ink }}>{S.teamEmptyTitle}</p><p className="text-xs mt-1" style={{ color: muted }}>{S.teamEmptyBody}</p></div>
           )}
         </section>
 
-        {/* Gallery */}
-        <section id="section-gallery" className="px-5 md:px-8 py-12" style={{ backgroundColor: sky }}>
-          <div className="flex items-end justify-between gap-4 mb-7"><SectionIntro eyebrow={S.galleryEyebrow} title={S.galleryTitle} body={S.galleryBody} t={t} /><a href={data.socialProfiles?.instagram || '#section-gallery'} className="hidden md:inline-flex items-center gap-1 text-[10px] font-extrabold" style={{ color: blue }}>Instagram <Instagram className="w-3.5 h-3.5" /></a></div>
-          <div className={`grid gap-3 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-2'}`}>{gallery.map((image, index) => <GalleryTile key={`${image.url}-${index}`} image={image} index={index} mode={mode} />)}</div>
-        </section>
-
         {/* Testimonials */}
-        <section id="section-testimonials" className="px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
+        <section {...sectionProps('reviews', 'ready', 'section-testimonials')} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
           <SectionIntro eyebrow={S.testimonialsEyebrow} title={S.testimonialsTitle} body={S.testimonialsBody} align="center" t={t} />
-          <div className={`grid gap-3 mt-8 ${mode === 'desktop' ? 'grid-cols-3' : 'grid-cols-1'}`}>{REVIEWS.map((review) => <article key={review.name} className="rounded-[1.5rem] border p-5 flex flex-col" style={{ borderColor: line, backgroundColor: t.well }}><div className="flex items-center justify-between"><div className="flex gap-0.5">{[0, 1, 2, 3, 4].map((star) => <Star key={star} className="w-3.5 h-3.5" style={{ color: '#f2b243', fill: '#f2b243' }} />)}</div><Quote className="w-5 h-5" style={{ color: review.color }} /></div><p className="text-xs leading-relaxed mt-4 flex-1" style={{ color: ink }}>“{review.quote}”</p><div className="flex items-center gap-2 mt-5 pt-3 border-t" style={{ borderColor: line }}><span className="w-8 h-8 rounded-full flex items-center justify-center text-[9px] font-extrabold text-white" style={{ backgroundColor: review.color }}>{review.initials}</span><div><p className="text-[10px] font-extrabold" style={{ color: ink }}>{review.name}</p><p className="text-[9px] mt-0.5" style={{ color: muted }}>{review.detail}</p></div></div></article>)}</div>
+          <div className={`grid gap-3 mt-8 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 1 })}`}>{REVIEWS.map((review) => <article key={review.name} className="rounded-[1.5rem] border p-5 flex flex-col" style={{ borderColor: line, backgroundColor: t.well }}><div className="flex items-center justify-between"><div className="flex gap-0.5">{[0, 1, 2, 3, 4].map((star) => <Star key={star} className="w-3.5 h-3.5" style={{ color: '#f2b243', fill: '#f2b243' }} />)}</div><Quote className="w-5 h-5" style={{ color: review.color }} /></div><p className="text-xs leading-relaxed mt-4 flex-1" style={{ color: ink }}>“{review.quote}”</p><div className="flex items-center gap-2 mt-5 pt-3 border-t" style={{ borderColor: line }}><span className="w-8 h-8 rounded-full flex items-center justify-center text-[9px] font-extrabold text-white" style={{ backgroundColor: review.color }}>{review.initials}</span><div><p className="text-[10px] font-extrabold" style={{ color: ink }}>{review.name}</p><p className="text-[9px] mt-0.5" style={{ color: muted }}>{review.detail}</p></div></div></article>)}</div>
         </section>
 
         {/* Contact */}
-        <section id="section-contact" className="px-5 md:px-8 py-12" style={{ backgroundColor: t.contactBand }}>
+        <section id="section-contact" data-site-section="location" data-section-state={locationState} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: t.contactBand }}>
           <div className="grid md:grid-cols-[1fr_1fr] gap-8">
             <div>
               <SectionIntro eyebrow={S.contactEyebrow} title={S.contactTitle} body={S.contactBody} light t={t} />
@@ -610,8 +697,10 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           </div>
         </section>
 
+        <FinalBookingCta title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
+
         {/* Footer — deep navy slab in both appearances */}
-        <footer id="section-footer" className="px-5 md:px-8 py-8" style={{ backgroundColor: t.footerBg }}>
+        <footer {...sectionProps('footer', 'ready')} className="site-section px-5 md:px-8 py-8" style={{ backgroundColor: t.footerBg }}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-5"><div><div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: teal }}><Users className="w-4 h-4 text-white" /></span><p className="font-extrabold text-sm" style={nameStyle}>{data.salonName || 'The Family Salon'}</p></div><p className="text-[10px] mt-3 text-white/55 max-w-xs">{data.tagline || S.footerFallbackTagline}</p></div><div className="flex items-center gap-3 text-white/65"><a href={data.socialProfiles?.instagram || '#section-footer'} aria-label="Instagram"><Instagram className="w-4 h-4 hover:text-white" /></a><a href={data.socialProfiles?.facebook || '#section-footer'} aria-label="Facebook"><Facebook className="w-4 h-4 hover:text-white" /></a><a href={data.socialProfiles?.youtube || '#section-footer'} aria-label="YouTube"><Youtube className="w-4 h-4 hover:text-white" /></a></div></div>
           <div className="mt-7 pt-4 border-t flex flex-col sm:flex-row justify-between gap-2 text-[9px] uppercase tracking-[0.16em] text-white/40" style={{ borderColor: 'rgba(255,255,255,0.13)' }}><span>© 2026 {data.salonName || 'Salon'}</span><span>{S['common.poweredBy']}</span></div>
         </footer>

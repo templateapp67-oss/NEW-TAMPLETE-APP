@@ -640,6 +640,8 @@ export default function SiteHeader({ themeId, data, mode }: Props) {
       {design.utilityStrip?.(appearance)}
       <header
         id="section-header"
+        data-site-section="header"
+        data-section-state="ready"
         data-testid="site-header"
         data-theme={themeId}
         data-appearance={appearance}

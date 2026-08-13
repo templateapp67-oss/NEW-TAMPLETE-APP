@@ -1,10 +1,24 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-13** (session `arena/019ffa2e-new-tamplete-app`).
+> Last updated: **2026-08-13** (session `arena/019ffa99-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **Phase 10.3 — RESPONSIVE WEBSITE STRUCTURE: COMPLETE for all five themes.**
+  - One canonical public-website order on every theme: Announcement → Header →
+    Hero → Trust → Featured → All Services → Offers & Combos → Gallery →
+    Videos → About → Owner → Staff → Reviews → Location + Contact → Final
+    Booking CTA → Footer.
+  - Videos now exist in Family and Nail as well; Owner sits with Staff near
+    the end; Gallery always precedes Videos. Theme visuals are unchanged.
+  - Dynamic sections expose loading / empty / error states. Desktop, tablet
+    and mobile grids plus overflow containment are shared via
+    `src/lib/siteStructure.ts`.
+  - Header, Language and Dark Mode from 10.1 / 10.2 are untouched.
+    Details: `docs/phase-10.3-responsive-website-structure.md`.
+    Run `npm run test:phase-10` (10.1 80/80 + 10.2 49/49 + 10.3 86/86).
 
 - **Phase 10.2 — GLOBAL LANGUAGE & DARK MODE: COMPLETE for all five themes.**
   - New `src/lib/siteI18n.ts`: one namespaced EN/HI copy table per theme +
