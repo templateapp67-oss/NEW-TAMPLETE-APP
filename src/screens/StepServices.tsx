@@ -2,7 +2,7 @@ import { Sparkles, Mic, ArrowLeft, ArrowRight, Plus, Check, Copy, Trash2, GripVe
 import { SalonData, Service, Package } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, FormEvent, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useState, FormEvent, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import {
   THEME_LABELS,
   getThemeCategories as getStaticThemeCategories,
@@ -170,6 +170,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [saveSelectedNotice, setSaveSelectedNotice] = useState('');
   const [savedServicesLoading, setSavedServicesLoading] = useState(usesDatabaseCatalog);
   const [savedServicesError, setSavedServicesError] = useState('');
+  // Which theme the currently held saved-service list belongs to. Null while a
+  // load is in flight or after a failed load.
+  const [savedStatusTheme, setSavedStatusTheme] = useState<string | null>(
+    usesDatabaseCatalog ? null : theme,
+  );
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editServiceName, setEditServiceName] = useState('');
   const [editServiceDescription, setEditServiceDescription] = useState('');
@@ -254,47 +259,70 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   // Database themes always hydrate saved salon services from the authenticated
   // tenant after mount/refresh. Clear localStorage/snapshot rows immediately so
   // they cannot flash while the current theme-scoped request is in flight.
-  useEffect(() => {
+  //
+  // `savedStatusTheme` records which theme the CURRENT saved-service state
+  // belongs to. Until it equals the active theme, the list renders nothing —
+  // that is what guarantees a previous theme's services can never be shown
+  // while a new theme is loading (or after its load failed).
+  const runSavedServicesLoad = useCallback((targetTheme: typeof theme) => {
     const requestId = savedLoadRequestRef.current + 1;
     savedLoadRequestRef.current = requestId;
-    let cancelled = false;
+
     setSavedServicesError('');
     setEditingServiceId(null);
     setManagingServiceId(null);
     setPendingDeleteServiceId(null);
 
-    if (!usesDatabaseCatalog) {
+    if (!isDatabaseCatalogTheme(targetTheme)) {
       setSavedServicesLoading(false);
-      return () => {
-        cancelled = true;
-      };
+      setSavedStatusTheme(targetTheme);
+      return;
     }
 
+    setSavedStatusTheme(null);
     setSavedServicesLoading(true);
-    setData((previous) => normalizeThemeId(previous.templateId) === theme
+    // Drop any previous-theme/localStorage rows before the request starts.
+    setData((previous) => normalizeThemeId(previous.templateId) === targetTheme
       ? { ...previous, services: [] }
       : previous
     );
 
-    loadSavedServicesForTheme(theme)
+    loadSavedServicesForTheme(targetTheme)
       .then((services) => {
-        if (cancelled || savedLoadRequestRef.current !== requestId) return;
-        setData((previous) => normalizeThemeId(previous.templateId) === theme
+        if (savedLoadRequestRef.current !== requestId) return;
+        setData((previous) => normalizeThemeId(previous.templateId) === targetTheme
           ? { ...previous, services: services.map(savedServiceToUi) }
           : previous
         );
         setSavedServicesLoading(false);
+        setSavedStatusTheme(targetTheme);
       })
       .catch((error: unknown) => {
-        if (cancelled || savedLoadRequestRef.current !== requestId) return;
+        if (savedLoadRequestRef.current !== requestId) return;
         setSavedServicesLoading(false);
-        setSavedServicesError(error instanceof Error ? error.message : 'Unable to load saved services.');
+        // Deliberately leave savedStatusTheme null: a failed load must not
+        // render a partial or stale list.
+        setSavedServicesError(
+          error instanceof Error ? error.message : 'Unable to load saved services.',
+        );
       });
+  }, [setData]);
 
+  useEffect(() => {
+    runSavedServicesLoad(theme);
     return () => {
-      cancelled = true;
+      // Invalidate the in-flight request so a late response cannot paint.
+      savedLoadRequestRef.current += 1;
     };
-  }, [theme, usesDatabaseCatalog, setData]);
+  }, [theme, runSavedServicesLoad]);
+
+  /** Retry handler for the saved-service error state. */
+  const reloadSavedServices = () => runSavedServicesLoad(theme);
+
+  // The saved list renders ONLY when the held state provably belongs to the
+  // active theme. This is the single guard that prevents a previous theme's
+  // services from appearing while a new theme loads or after a load error.
+  const showSavedServices = savedStatusTheme === theme;
 
   // When the theme changes, clear ALL theme-specific selections and temporary
   // buffers so nothing from a previous theme leaks into the current one:
@@ -1174,16 +1202,38 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
             {/* My Services List */}
             <div className="flex flex-col gap-4">
-              <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">MY SERVICES ({data.services.length})</h3>
+              <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">
+                MY SERVICES ({showSavedServices ? data.services.length : 0})
+              </h3>
               {savedServicesLoading && usesDatabaseCatalog && (
-                <p className="text-xs text-[#5f5e5e]">Loading saved services…</p>
+                <p className="text-xs text-[#5f5e5e]" role="status">Loading saved services…</p>
               )}
               {savedServicesError && (
-                <p className="text-xs text-red-600" role="alert">{savedServicesError}</p>
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <p className="text-xs text-red-700" role="alert">{savedServicesError}</p>
+                  <button
+                    type="button"
+                    onClick={reloadSavedServices}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 shrink-0"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {/* Empty state — only once the current theme has actually loaded,
+                  so it never flashes while a request is still in flight. */}
+              {showSavedServices && !savedServicesError && data.services.length === 0 && (
+                <div className="rounded-lg border border-dashed border-[#eeeeee] bg-white p-6 text-center">
+                  <p className="text-sm font-semibold text-[#1a1c1c]">No services yet</p>
+                  <p className="text-xs text-[#5f5e5e] mt-1">
+                    Pick from the suggested services above, or use “Add Service” to create your own.
+                  </p>
+                </div>
               )}
 
               <AnimatePresence>
-                {data.services.map((s) => (
+                {showSavedServices && data.services.map((s) => (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

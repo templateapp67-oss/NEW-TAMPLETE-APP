@@ -78,11 +78,48 @@ const asNullableString = (value: unknown, label: string): string | null => {
 };
 
 /** Surfaces the readable database message when the RPC raised one. */
+/**
+ * Deliberate, user-facing messages raised by our own RPCs with `raise
+ * exception`. Anything not matching these patterns is treated as an internal
+ * database fault and replaced with a generic message, so raw PostgreSQL text
+ * (table names, constraint names, SQL fragments) is never rendered in the UI.
+ */
+const SAFE_MESSAGE_PATTERNS: RegExp[] = [
+  /please log in/i,
+  /no manageable salon/i,
+  /multiple salons are linked/i,
+  /not found for your salon/i,
+  /already saved/i,
+  /does not belong to this theme/i,
+  /does not belong to this theme and category/i,
+  /category does not belong to this theme/i,
+  /do not belong to the active theme/i,
+  /no active service catalog exists/i,
+  /name is required/i,
+  /price cannot be negative/i,
+  /duration must be positive/i,
+  /status must be active, inactive, or archived/i,
+  /remove this service from its package/i,
+  /provenance is immutable/i,
+  /ownership is immutable/i,
+  /is inactive, or belongs to another theme/i,
+  /must reference a theme/i,
+  /must reference its category/i,
+];
+
 const rpcError = (error: unknown, fallback: string): SavedServiceError => {
-  const message = error && typeof error === 'object' && 'message' in error
-    ? String((error as { message?: unknown }).message ?? '')
+  const raw = error && typeof error === 'object' && 'message' in error
+    ? String((error as { message?: unknown }).message ?? '').trim()
     : '';
-  return new SavedServiceError(message.trim() ? message : fallback);
+
+  // Always keep the full detail in the console for developers…
+  if (raw) console.error('Saved service RPC failed:', error);
+
+  // …but only surface messages we deliberately authored.
+  if (raw && SAFE_MESSAGE_PATTERNS.some((pattern) => pattern.test(raw))) {
+    return new SavedServiceError(raw);
+  }
+  return new SavedServiceError(fallback);
 };
 
 const mapSavedService = (

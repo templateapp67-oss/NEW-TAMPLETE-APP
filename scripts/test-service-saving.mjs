@@ -224,8 +224,13 @@ await test('theme switching clears snapshots, selections, forms, and stale saved
   assert.ok(services.includes("setNewServiceCategory(firstCategory)"));
   assert.ok(services.includes("setNewServiceName('')"));
   assert.ok(services.includes('services: []'));
-  assert.ok(services.includes('loadSavedServicesForTheme(theme)'));
+  assert.ok(services.includes('loadSavedServicesForTheme(targetTheme)'));
   assert.ok(services.includes('savedLoadRequestRef.current !== requestId'));
+  // Phase 8.2: the list is gated on the loaded theme identity, so a previous
+  // theme's services can never render while a new theme loads or after an error.
+  assert.ok(services.includes('const showSavedServices = savedStatusTheme === theme'));
+  assert.ok(services.includes('setSavedStatusTheme(null)'));
+  assert.ok(services.includes('{showSavedServices && data.services.map('));
 });
 
 await test('Phase 8.1 — Add Service sends explicit provenance and never guesses it', async () => {
@@ -514,4 +519,116 @@ await test('Phase 8.1 — StepServices wires the full management workflow', asyn
   }
 });
 
-console.log(`Service saving tests: ${passed}/11 passed`);
+await test('Phase 8.2 — database errors are surfaced without leaking internals', async () => {
+  // A raw PostgreSQL fault must NOT reach the UI verbatim.
+  const leaky = {
+    rpc: async () => ({
+      data: null,
+      error: {
+        message: 'duplicate key value violates unique constraint "idx_services_business_predefined_unique" DETAIL: Key (business_id, predefined_service_id)=(...) already exists.',
+      },
+    }),
+  };
+  await assert.rejects(
+    () => loadSavedServicesForThemeWithClient(leaky, themeId),
+    (error) => {
+      assert.equal(/unique constraint|idx_services|DETAIL|Key \(/.test(error.message), false,
+        'raw database internals must not be shown to the user');
+      assert.match(error.message, /unable to load saved services/i);
+      return true;
+    },
+  );
+
+  // Messages we deliberately authored ARE preserved, so the user gets guidance.
+  const intentional = [
+    ['Please log in to manage services.', /log in/i],
+    ['Service was not found for your salon.', /not found for your salon/i],
+    ['This service is already saved for your salon.', /already saved/i],
+    ['The selected category does not belong to this theme.', /category does not belong/i],
+    ['No active service catalog exists for this theme.', /no active service catalog/i],
+    ['Remove this service from its package before deleting it.', /remove this service from its package/i],
+  ];
+  for (const [message, pattern] of intentional) {
+    await assert.rejects(
+      () => loadSavedServicesForThemeWithClient(
+        { rpc: async () => ({ data: null, error: { message } }) }, themeId),
+      pattern,
+    );
+  }
+});
+
+await test('Phase 8.2 — cross-tenant/cross-theme responses are rejected client-side too', async () => {
+  const foreign = { ...makeSaved(serviceA, 1), business_id: '30000000-0000-4000-8000-000000000099' };
+  await assert.rejects(
+    () => loadSavedServicesForThemeWithClient({
+      rpc: async () => ({
+        data: { business_id: '30000000-0000-4000-8000-000000000001', theme_id: themeId, services: [foreign] },
+        error: null,
+      }),
+    }, themeId),
+    /different salon/i,
+  );
+
+  const crossTheme = { ...makeSaved(serviceA, 1), theme_key: 'nail_lash_studio' };
+  await assert.rejects(
+    () => loadSavedServicesForThemeWithClient({
+      rpc: async () => ({
+        data: { business_id: crossTheme.business_id, theme_id: themeId, services: [crossTheme] },
+        error: null,
+      }),
+    }, themeId),
+    /cross-theme/i,
+  );
+
+  // A response for a different theme entirely is refused.
+  await assert.rejects(
+    () => loadSavedServicesForThemeWithClient({
+      rpc: async () => ({
+        data: { business_id: crossTheme.business_id, theme_id: 'beauty_skin_spa', services: [] },
+        error: null,
+      }),
+    }, themeId),
+    /different theme/i,
+  );
+});
+
+await test('Phase 8.2 — StepServices renders every required state', async () => {
+  const source = await readFile('src/screens/StepServices.tsx', 'utf8');
+
+  // Loading states.
+  assert.ok(source.includes('Loading services…'));
+  assert.ok(source.includes('Loading saved services…'));
+  assert.ok(source.includes('savedServicesLoading'));
+  assert.ok(source.includes('currentCatalogLoading'));
+
+  // Empty state, gated on the loaded theme so it cannot flash mid-load.
+  assert.ok(source.includes('No services yet'));
+  assert.ok(source.includes('showSavedServices && !savedServicesError && data.services.length === 0'));
+  assert.ok(source.includes('No suggested services in this category.'));
+
+  // Error states + retry affordance.
+  assert.ok(source.includes('reloadSavedServices'));
+  assert.ok(source.includes('Try again'));
+  assert.ok(source.includes('role="alert"'));
+  assert.ok(source.includes('addServiceError'));
+  assert.ok(source.includes('saveSelectedError'));
+  assert.ok(source.includes('savedServicesError'));
+
+  // Inactive/archived service states.
+  assert.ok(source.includes('Inactive'));
+  assert.ok(source.includes('Archived'));
+
+  // Stale-theme protection: the list is identity-gated, and a failed load
+  // deliberately leaves the gate closed.
+  assert.ok(source.includes('const showSavedServices = savedStatusTheme === theme'));
+  assert.ok(source.includes('setSavedStatusTheme(null)'));
+  const loadBlock = source.slice(
+    source.indexOf('const runSavedServicesLoad'),
+    source.indexOf('const reloadSavedServices'),
+  );
+  assert.ok(loadBlock.includes('services: [] }'), 'must clear rows before loading a new theme');
+  assert.ok(loadBlock.includes('savedLoadRequestRef.current !== requestId'),
+    'must ignore late responses from a previous theme');
+});
+
+console.log(`Service saving tests: ${passed}/14 passed`);

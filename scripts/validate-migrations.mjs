@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 22, 'expected exactly M01-M22');
+assert.equal(migrationFiles.length, 23, 'expected exactly M01-M23');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/22 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/23 applied cleanly`);
 }
 
 const ids = {
@@ -606,7 +606,7 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        ) values ($1, $2, $3, $4, 'Wrong Theme Link', 10000, 15)`,
       [ids.businessA, ids.themeB, ids.categoryB, ids.predefinedA],
     ),
-    /foreign key|violates/i,
+    /foreign key|violates|belongs to another theme/i,
   );
   await expectReject(
     () => db.query(
@@ -616,7 +616,7 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        ) values ($1, $2, $3, $4, 'Wrong Category Link', 10000, 15)`,
       [ids.businessA, ids.themeA, ids.categoryB, ids.predefinedA],
     ),
-    /foreign key|violates/i,
+    /foreign key|violates|does not belong to this theme/i,
   );
   await expectReject(
     () => db.query(
@@ -625,7 +625,7 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        ) values ($1, $2, 'Incomplete Provenance', 10000, 15)`,
       [ids.businessA, ids.predefinedA],
     ),
-    /check constraint|violates/i,
+    /check constraint|violates|must reference a theme/i,
   );
   await expectReject(
     () => db.query(
@@ -634,7 +634,8 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
        where id = $3`,
       [ids.themeB, ids.categoryB, ids.savedPredefinedA],
     ),
-    /foreign key|violates/i,
+    // M23 now blocks this earlier, and for ALL themes, via provenance immutability.
+    /foreign key|violates|provenance is immutable/i,
   );
   await expectReject(
     () => db.query('delete from public.predefined_services where id = $1', [ids.predefinedA]),
