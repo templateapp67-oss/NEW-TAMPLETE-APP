@@ -28,6 +28,9 @@
     "test:phase-9.2": "npm run validate:migrations && tsx scripts/test-phase-9.2.mjs",
     "test:phase-9.3": "npm run validate:migrations && tsx scripts/test-phase-9.3.mjs",
     "test:phase-9": "npm run test:phase-9.1 && npm run test:phase-9.2 && npm run test:phase-9.3",
+    "test:phase-10.1": "tsx scripts/test-phase-10.1.mjs",
+    "test:phase-10.2": "tsx scripts/test-phase-10.2.mjs",
+    "test:phase-10": "npm run test:phase-10.1 && npm run test:phase-10.2",
     "generate:theme-seed": "tsx scripts/generate-theme-seed.mts --write",
     "validate:migrations": "tsx scripts/generate-theme-seed.mts --check && tsx scripts/validate-migrations.mjs"
   },
