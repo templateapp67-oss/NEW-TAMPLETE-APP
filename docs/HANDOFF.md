@@ -6,6 +6,27 @@
 
 ## Current repository state
 
+- **Phase 8.3 — FINAL 5-THEME ACCEPTANCE TEST: PASSED. Phase 8 is complete.**
+  - 94 acceptance tests (66 data + 28 UI) across all five themes, run against
+    REAL PostgreSQL (M01–M23), the REAL `@supabase/supabase-js` client, and the
+    REAL `StepServices` React component mounted in jsdom with genuine DOM
+    interaction. Nothing in the app is stubbed.
+  - Per theme, all verified: correct UI, theme_id, categories, predefined
+    services, suggested services, zero-typing selection, name/description
+    auto-fill, Select All, Add Selected, price, duration, edit,
+    activate/deactivate, delete, duplicate prevention, Custom Service / Other.
+  - The full 12-step switch sequence (Existing → 5 → 5 → Existing) leaves no
+    stale selections, chips, categories, services or cache — asserted in both
+    the data layer and the rendered DOM, including on revisit.
+  - Refresh is idempotent; database relationships show 0 broken chains, 0
+    mismatches, 0 orphans; tenant isolation holds; pre-existing NULL-provenance
+    data is byte-identical after the run.
+  - Two harness bugs were found and root-caused (bigint assertion; `motion`'s
+    rAF loop + PGlite's worker MessagePort keeping the event loop alive). No
+    application defect was found — every product assertion passed first time.
+  - Details: `docs/phase-8.3-final-acceptance.md`. Run with
+    `npm run test:phase-8.3`, or `npm run test:phase-8` for all 161 tests.
+
 - **Phase 8.2 — validation, security and error handling completed:**
   - **Closed a real privilege-escalation hole.** The M17 FKs only require the
     provenance tuple to be self-consistent, so a tenant could directly
@@ -334,9 +355,13 @@ npm run test:theme-catalog # five-theme DB/RPC/UI read-boundary checks
 npm run test:service-saving # refresh/CRUD/ownership/provenance checks
 npm run test:service-management # Phase 8.1 real-database management E2E
 npm run test:service-security # Phase 8.2 adversarial security/validation suite
+npm run test:acceptance    # Phase 8.3 five-theme acceptance (data + integration)
+npm run test:acceptance-ui # Phase 8.3 five-theme acceptance (real React UI)
 npm run test:phase-7.4-final # complete Phase 7.4 validation
 npm run test:phase-8.1     # complete Phase 8.1 validation
 npm run test:phase-8.2     # complete Phase 8.2 validation
+npm run test:phase-8.3     # complete Phase 8.3 final acceptance
+npm run test:phase-8       # every Phase 7-8 suite (161 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -349,6 +374,8 @@ Expected output:
 - `test:service-saving`: 14/14 passed
 - `test:service-management`: 9/9 passed
 - `test:service-security`: 20/20 passed
+- `test:acceptance`: 66/66 passed
+- `test:acceptance-ui`: 28/28 passed
 
 ## Guardrails / gotchas
 

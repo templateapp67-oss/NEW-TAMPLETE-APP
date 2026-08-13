@@ -51,9 +51,13 @@ npm run test:theme-catalog # verify five-theme DB/RPC/UI read boundaries
 npm run test:service-saving # verify saved-service CRUD/tenant/persistence flow
 npm run test:service-management # Phase 8.1 management E2E on real PostgreSQL
 npm run test:service-security # Phase 8.2 adversarial security/validation suite
+npm run test:acceptance     # Phase 8.3 five-theme acceptance (data + integration)
+npm run test:acceptance-ui  # Phase 8.3 five-theme acceptance (real React UI in jsdom)
 npm run test:phase-7.4-final # complete Phase 7.4 DB + UI validation
 npm run test:phase-8.1      # complete Phase 8.1 service-management validation
 npm run test:phase-8.2      # complete Phase 8.2 security + error-handling validation
+npm run test:phase-8.3      # complete Phase 8.3 final five-theme acceptance
+npm run test:phase-8        # every Phase 7-8 suite (161 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
