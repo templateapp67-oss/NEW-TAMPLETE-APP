@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, FormEvent, useEffect, useRef } from 'react';
 import {
   THEME_LABELS,
-  THEME_CATEGORIES,
+  getThemeCategories,
   getSuggestedServices,
   getServicesForThemeCategory,
   findPredefinedService,
@@ -79,6 +79,12 @@ function suggestServiceDescription(category: string, serviceName: string): strin
       return withName('Relaxing massage and spa therapy to melt away stress and tension.');
     case 'Kids':
       return withName('Gentle, fun salon care designed especially for children.');
+    case 'Nail Art & Gel':
+      return withName('Precision nail shaping, colour and art with a glossy, long-lasting finish.');
+    case 'Pedicure & Manicure':
+      return withName('Restorative hand and foot care with meticulous prep and a polished finish.');
+    case 'Lash & Brow':
+      return withName('Beauty-focused lash and brow artistry shaped to complement your features.');
     default:
       return withName('Professional salon service delivered by our experienced team.');
   }
@@ -94,7 +100,9 @@ interface Props {
 
 export default function StepServices({ data, setData, onNext, onPrev, onSave }: Props) {
   const theme = normalizeThemeId(data.templateId);
-  const categories = THEME_CATEGORIES[theme];
+  const isFamilyFullService = theme === 'family_full_service';
+  const isNailLashStudio = theme === 'nail_lash_studio';
+  const categories = getThemeCategories(theme);
 
   // Theme-driven suggested services (genuinely different per theme).
   const suggestedList = getSuggestedServices(theme);
@@ -109,7 +117,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [newServiceName, setNewServiceName] = useState('');
   const [newServicePrice, setNewServicePrice] = useState(50);
   const [newServiceDuration, setNewServiceDuration] = useState(30);
-  const [newServiceCategory, setNewServiceCategory] = useState(categories[0]);
+  const [newServiceCategory, setNewServiceCategory] = useState(categories[0] || 'General');
   const [newServiceDesc, setNewServiceDesc] = useState('');
   // Tracks whether the user hand-wrote the description, so we never silently
   // overwrite their work when the category (or service name) changes.
@@ -121,6 +129,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
   const [customService, setCustomService] = useState(false);
   const serviceComboRef = useRef<HTMLDivElement>(null);
+  const speechTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // New Package Form state
   const [newPackageName, setNewPackageName] = useState('');
@@ -136,12 +145,17 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   //   - temporary service + package form buffers
   //   - any open form/action state
   useEffect(() => {
+    if (speechTimerRef.current) {
+      clearTimeout(speechTimerRef.current);
+      speechTimerRef.current = null;
+    }
+
     // Suggested-services selection buffers
     setSelectedSuggested([]);
     setSuggestedFilter('All');
 
     // Add-service form: category, predefined selection and temporary buffers
-    const firstCategory = THEME_CATEGORIES[theme][0];
+    const firstCategory = getThemeCategories(theme)[0] || 'General';
     setNewServiceCategory(firstCategory);
     setNewServiceName('');
     setNewServicePrice(50);
@@ -166,6 +180,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     // Intentionally only depends on [theme]; the individual setState calls above
     // cover every piece of theme-scoped state, so no other deps are needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (speechTimerRef.current) {
+        clearTimeout(speechTimerRef.current);
+        speechTimerRef.current = null;
+      }
+    };
   }, [theme]);
 
   // Close the service combobox when clicking outside it.
@@ -226,13 +246,15 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   };
 
   const handleAISuggest = () => {
-    const names = AI_SUGGESTION_NAMES[theme];
+    if (isFamilyFullService || isNailLashStudio) return;
+    const names = AI_SUGGESTION_NAMES[theme as keyof typeof AI_SUGGESTION_NAMES];
+    if (!names) return;
     const aiAdded: Service[] = names.map((n, i) => {
       const found = findPredefinedService(theme, n);
       return {
         id: 'ai-' + Date.now() + '-' + i,
         name: found ? found.name : n,
-        category: found ? found.category : categories[0],
+        category: found ? found.category : (categories[0] || 'General'),
         description: found ? found.description : 'AI-suggested premium service for your salon.',
         price: found ? found.price : 50,
         duration: found ? found.duration : 30,
@@ -247,10 +269,13 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   };
 
   const handleSpeechInput = () => {
+    if (isFamilyFullService || isNailLashStudio) return;
     setIsSpeaking(true);
-    setTimeout(() => {
+    speechTimerRef.current = setTimeout(() => {
+      speechTimerRef.current = null;
       setIsSpeaking(false);
-      const v = VOICE_SERVICE_BY_THEME[theme];
+      const v = VOICE_SERVICE_BY_THEME[theme as keyof typeof VOICE_SERVICE_BY_THEME];
+      if (!v) return;
       const voiceService: Service = {
         id: 'v-' + Date.now(),
         name: v.name,
@@ -284,7 +309,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     if (customService) return;
     const match = findPredefinedService(theme, value);
     if (match) {
-      // Exact predefined match → auto-fill everything.
+      // Exact predefined match (or a family suggested alias) → canonicalise
+      // the name and auto-fill the rest of the form.
+      setNewServiceName(match.name);
       setNewServiceCategory(match.category);
       setNewServicePrice(match.price);
       setNewServiceDuration(match.duration);
@@ -500,7 +527,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                       }`}
                     >
                       {isSelected ? <Check className="w-4 h-4 text-[#ac0053]" /> : <Plus className="w-4 h-4 text-[#5f5e5e]" />}
-                      {s.name}
+                      {s.suggestedLabel || s.name}
                     </button>
                   );
                 })}

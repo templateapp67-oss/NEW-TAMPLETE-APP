@@ -6,6 +6,8 @@ import OwnerAvatar from './OwnerAvatar';
 import BarberTemplateRenderer from './BarberTemplateRenderer';
 import HairStudioTemplateRenderer from './HairStudioTemplateRenderer';
 import BeautySpaTemplateRenderer from './BeautySpaTemplateRenderer';
+import FamilyFullServiceTemplateRenderer from './FamilyFullServiceTemplateRenderer';
+import NailLashStudioTemplateRenderer from './NailLashStudioTemplateRenderer';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -27,6 +29,12 @@ export default function TemplateRenderer({ data, mode }: Props) {
   if (templateId === 'beauty_skin_spa') {
     return <BeautySpaTemplateRenderer data={data} mode={mode} />;
   }
+  if (templateId === 'family_full_service') {
+    return <FamilyFullServiceTemplateRenderer data={data} mode={mode} />;
+  }
+  if (templateId === 'nail_lash_studio') {
+    return <NailLashStudioTemplateRenderer data={data} mode={mode} />;
+  }
 
   // Template-specific styling configurations (remaining themes)
   const config = {
@@ -37,14 +45,6 @@ export default function TemplateRenderer({ data, mode }: Props) {
       headingFont: 'font-serif',
       cardBg: 'bg-white border-gray-100 text-gray-900',
       footerBg: 'bg-[#1a1c1c] text-white',
-    },
-    'family-salon': {
-      navBg: 'bg-white text-slate-800 border-teal-100',
-      heroBg: 'bg-gradient-to-br from-teal-500 to-sky-600 text-white',
-      accentColor: '#0d9488',
-      headingFont: 'font-sans font-semibold',
-      cardBg: 'bg-white border-teal-100 text-slate-800',
-      footerBg: 'bg-slate-800 text-teal-100',
     },
   }[templateId];
   const brandColor = data.brandColor || config.accentColor;
@@ -60,7 +60,6 @@ export default function TemplateRenderer({ data, mode }: Props) {
   const getTeamTitle = () => {
     const serviceNames = data.services.map(s => (s.name + ' ' + s.category).toLowerCase()).join(' ');
     const salonLower = data.salonName.toLowerCase();
-    if (templateId === 'family-salon') return 'Our Wonderful Team';
     if (serviceNames.includes('barber') || serviceNames.includes('fade') || serviceNames.includes('beard') || salonLower.includes('barber')) {
       return 'Meet Our Barbers';
     }
@@ -129,49 +128,23 @@ export default function TemplateRenderer({ data, mode }: Props) {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
           <div className="relative z-10 max-w-xl mx-auto text-white">
-            {templateId === 'family-salon' ? (
-              <>
-                <span
-                  className="inline-block px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-4 bg-white/20 text-white border border-white/20"
-                >
-                  ✨ Welcome to the Family
-                </span>
-                <h1 className={`text-2xl md:text-3xl font-semibold mb-3 ${config.headingFont}`}>
-                  {data.tagline || 'One Place for the Whole Family'}
-                </h1>
-                <p className="text-xs md:text-sm text-white/80 mb-6 max-w-md mx-auto leading-relaxed">
-                  {data.about || 'From kids cuts to bridal beauty, men\'s grooming to relaxing spa — everyone leaves feeling amazing.'}
-                </p>
-                <div className="flex flex-wrap justify-center gap-2 mb-6">
-                  {['👧 Kids', '💇 Hair', '💄 Beauty', '🧔 Grooming', '💆 Spa'].map(cat => (
-                    <span key={cat} className="px-3 py-1 rounded-full text-[10px] font-bold bg-white/15 text-white border border-white/20">
-                      {cat}
-                    </span>
-                  ))}
-                </div>
-                <button className="px-6 py-3 rounded-xl font-bold text-sm shadow-lg transition-transform active:scale-95 hover:brightness-90 bg-white text-teal-700" style={{ backgroundColor: '#fff', color: '#0d9488' }}>
-                  Book Your Family Visit
-                </button>
-              </>
-            ) : (
-              <>
-                <span
-                  className="inline-block px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider mb-3"
-                  style={{ color: brandColor, backgroundColor: withHexAlpha(brandColor, '22'), borderColor: withHexAlpha(brandColor, '55') }}
-                >
-                  Premier Hair & Beauty
-                </span>
-                <h1 className={`text-2xl md:text-4xl font-bold mb-3 ${config.headingFont}`}>
-                  {data.tagline || 'Elevating your natural beauty and style'}
-                </h1>
-                <p className="text-xs md:text-sm text-gray-200 mb-6 max-w-md mx-auto leading-relaxed opacity-90">
-                  {data.about || 'Experience world-class care, top-tier styling, and ultimate relaxation in our studio.'}
-                </p>
-                <button className={`px-6 py-3 rounded-xl font-bold text-xs shadow-lg transition-transform active:scale-95 hover:brightness-90`} style={brandButtonStyle}>
-                  Book Appointment Now
-                </button>
-              </>
-            )}
+            <>
+              <span
+                className="inline-block px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider mb-3"
+                style={{ color: brandColor, backgroundColor: withHexAlpha(brandColor, '22'), borderColor: withHexAlpha(brandColor, '55') }}
+              >
+                Premier Hair & Beauty
+              </span>
+              <h1 className={`text-2xl md:text-4xl font-bold mb-3 ${config.headingFont}`}>
+                {data.tagline || 'Elevating your natural beauty and style'}
+              </h1>
+              <p className="text-xs md:text-sm text-gray-200 mb-6 max-w-md mx-auto leading-relaxed opacity-90">
+                {data.about || 'Experience world-class care, top-tier styling, and ultimate relaxation in our studio.'}
+              </p>
+              <button className={`px-6 py-3 rounded-xl font-bold text-xs shadow-lg transition-transform active:scale-95 hover:brightness-90`} style={brandButtonStyle}>
+                Book Appointment Now
+              </button>
+            </>
           </div>
         </div>
 
@@ -179,15 +152,13 @@ export default function TemplateRenderer({ data, mode }: Props) {
         <div id="section-services" className={`px-6 py-12 max-w-3xl mx-auto ${isDark ? 'text-zinc-100' : ''}`}>
           <div className="text-center mb-8">
             <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: brandColor }}>
-              {templateId === 'family-salon' ? 'Something for Everyone' : 'Our Offerings'}
+              Our Offerings
             </span>
             <h2 className={`text-2xl font-bold mt-1 ${config.headingFont}`}>
-              {templateId === 'family-salon' ? 'Services & Pricing' : 'Signature Services & Pricing'}
+              Signature Services & Pricing
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              {templateId === 'family-salon'
-                ? 'Every member of the family, covered — all under one bright roof.'
-                : 'Transparent pricing with secure advance booking options.'}
+              Transparent pricing with secure advance booking options.
             </p>
           </div>
 
@@ -195,11 +166,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
             {data.services && data.services.map(s => (
               <div
                 key={s.id}
-                className={`p-5 border shadow-2xs hover:shadow-md transition-all ${darkCard} ${
-                  templateId === 'family-salon'
-                    ? 'rounded-3xl border-2 hover:border-teal-300'
-                    : 'rounded-2xl'
-                }`}
+                className={`p-5 border shadow-2xs hover:shadow-md transition-all ${darkCard} rounded-2xl`}
               >
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold text-sm">{s.name}</h4>
@@ -209,11 +176,7 @@ export default function TemplateRenderer({ data, mode }: Props) {
                 <div className="flex justify-between items-center pt-2 border-t border-gray-100/20 text-[11px]">
                   <span className="opacity-60 font-medium">{s.duration} mins</span>
                   <button
-                    className={`font-bold text-xs transition-colors hover:brightness-90 px-4 py-1.5 ${
-                      templateId === 'family-salon'
-                        ? 'rounded-full'
-                        : 'rounded-lg'
-                    }`}
+                    className="font-bold text-xs transition-colors hover:brightness-90 px-4 py-1.5 rounded-lg"
                     style={brandButtonStyle}
                   >
                     Book Slot

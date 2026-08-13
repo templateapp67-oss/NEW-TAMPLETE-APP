@@ -11,11 +11,12 @@ interface Props {
   onNext: () => void;
   onPrev: () => void;
   onSave?: (msg?: string) => void;
+  onThemeChange?: (id: ThemeChoice) => void;
 }
 
-type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family-salon';
+type ThemeChoice = 'hair' | 'barber_mens_grooming' | 'hair_studio_color_bar' | 'beauty_skin_spa' | 'family_full_service' | 'nail_lash_studio';
 
-export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: Props) {
+export default function StepTemplate({ data, setData, onNext, onPrev, onSave, onThemeChange }: Props) {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
   const [isSwitching, setIsSwitching] = useState(false);
@@ -26,7 +27,13 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
     if (id === currentTemplate) return;
     setIsSwitching(true);
     setSaveStatus('saving');
-    setData(prev => ({ ...prev, templateId: id }));
+    if (onThemeChange) {
+      onThemeChange(id);
+    } else {
+      // Keep direct/test renders safe too: a theme without a snapshot starts
+      // with a clean service workspace instead of inheriting another theme.
+      setData(prev => ({ ...prev, templateId: id, services: [], packages: [] }));
+    }
     if (onSave) onSave(`Template switched to ${id}`);
     setTimeout(() => {
       setIsSwitching(false);
@@ -223,17 +230,17 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
 
           {/* Theme 5 — Full-Service Family Salon */}
           <div
-            onClick={() => selectTemplate('family-salon')}
+            onClick={() => selectTemplate('family_full_service')}
             className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
-              currentTemplate === 'family-salon'
-                ? 'border-[#ac0053] bg-[#ffeff1]/30 ring-2 ring-[#ac0053]/20 shadow-xs'
+              currentTemplate === 'family_full_service'
+                ? 'border-[#1769d2] bg-[#eaf6ff]/70 ring-2 ring-[#1769d2]/25 shadow-xs'
                 : 'border-gray-200/80 hover:border-gray-300'
             }`}
           >
             <div className="flex items-start gap-4">
               <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
                 <img
-                  src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&auto=format&fit=crop"
+                  src="https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&auto=format&fit=crop"
                   alt="Full-Service Family Salon Template"
                   className="w-full h-full object-cover absolute inset-0"
                 />
@@ -244,13 +251,48 @@ export default function StepTemplate({ data, setData, onNext, onPrev, onSave }: 
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start">
                   <h3 className="font-bold text-lg text-gray-900 mb-1">Full-Service Family Salon</h3>
-                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'family-salon' ? 'text-[#ac0053]' : 'text-gray-300'}`} />
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'family_full_service' ? 'text-[#1769d2]' : 'text-gray-300'}`} />
                 </div>
                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold mb-2 text-[11px]">
                   Bright • Blue/Teal • Family
                 </span>
                 <p className="text-xs text-gray-600 leading-relaxed">
                   Bright teal-and-sky energy with a friendly multi-category layout for the whole family — kids to grandparents.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Theme 6 — Nail & Lash Studio */}
+          <div
+            onClick={() => selectTemplate('nail_lash_studio')}
+            className={`relative border rounded-2xl p-4 md:p-5 cursor-pointer transition-all duration-200 bg-white hover:shadow-md ${
+              currentTemplate === 'nail_lash_studio'
+                ? 'border-[#ff2d8d] bg-[#fff0f7]/70 ring-2 ring-[#ff2d8d]/25 shadow-xs'
+                : 'border-gray-200/80 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-24 h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 relative shadow-2xs">
+                <img
+                  src="https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=600&auto=format&fit=crop"
+                  alt="Nail & Lash Studio Template"
+                  className="w-full h-full object-cover absolute inset-0"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
+                  <span className="text-white text-[10px] font-medium tracking-wide uppercase">Preview</span>
+                </div>
+              </div>
+              <div className="flex-1 pt-1">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-lg text-gray-900 mb-1">Nail &amp; Lash Studio</h3>
+                  <CheckCircle2 className={`w-5 h-5 transition-colors ${currentTemplate === 'nail_lash_studio' ? 'text-[#ff2d8d]' : 'text-gray-300'}`} />
+                </div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#ffe5f1] text-[#d70f68] font-bold mb-2 text-[11px]">
+                  Neon Pink • Nude Sand • Glam
+                </span>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  A glamorous, visual-first studio for polished nails, expressive art, lashes and brows.
                 </p>
               </div>
             </div>
