@@ -4,6 +4,8 @@ import { getSalonNameStyle } from '../lib/brandIdentity';
 import { HAIR_STUDIO_THEME } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { displayService } from '../lib/displayService';
+import { readStoredLocale } from '../lib/locale';
 import {
   Scissors, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard, Palette,
@@ -50,6 +52,7 @@ const REVIEWS = [
 
 export default function HairStudioTemplateRenderer({ data, mode }: Props) {
   const { ink, inkSoft, paper, paperDeep, rose, roseBright, roseSoft, roseDeep, line, muted } = HAIR_STUDIO_THEME;
+  const locale = readStoredLocale();
 
   // Keep the owner's chosen font style for the salon name; default to near-black
   // ink so the wordmark stays legible on the light paper surfaces.
@@ -176,11 +179,14 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                     <div className="h-px flex-1" style={{ backgroundColor: line }}></div>
                   </div>
                   <div className={`grid gap-x-10 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    {group.items.map((s) => (
-                      <div key={s.id} className="py-4 flex items-start justify-between gap-4" style={{ borderBottom: `1px solid ${line}` }}>
+                    {group.items.map((s) => {
+                      const shown = displayService(s, locale);
+                      return (
+                      <div key={s.id} className="py-4 flex items-start justify-between gap-4 min-w-0" style={{ borderBottom: `1px solid ${line}` }}>
+                        {shown.iconUrl && <img src={shown.iconUrl} alt="" className="w-8 h-8 object-cover shrink-0" />}
                         <div className="min-w-0">
-                          <h4 className="text-sm font-serif font-semibold" style={{ color: ink }}>{s.name}</h4>
-                          <p className="text-[11px] mt-1 leading-relaxed line-clamp-2" style={{ color: muted }}>{s.description}</p>
+                          <h4 className="text-sm font-serif font-semibold break-words" style={{ color: ink }}>{shown.name}</h4>
+                          <p className="text-[11px] mt-1 leading-relaxed line-clamp-2 break-words" style={{ color: muted }}>{shown.description}</p>
                           <button className="text-[10px] uppercase tracking-[0.2em] font-semibold mt-2 underline underline-offset-4 transition-colors" style={{ color: roseDeep }}>
                             Book this service
                           </button>
@@ -190,7 +196,8 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                           <p className="text-[10px] mt-0.5" style={{ color: muted }}>{s.duration} min</p>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               ));

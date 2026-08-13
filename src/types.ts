@@ -13,6 +13,18 @@ export interface ServicePriceVariant {
   displayOrder: number;
 }
 
+export interface ServiceMedia {
+  imageUrl?: string;
+  bannerUrl?: string;
+  iconUrl?: string;
+}
+
+export interface ServiceTranslation {
+  locale: 'en' | 'hi' | string;
+  name: string;
+  description: string;
+}
+
 export interface Service {
   id: string;
   name: string;
@@ -21,6 +33,10 @@ export interface Service {
   price: number;
   duration: number; // minutes
   featured?: boolean;
+  /** Locale copies stored separately from the primary English record. */
+  translations?: ServiceTranslation[];
+  /** Theme-scoped service media. Never shared across themes. */
+  media?: ServiceMedia;
   /** Database provenance for a saved predefined service. Custom/manual services
    * intentionally keep these nullable/undefined. */
   businessId?: string;

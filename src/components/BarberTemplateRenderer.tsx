@@ -4,6 +4,8 @@ import { getSalonNameStyle } from '../lib/brandIdentity';
 import { BARBER_THEME } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { displayService } from '../lib/displayService';
+import { readStoredLocale } from '../lib/locale';
 import {
   Scissors, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard,
@@ -27,6 +29,7 @@ interface Props {
  */
 export default function BarberTemplateRenderer({ data, mode }: Props) {
   const { gold, goldBright, goldSoft, charcoal, charcoalSoft, charcoalCard, cream, muted } = BARBER_THEME;
+  const locale = readStoredLocale();
 
   // Keep the owner's chosen font style for the salon name, but default to a
   // light colour so the wordmark stays legible on the dark barber surfaces.
@@ -138,16 +141,23 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
             </div>
 
             <div className={`grid gap-3 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {data.services && data.services.map((s, i) => (
-                <div key={s.id} className="group border border-neutral-800 hover:border-[#c9a227]/70 transition-colors p-4" style={{ backgroundColor: charcoalCard }}>
+              {data.services && data.services.map((s, i) => {
+                const shown = displayService(s, locale);
+                return (
+                <div key={s.id} className="group border border-neutral-800 hover:border-[#c9a227]/70 transition-colors p-4 min-w-0" style={{ backgroundColor: charcoalCard }}>
+                  {shown.bannerUrl && <img src={shown.bannerUrl} alt="" className="w-full h-16 object-cover mb-3" />}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
+                      {shown.iconUrl ? (
+                        <img src={shown.iconUrl} alt="" className="w-8 h-8 object-cover shrink-0" />
+                      ) : (
                       <span className="text-[11px] font-black" style={{ color: gold }}>
                         {String(i + 1).padStart(2, '0')}
                       </span>
+                      )}
                       <div className="min-w-0">
-                        <h4 className="text-sm font-black uppercase tracking-wider text-white truncate">{s.name}</h4>
-                        <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: muted }}>{s.category}</p>
+                        <h4 className="text-sm font-black uppercase tracking-wider text-white break-words">{shown.name}</h4>
+                        <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: muted }}>{shown.category}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -155,8 +165,8 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                       <p className="text-[10px] font-semibold" style={{ color: muted }}>{s.duration} min</p>
                     </div>
                   </div>
-                  <p className="text-[11px] mt-3 leading-relaxed line-clamp-2" style={{ color: muted }}>
-                    {s.description}
+                  <p className="text-[11px] mt-3 leading-relaxed line-clamp-2 break-words" style={{ color: muted }}>
+                    {shown.description}
                   </p>
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-neutral-800">
                     <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: muted }}>Hot towel finish included</span>
@@ -165,7 +175,8 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Packages */}

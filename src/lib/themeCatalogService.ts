@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PredefinedService, ThemeId } from './themeServices';
 import { requireSupabase } from './supabaseClient';
+import type { ServiceTranslation } from '../types';
+import { mapContentTranslations as mapTranslations } from './locale';
 
 /** The five Phase 2–6 catalogs seeded by M18. The preserved original `hair`
  * theme intentionally remains outside this Session 1 database connection. */
@@ -35,6 +37,7 @@ export interface ThemeCatalogCategory {
   themeId: string;
   name: string;
   sortOrder: number;
+  translations?: ServiceTranslation[];
 }
 
 export interface ThemeCatalogPredefinedService extends PredefinedService {
@@ -44,6 +47,7 @@ export interface ThemeCatalogPredefinedService extends PredefinedService {
   sortOrder: number;
   isSuggested: boolean;
   suggestedSortOrder: number | null;
+  translations?: ServiceTranslation[];
 }
 
 export interface ThemeServiceCatalog {
@@ -121,6 +125,7 @@ const mapService = (
     isSuggested,
     suggestedLabel: asNullableString(raw.suggested_label, 'suggested label'),
     suggestedSortOrder,
+    translations: mapTranslations(raw.translations),
   };
 };
 
@@ -165,6 +170,7 @@ export async function fetchThemeServiceCatalog(
       themeId: categoryThemeId,
       name: asString(raw.name, 'category name'),
       sortOrder: asNumber(raw.sort_order, 'category sort order'),
+      translations: mapTranslations(raw.translations),
     };
   });
 

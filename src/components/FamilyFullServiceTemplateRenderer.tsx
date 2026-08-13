@@ -4,6 +4,8 @@ import { getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { FAMILY_FULL_SERVICE_THEME } from '../lib/themeServices';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { displayService } from '../lib/displayService';
+import { readStoredLocale } from '../lib/locale';
 import {
   ArrowRight,
   Baby,
@@ -216,17 +218,19 @@ function FocusStrip({ items, light = false }: { items: readonly FocusItem[]; lig
 }
 
 function ServiceRow({ service, offers = [], dark = false }: { service: Service; offers?: ServiceOffer[]; dark?: boolean; key?: string }) {
+  const shown = displayService(service, readStoredLocale());
   return (
     <div
-      className="flex items-center justify-between gap-4 py-4 border-b last:border-b-0"
+      className="flex items-center justify-between gap-4 py-4 border-b last:border-b-0 min-w-0"
       style={{ borderColor: dark ? 'rgba(255,255,255,0.14)' : line }}
     >
+      {shown.iconUrl && <img src={shown.iconUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />}
       <div className="min-w-0">
-        <h4 className="text-xs md:text-sm font-extrabold truncate" style={{ color: dark ? white : ink }}>
-          {service.name}
+        <h4 className="text-xs md:text-sm font-extrabold break-words" style={{ color: dark ? white : ink }}>
+          {shown.name}
         </h4>
-        <p className="mt-1 text-[10px] leading-relaxed line-clamp-2" style={{ color: dark ? 'rgba(255,255,255,0.62)' : muted }}>
-          {service.description}
+        <p className="mt-1 text-[10px] leading-relaxed line-clamp-2 break-words" style={{ color: dark ? 'rgba(255,255,255,0.62)' : muted }}>
+          {shown.description}
         </p>
       </div>
       <div className="text-right shrink-0">

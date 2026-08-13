@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DatabaseCatalogThemeId } from './themeCatalogService';
 import { requireSupabase } from './supabaseClient';
+import { mapContentTranslations as mapTranslations, mapServiceMedia as mapMedia } from './locale';
+import type { ServiceMedia, ServiceTranslation } from '../types';
 
 export type SavedServiceStatus = 'active' | 'inactive' | 'archived';
 
@@ -26,6 +28,8 @@ export interface SavedService {
   duration: number;
   status: SavedServiceStatus;
   featured: boolean;
+  translations: ServiceTranslation[];
+  media?: ServiceMedia;
 }
 
 /** Retained name for existing Phase 7.4 callers/tests. */
@@ -105,6 +109,10 @@ const SAFE_MESSAGE_PATTERNS: RegExp[] = [
   /is inactive, or belongs to another theme/i,
   /must reference a theme/i,
   /must reference its category/i,
+  /upcoming appointment/i,
+  /active booking/i,
+  /pending transaction/i,
+  /archive it instead/i,
 ];
 
 const rpcError = (error: unknown, fallback: string): SavedServiceError => {
@@ -159,6 +167,8 @@ const mapSavedService = (
     duration: asNumber(raw.duration_minutes, 'saved service duration'),
     status,
     featured: raw.is_featured === true,
+    translations: mapTranslations(raw.translations),
+    media: mapMedia(raw.media),
   };
 };
 
