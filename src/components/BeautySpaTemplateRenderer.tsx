@@ -1,17 +1,21 @@
 import type { CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
-import { getSalonNameStyle } from '../lib/brandIdentity';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
+import SiteFooter from './SiteFooter';
+import SiteFloatingActions from './SiteFloatingActions';
+import SiteBookingHost from './SiteBookingHost';
+import SiteAnnouncementBar from './SiteAnnouncementBar';
+import SiteSalonStatus from './SiteSalonStatus';
+import { openSiteBooking } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { BEAUTY_SPA_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
   activeCatalogItems,
-  announcementOffer,
   featuredServices,
   headerModeOf,
   resolveSectionState,
@@ -52,7 +56,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance('beauty_skin_spa');
   const t = surfacesOf(BEAUTY_SPA_SURFACES, appearance);
-  const { emerald, emeraldDeep, emeraldMid, emeraldSoft, beigeSoft, cream, blush, sage, text, muted, line, card, bandBg, bandText, bandMuted, footerBg } = t;
+  const { emerald, emeraldDeep, emeraldMid, emeraldSoft, beigeSoft, cream, blush, sage, text, muted, line, card, bandBg, bandText, bandMuted } = t;
   const isDark = appearance === 'dark';
   const S = { ...siteText('beauty_skin_spa', locale), ...structureText('beauty_skin_spa', locale) };
   const X = structureCopyFrom(S);
@@ -61,7 +65,6 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const services = activeCatalogItems(data.services);
   const packages = activeCatalogItems(data.packages);
   const featured = featuredServices(data.services);
-  const promo = announcementOffer(data);
   const servicesState = resolveSectionState('services', services);
   const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
@@ -71,11 +74,6 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
   const locationState = resolveSectionState('location', ['ready']);
-
-  // Keep the owner's chosen font style for the salon name; footer is a deep
-  // emerald slab in both appearances so the fallback stays mist-light.
-  const nameStyle = { ...getSalonNameStyle(data) };
-  if (!nameStyle.color) nameStyle.color = '#f7fbf9';
 
   const btnEmerald: CSSProperties = {
     backgroundColor: emerald,
@@ -110,7 +108,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const FACIAL_FALLBACKS = [S.facial1, S.facial2, S.facial3, S.facial4];
 
   return (
-    <div className={`shadow-xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)}`} style={{ borderColor: line, backgroundColor: card }}>
+    <div className={`relative shadow-xl border flex flex-col overflow-hidden transition-all duration-500 origin-top mx-auto h-full ${siteFrameClass(mode)} ${mode === 'mobile' ? 'site-has-mobile-dock' : ''}`} style={{ borderColor: line, backgroundColor: card }}>
       {mode !== 'mobile' ? (
         <div className="h-10 flex items-center px-4 gap-2 shrink-0 border-b" style={{ backgroundColor: cream, borderColor: line }}>
           <div className="flex gap-1.5">
@@ -130,10 +128,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
 
       {/* Scrollable Website Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll pb-20" style={{ backgroundColor: cream, color: text }}>
-        <div {...sectionProps('announcement', 'ready')} className="site-section px-4 py-2.5 flex flex-wrap items-center justify-center gap-2 text-center" style={{ backgroundColor: emerald, color: '#ffffff' }}>
-          <span className="text-[9px] uppercase tracking-[0.22em] font-semibold px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.16)' }}>{promo?.badge || S.announceBadge}</span>
-          <p className="text-[11px] font-medium min-w-0 break-words">{promo ? promo.title : S.announceDefault}</p>
-        </div>
+        <SiteAnnouncementBar themeId="beauty_skin_spa" data={data} />
         <SiteHeader themeId="beauty_skin_spa" data={data} mode={headerMode} />
 
         <div id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative px-5 md:px-8 py-16 md:py-20 text-center overflow-hidden" style={{ background: `linear-gradient(160deg, ${emeraldSoft} 0%, ${cream} 55%, ${beigeSoft} 100%)` }}>
@@ -153,7 +148,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
               {data.about || S.heroFallbackAbout}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
-              <button className="px-9 py-3.5 rounded-full text-[11px] uppercase tracking-[0.25em] font-semibold transition-all hover:brightness-105 shadow-md" style={btnEmerald}>
+              <button data-open-booking="true" onClick={openSiteBooking} className="px-9 py-3.5 rounded-full text-[11px] uppercase tracking-[0.25em] font-semibold transition-all hover:brightness-105 shadow-md" style={btnEmerald}>
                 {S.heroPrimaryCta}
               </button>
               <button className="px-9 py-3.5 rounded-full text-[11px] uppercase tracking-[0.25em] font-semibold border transition-colors" style={{ borderColor: emerald, color: emerald, backgroundColor: 'transparent' }}>
@@ -194,7 +189,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                         <h4 className="font-serif font-semibold text-sm break-words" style={{ color: text }}>{shown.name}</h4>
                         <ServicePrice service={s} offers={data.offers} style={{ color: emerald }} compact dark={isDark} />
                       </div>
-                      <button className="site-touch mt-4 rounded-full px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookNow']}</button>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch mt-4 rounded-full px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookNow']}</button>
                     </div>
                   );
                 })}
@@ -230,7 +225,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                   <p className="text-xs leading-relaxed line-clamp-2 mb-4 break-words" style={{ color: muted }}>{shown.description}</p>
                   <div className="flex justify-between items-center pt-3 border-t" style={{ borderColor: line }}>
                     <span className="text-[11px] font-medium" style={{ color: muted }}>{s.duration} {S['common.mins']}</span>
-                    <button className="px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-105" style={btnEmerald}>
+                    <button data-open-booking="true" onClick={openSiteBooking} className="px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-105" style={btnEmerald}>
                       {S['common.bookNow']}
                     </button>
                   </div>
@@ -261,7 +256,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                     </div>
                     <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
                       <BundlePrice bundle={p} offers={data.offers} style={{ color: emerald }} dark={isDark} />
-                      <button className="site-touch px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookPackage']}</button>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookPackage']}</button>
                     </div>
                   </div>
                 ))}
@@ -449,7 +444,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                           <p className="text-[10px] uppercase tracking-[0.25em] mt-1" style={{ color: emerald }}>{pub.role}</p>
                         </div>
                       </div>
-                      <button className="site-touch w-full py-2.5 rounded-full text-[10px] uppercase tracking-[0.25em] font-semibold mt-auto" style={btnEmerald}>{S['common.bookWith'].replace('{name}', pub.name.split(' ')[0])}</button>
+                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch w-full py-2.5 rounded-full text-[10px] uppercase tracking-[0.25em] font-semibold mt-auto" style={btnEmerald}>{S['common.bookWith'].replace('{name}', pub.name.split(' ')[0])}</button>
                     </div>
                   );
                 })}
@@ -541,6 +536,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                 <h4 className="font-serif font-semibold text-sm flex items-center gap-2" style={{ color: text }}>
                   <Clock className="w-4 h-4" style={{ color: emerald }} /> {S['common.openingHours']}
                 </h4>
+                <SiteSalonStatus themeId="beauty_skin_spa" data={data} placement="contact" />
                 <div className="space-y-2 text-xs" style={{ color: muted }}>
                   {data.openingHours ? (
                     Object.entries(data.openingHours).map(([day, sch]) => (
@@ -590,21 +586,12 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        <FinalBookingCta title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
-
-        <footer {...sectionProps('footer', 'ready')} className="site-section px-5 md:px-8 py-10 text-center text-xs" style={{ backgroundColor: footerBg, color: '#cfe3dd' }}>
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Leaf className="w-4 h-4" style={{ color: '#9fd3c3' }} />
-            <p className="font-serif font-semibold text-sm tracking-wide" style={nameStyle}>{data.salonName || 'Serenity Beauty & Spa'}</p>
-          </div>
-          <p className="uppercase tracking-[0.25em] text-[9px] font-medium mb-4" style={{ color: '#9fd3c3' }}>
-            {data.tagline || S.footerFallbackTagline}
-          </p>
-          <p className="text-[9px] uppercase tracking-[0.2em]" style={{ color: '#7fa79b' }}>
-            © 2026 {data.salonName || 'Salon'}. {S['common.poweredBy']}
-          </p>
-        </footer>
+        <FinalBookingCta themeId="beauty_skin_spa" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
+        <SiteFooter themeId="beauty_skin_spa" data={data} />
+        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
+      <SiteFloatingActions themeId="beauty_skin_spa" data={data} mode={mode} />
+      <SiteBookingHost data={data} />
     </div>
   );
 }

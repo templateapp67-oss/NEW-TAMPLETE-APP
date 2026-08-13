@@ -62,7 +62,9 @@ npm run test:phase-9.1      # offers/pricing/bundles across all five themes
 npm run test:phase-10.1     # global header & navigation across all five themes
 npm run test:phase-10.2     # global EN/HI language + per-theme dark mode
 npm run test:phase-10.3     # canonical section order + responsive structure
-npm run test:phase-10       # all Phase 10 suites
+npm run test:phase-10.4     # final CTA, footer & floating actions
+    npm run test:phase-10.5     # announcement bar & live salon status
+    npm run test:phase-10       # all Phase 10 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```

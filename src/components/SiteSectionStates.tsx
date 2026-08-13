@@ -1,8 +1,19 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { AlertCircle, CalendarCheck, RefreshCw } from 'lucide-react';
-import { scrollToSiteSection } from '../lib/siteNavigation';
+import { AlertCircle, CalendarCheck, MessageCircle, Phone, RefreshCw } from 'lucide-react';
+import type { SalonData } from '../types';
+import type { SiteHeaderThemeId } from '../lib/siteNavigation';
+import { SITE_HEADER_LABELS } from '../lib/siteNavigation';
 import type { SectionStatus, SiteSectionKey } from '../lib/siteStructure';
 import { SITE_SECTION_IDS, sectionProps } from '../lib/siteStructure';
+import { chromeText } from '../lib/siteChromeI18n';
+import {
+  canCall,
+  canWhatsApp,
+  openSiteBooking,
+  salonTelHref,
+  salonWhatsAppHref,
+} from '../lib/siteBooking';
+import { useSiteLocale } from './SiteHeader';
 
 export interface StructurePalette {
   accent: string;
@@ -136,38 +147,128 @@ export function FinalBookingCta({
   cta,
   palette,
   sharp = false,
+  themeId,
+  data,
 }: {
   title: string;
   body: string;
   cta: string;
   palette: StructurePalette;
   sharp?: boolean;
+  themeId?: SiteHeaderThemeId;
+  data?: SalonData;
 }) {
+  const locale = useSiteLocale();
+  const C = themeId ? chromeText(themeId, locale) : null;
+  const showCall = !!(data && canCall(data));
+  const showWa = !!(data && canWhatsApp(data));
+  const bookLabel = cta || SITE_HEADER_LABELS.bookAppointment[locale];
+
+  const bookBtn = (
+    <button
+      type="button"
+      data-testid="final-booking-cta"
+      data-open-booking="true"
+      onClick={openSiteBooking}
+      className={`inline-flex items-center justify-center min-h-11 px-8 text-[11px] font-extrabold uppercase tracking-[0.16em] ${
+        themeId === 'barber_mens_grooming' || themeId === 'hair_studio_color_bar' || sharp
+          ? ''
+          : themeId === 'family_full_service'
+            ? 'rounded-xl'
+            : 'rounded-full'
+      }`}
+      style={bookStyle(themeId, palette)}
+    >
+      {bookLabel}
+    </button>
+  );
+
+  const extras = (C && data) ? (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+      {showCall && (
+        <a
+          data-testid="final-cta-call"
+          href={salonTelHref(data)}
+          className={`site-touch inline-flex items-center gap-2 px-4 text-[10px] font-bold uppercase tracking-[0.14em] ${shapeOf(themeId, sharp)}`}
+          style={ghostStyle(themeId, palette)}
+        >
+          <Phone className="w-3.5 h-3.5" /> {C.ctaCall}
+        </a>
+      )}
+      {showWa && (
+        <a
+          data-testid="final-cta-whatsapp"
+          href={salonWhatsAppHref(data)}
+          target="_blank"
+          rel="noreferrer"
+          className={`site-touch inline-flex items-center gap-2 px-4 text-[10px] font-bold uppercase tracking-[0.14em] ${shapeOf(themeId, sharp)}`}
+          style={ghostStyle(themeId, palette)}
+        >
+          <MessageCircle className="w-3.5 h-3.5" /> {C.ctaWhatsapp}
+        </a>
+      )}
+    </div>
+  ) : null;
+
   return (
     <section
       {...sectionProps('booking', 'ready', SITE_SECTION_IDS.booking)}
-      className="site-section px-5 md:px-8 py-12 text-center min-w-0"
-      style={{ backgroundColor: palette.accent }}
+      data-testid="final-cta-section"
+      data-theme={themeId || 'generic'}
+      className={`site-section px-5 md:px-8 py-12 text-center min-w-0 final-cta-${themeId || 'generic'}`}
+      style={bandStyle(themeId, palette)}
     >
       <div className="max-w-xl mx-auto">
         <div
-          className={`w-12 h-12 mx-auto mb-4 flex items-center justify-center ${sharp ? '' : 'rounded-full'}`}
+          className={`w-12 h-12 mx-auto mb-4 flex items-center justify-center ${shapeOf(themeId, sharp)}`}
           style={{ backgroundColor: 'rgba(255,255,255,0.16)' }}
         >
           <CalendarCheck className="w-6 h-6 text-white" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">{title}</h2>
+        <h2 className={headingClass(themeId)}>{title}</h2>
         <p className="text-xs md:text-sm mt-3 text-white/80 leading-relaxed">{body}</p>
-        <button
-          type="button"
-          data-testid="final-booking-cta"
-          onClick={() => scrollToSiteSection('section-contact')}
-          className={`mt-6 inline-flex items-center justify-center min-h-11 px-8 text-[11px] font-extrabold uppercase tracking-[0.16em] ${sharp ? '' : 'rounded-full'}`}
-          style={{ backgroundColor: '#ffffff', color: palette.accent }}
-        >
-          {cta}
-        </button>
+        <div className="mt-6">{bookBtn}</div>
+        {extras}
       </div>
     </section>
   );
+}
+
+function shapeOf(themeId: SiteHeaderThemeId | undefined, sharp: boolean): string {
+  if (themeId === 'barber_mens_grooming' || themeId === 'hair_studio_color_bar' || sharp) return '';
+  if (themeId === 'family_full_service') return 'rounded-xl';
+  return 'rounded-full';
+}
+
+function headingClass(themeId: SiteHeaderThemeId | undefined): string {
+  if (themeId === 'hair_studio_color_bar' || themeId === 'beauty_skin_spa') {
+    return 'text-2xl md:text-3xl font-serif text-white tracking-tight';
+  }
+  if (themeId === 'barber_mens_grooming') {
+    return 'text-2xl md:text-3xl font-black uppercase tracking-[0.06em] text-white';
+  }
+  return 'text-2xl md:text-3xl font-extrabold text-white tracking-tight';
+}
+
+function bandStyle(themeId: SiteHeaderThemeId | undefined, palette: StructurePalette): CSSProperties {
+  if (themeId === 'barber_mens_grooming') return { backgroundColor: '#141414', borderTop: `2px solid ${palette.accent}`, borderBottom: `2px solid ${palette.accent}` };
+  if (themeId === 'hair_studio_color_bar') return { backgroundColor: '#191817' };
+  if (themeId === 'beauty_skin_spa') return { background: `linear-gradient(160deg, ${palette.accent} 0%, #15594a 100%)` };
+  if (themeId === 'family_full_service') return { backgroundColor: '#12385b' };
+  if (themeId === 'nail_lash_studio') return { backgroundImage: `linear-gradient(120deg, ${palette.accent} 0%, #d70f68 100%)`, backgroundColor: palette.accent };
+  return { backgroundColor: palette.accent };
+}
+
+function bookStyle(themeId: SiteHeaderThemeId | undefined, palette: StructurePalette): CSSProperties {
+  if (themeId === 'barber_mens_grooming') return { backgroundColor: palette.accent, color: '#141414' };
+  if (themeId === 'hair_studio_color_bar') return { backgroundColor: 'transparent', color: '#d8a0a8', border: '1px solid #d8a0a8' };
+  if (themeId === 'nail_lash_studio') return { backgroundColor: '#211b24', color: '#ffffff' };
+  if (themeId === 'family_full_service') return { backgroundColor: '#079f9a', color: '#ffffff' };
+  return { backgroundColor: '#ffffff', color: palette.accent };
+}
+
+function ghostStyle(themeId: SiteHeaderThemeId | undefined, palette: StructurePalette): CSSProperties {
+  if (themeId === 'barber_mens_grooming') return { border: `1px solid ${palette.accent}`, color: palette.accent };
+  if (themeId === 'hair_studio_color_bar') return { border: '1px solid rgba(255,255,255,0.28)', color: '#faf8f5' };
+  return { border: '1px solid rgba(255,255,255,0.35)', color: '#ffffff' };
 }

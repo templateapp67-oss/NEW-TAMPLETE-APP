@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { serviceDisplayPrice } from '../lib/pricing';
 import { SalonData, Service, TeamMember, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
+import { normalizeThemeId } from '../lib/themeServices';
+import SiteSalonStatus from './SiteSalonStatus';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -337,6 +339,12 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
           <span className="font-bold text-[#ac0053] text-lg tracking-tight" style={getSalonNameStyle(data)}>
             {data.salonName || 'Nexora Salon'}
           </span>
+          <SiteSalonStatus
+            themeId={normalizeThemeId(data.templateId)}
+            data={data}
+            placement="booking"
+            compact
+          />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-[11px] font-bold text-gray-400 bg-gray-50 px-2.5 py-1 rounded-md border border-gray-100 uppercase tracking-wider">
