@@ -1,10 +1,28 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-13** (session `arena/019ffb70-new-tamplete-app`).
+> Last updated: **2026-08-13** (session `arena/019ffba4-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **Phase 10.8 — REVIEWS, RATINGS & SOCIAL CONTENT: COMPLETE for all five themes.**
+  - Real customer reviews (no invented quotes). Write a Review form is
+    Rating + Review + Customer Name. Submission is allowed only after a
+    valid Phase 10.7 booking (`confirmed` / `pay_at_salon`, appointment
+    today or earlier) on the same business + theme.
+  - New reviews start as pending/moderation; the public list and average
+    rating use approved rows only. Duplicate (one per booking) and spam
+    (length, repeated characters, identical body, rate limit) are blocked.
+  - Social / Latest Work reuses the existing Videos / Reels architecture
+    (`data-site-section="videos"` / `#section-social`). Posts come only
+    from configured `socialVideos`; profile chips from `socialProfiles`.
+    YouTube / Instagram embeds are offered only when the URL actually
+    parses. No fake posts, no second video system.
+  - Five themed visuals; EN/HI and Light/Dark reuse 10.2. Header, booking,
+    payment, footer and 10.4 CTAs/FABs are untouched. No DB schema change.
+  - Details: `docs/phase-10.8-reviews-ratings-social.md`.
+    Run `npm run test:phase-10.8` or `npm run test:phase-10`.
 
 - **Phase 10.7 — ADVANCE PAYMENT & BOOKING CONFIRMATION: COMPLETE for all five themes.**
   - One five-step payment flow — Payment Option → Payment Gateway → Payment
@@ -556,7 +574,8 @@ Expected output:
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
 - `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
 - `test:phase-10.7`: 66/66 passed
-- `test:phase-10`: 557 tests, all green
+- `test:phase-10.8`: 36/36 passed
+- `test:phase-10`: 593 tests, all green
 - `test:theme-catalog`: 4/4 passed
 - `test:service-saving`: 14/14 passed
 - `test:service-management`: 9/9 passed
