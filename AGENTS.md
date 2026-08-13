@@ -59,6 +59,9 @@ npm run test:phase-8.2      # complete Phase 8.2 security + error-handling valid
 npm run test:phase-8.3      # complete Phase 8.3 final five-theme acceptance
 npm run test:phase-8        # every Phase 7-8 suite (161 tests)
 npm run test:phase-9.1      # offers/pricing/bundles across all five themes
+npm run test:phase-10.1     # global header & navigation across all five themes
+npm run test:phase-10.2     # global EN/HI language + per-theme dark mode
+npm run test:phase-10       # both Phase 10 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```

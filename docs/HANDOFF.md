@@ -1,10 +1,50 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-13** (session `arena/019ff9cd-new-tamplete-app`).
+> Last updated: **2026-08-13** (session `arena/019ffa2e-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **Phase 10.2 — GLOBAL LANGUAGE & DARK MODE: COMPLETE for all five themes.**
+  - New `src/lib/siteI18n.ts`: one namespaced EN/HI copy table per theme +
+    common labels + day names + a global category dictionary
+    (`translateCategory`); service names/descriptions continue through the
+    Phase 9.2 `displayService` translations pipeline.
+  - New `src/lib/themeSurfaces.ts`: per-theme `{light, dark}` surface palettes
+    resolved by the single global `surfacesOf()` — barber dark-native (cream
+    day-shift light), hair espresso/rose-gold dark, spa deep-forest dark,
+    family night-sky navy dark, nail deep-plum/neon-pink dark.
+  - All five renderers consume both via the header's `useSiteLocale()` /
+    `useThemeAppearance()` hooks — Language and Dark Mode remain GLOBAL
+    controls (no per-theme implementations), persisted across refresh.
+  - English output is byte-identical to the pre-10.2 copy; Hindi titles are
+    pairwise-distinct across themes (no cross-theme mixing, tested).
+  - Details: `docs/phase-10.2-language-dark-mode.md`; run
+    `npm run test:phase-10` (10.1 80/80 + 10.2 49/49).
+
+- **Phase 10.1 — GLOBAL HEADER & NAVIGATION: COMPLETE for all five themes.**
+  - New `src/lib/siteNavigation.ts` holds the ONE canonical structure:
+    Logo/Salon Name → Home → Services → Offers → Gallery → Videos → About →
+    Team → Contact → Language → Dark Mode → Book Appointment, with EN/HI
+    labels, per-theme section targets and data-driven visibility rules.
+  - New `src/components/SiteHeader.tsx` renders it with **five distinct themed
+    designs** (barber gold-slab/dark, hair-studio editorial hairline, spa
+    floating pill, family navy strip + white wayfinding bar, nail pink-flash +
+    gradient CTA) — structure is common, visuals are not copied.
+  - Desktop inline nav + mobile hamburger drawer (nav, Language, Dark Mode,
+    Book CTA last) both work; nav smooth-scrolls to real sections; Language
+    reuses the `nexora_locale` store and switches instantly (services repaint
+    via a new `useSiteLocale()` hook); Dark Mode is a persisted visitor
+    preference swapping each theme's designed header variants.
+  - Existing renderers only swapped their old nav block for the themed header +
+    gained `id="section-offers"` package anchors. PreviewPane, booking flow,
+    service/offer logic and all migrations are untouched.
+  - Details: `docs/phase-10.1-global-header-navigation.md`; run
+    `npm run test:phase-10.1` (80/80 across all five themes, desktop+mobile).
+    Note: `test:acceptance-ui` shows one "zero-typing auto-fill" failure that
+    reproduces at base commit `1e8daaf` — pre-existing environment flake, not
+    a Phase 10.1 regression (`test:acceptance` 66/66 still green).
 
 - **Phase 9.1 — OFFERS, DISCOUNTS, PRICING & COMBOS: COMPLETE for all five themes.**
   - M24 adds theme/tenant-safe dated offers targeting an entire theme, category,
