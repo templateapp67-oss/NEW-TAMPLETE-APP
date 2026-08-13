@@ -53,6 +53,20 @@ interface Props {
   data: SalonData;
   onBackToWebsite: () => void;
   onShowToast?: (msg: string) => void;
+  /**
+   * PHASE 10.7 — handed the resolved booking context when the user taps
+   * the Confirm button on the Summary step. The host swaps the entry flow
+   * for the payment + confirmation + receipt flow. Optional: the 10.6 host
+   * (which renders only the entry flow) does not provide it, and the
+   * summary Confirm button keeps its 10.6 "next phase" toast behaviour.
+   */
+  onProceedToPayment?: (payload: {
+    service: { id: string };
+    dateKey: string;
+    startMinutes: number;
+    endMinutes: number;
+    customer: { name: string; mobile: string; email: string; notes: string };
+  }) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -200,7 +214,7 @@ const FLOW_DESIGNS: Record<SiteHeaderThemeId, FlowDesign> = {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
-export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShowToast }: Props) {
+export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShowToast, onProceedToPayment }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const now = useTickingNow(30_000);
@@ -1103,6 +1117,16 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
             type="button"
             data-testid="booking-confirm"
             onClick={() => {
+              if (onProceedToPayment && selectedService && selectedDateKey && selectedSlotMinutes != null) {
+                onProceedToPayment({
+                  service: { id: selectedService.id },
+                  dateKey: selectedDateKey,
+                  startMinutes: selectedSlotMinutes,
+                  endMinutes: selectedSlotMinutes + (selectedService.duration || 30),
+                  customer,
+                });
+                return;
+              }
               toast('summary.confirmNote');
             }}
             className={`${D.primary} px-6 md:px-8 flex items-center gap-2 cursor-pointer`}

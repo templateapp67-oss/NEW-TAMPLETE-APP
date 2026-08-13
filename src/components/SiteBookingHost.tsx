@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SalonData } from '../types';
-import SiteBookingFlow from './SiteBookingFlow';
+import SiteBookingFullFlow from './SiteBookingFullFlow';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import {
   BOOKING_TRIGGER_ATTR,
@@ -11,14 +11,19 @@ import {
 } from '../lib/siteBooking';
 
 /**
- * PHASE 10.6 — hosts the Book Appointment ENTRY flow inside the themed
- * website frame. There is still exactly ONE booking architecture: header /
- * final / floating Book CTAs dispatch `nexora:open-booking` (and
- * `data-open-booking` clicks), and this host mounts the five-step
- * Service → Date → Time → Details → Summary flow for the ACTIVE theme.
+ * PHASE 10.7 — public-site booking host.
+ *
+ * There is still exactly ONE booking architecture: header / final /
+ * floating Book CTAs dispatch `nexora:open-booking` (and
+ * `data-open-booking` clicks), and this host mounts the full
+ * Service → Date → Time → Details → Summary → Payment Option →
+ * Gateway → Result → Confirmation → Receipt flow for the ACTIVE theme.
  *
  * `themeId` comes from the renderer so the flow inherits the exact theme
- * identity (services, surfaces, language, dark mode) of the page it opened on.
+ * identity (services, surfaces, language, dark mode) of the page it
+ * opened on. Phase 10.6's entry-only flow is now the first half of
+ * this orchestrator; the payment + confirmation + receipt screens are
+ * added in Phase 10.7.
  */
 export default function SiteBookingHost({ themeId, data }: { themeId: SiteHeaderThemeId; data: SalonData }) {
   const [open, setOpen] = useState(false);
@@ -55,7 +60,7 @@ export default function SiteBookingHost({ themeId, data }: { themeId: SiteHeader
       className="absolute inset-0 z-[70] flex flex-col overflow-hidden"
       style={{ transform: 'translateZ(0)' }}
     >
-      <SiteBookingFlow themeId={themeId} data={data} onBackToWebsite={closeSiteBooking} />
+      <SiteBookingFullFlow themeId={themeId} data={data} />
     </div>
   );
 }
