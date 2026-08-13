@@ -45,7 +45,7 @@ npm run build        # vite build + esbuild bundle of server.ts -> dist/
 npm run start        # run the production build (node dist/server.cjs)
 npm run preview      # vite preview on http://0.0.0.0:4173
 npm run lint         # type-check only: tsc --noEmit
-npm run validate:migrations # PGlite: apply M01–M15 twice + run tests A–L
+npm run validate:migrations # PGlite: apply M01–M16 twice + run tests A–N
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
@@ -107,8 +107,8 @@ node verify-22-screens.js   # static verification of all 25 screens/features
 
 - `docs/nexora-database-spec.md` — the 90-point Nexora Supabase master
   specification and source for migration order §5.25.
-- `docs/database-migrations-plan.md` + `supabase/migrations/` — **DRAFT** M01–M15.
-  They pass clean replay x2 plus tests A–L in PGlite, but have **not been applied
+- `docs/database-migrations-plan.md` + `supabase/migrations/` — **DRAFT** M01–M16.
+  They pass clean replay x2 plus tests A–N in PGlite, but have **not been applied
   to any database**. M02 is deliberately a fail-closed preflight and must be
   regenerated after read-only live Supabase introspection. Never execute the
   migration set without a separate explicit go-ahead.
@@ -149,7 +149,7 @@ loads). All `.env*` files are gitignored except `.env.example`.
   tuned for agent editing (`DISABLE_HMR` env).
 - **Verification**: after UI/feature changes, run
   `node verify-22-screens.js` and `npm run lint`. After migration changes, also
-  run `npm run validate:migrations` and keep the 15/15 x2 + 12/12 result.
+  run `npm run validate:migrations` and keep the 16/16 x2 + 14/14 result.
 
 ## Git workflow
 

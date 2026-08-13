@@ -1,11 +1,23 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-12** (session `arena/019ff634-new-tamplete-app`).
+> Last updated: **2026-08-13** (session `arena/019ff8e8-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
 
+- **Phase 7.1 theme-service database architecture completed (draft, not applied):**
+  - Added M16 with global `themes → service_categories → predefined_services`
+    tables. No theme/service dataset is seeded.
+  - Existing tenant-owned `public.services` remains unchanged; it is not
+    equivalent to the global predefined catalog.
+  - Category-to-theme and composite service/category/theme FKs reject orphan
+    and cross-theme relationships. Parent deletes are restricted.
+  - Added uniqueness/checks, ordered lookup indexes, timestamp triggers, and
+    read-only active-catalog RLS for `anon`/`authenticated`; only `service_role`
+    can mutate catalog rows.
+  - Full rationale and ERD: `docs/phase-7.1-theme-service-database.md`.
+  - Validation: M01–M16 replay cleanly twice; tests A–N pass (14/14).
 - **Category-based auto-suggested service descriptions (Step 05 / Add Service)**:
   - When the user picks a **Category** in the "Add New Service" form, the
     Description field is auto-filled with a professional, customer-friendly,
@@ -77,12 +89,13 @@
     *"Authentication form is ready, but Supabase is not connected. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app."*
   - TopBar account action includes a graceful loading fallback so buttons never permanently disappear during session verification.
   - Automated regression suite added in `scripts/test-auth-modal.mjs` (`npm run test:auth`).
-- `supabase/migrations/` continues to contain **15 ordered DRAFT migrations (M01–M15)**
-  based on the 90-point specification §5.25.
-- `scripts/validate-migrations.mjs` applies all 15 files twice and runs the P88
-  functional acceptance set A–L using `@electric-sql/pglite` (real PostgreSQL).
-- Validation is green: **15/15 clean apply on pass 1, 15/15 on pass 2, 12/12
-  functional tests, and 13/13 auth regression tests**.
+- `supabase/migrations/` now contains **16 ordered DRAFT migrations (M01–M16)**:
+  M01–M15 follow the 90-point specification §5.25, and M16 is the Phase 7.1
+  theme-catalog extension.
+- `scripts/validate-migrations.mjs` applies all 16 files twice and runs the expanded
+  functional acceptance set A–N using `@electric-sql/pglite` (real PostgreSQL).
+- Validation is green: **16/16 clean apply on pass 1, 16/16 on pass 2, 14/14
+  functional tests, and 14/14 auth regression tests**.
 - **No migration has been applied to local, staging, or live Supabase.** The SQL
   is a reviewed/testable draft only.
 
@@ -164,7 +177,7 @@ Do not infer its complete state from the repository.
 - Historical booking snapshots, payment verification/idempotency, audit events,
   auto-save/resume, plan/white-label gates.
 
-### 3. Checked-in M01–M15 drafts
+### 3. Checked-in M01–M16 drafts
 
 The draft creates a clean target schema only when no known legacy collision is
 present. **M02 deliberately raises an exception** when it finds known live/legacy
@@ -174,7 +187,7 @@ parallel business model.
 
 Because the known live project has several of those objects, M02 must be
 regenerated after read-only introspection with explicit preserving
-rename/ALTER/backfill steps. M03–M15 may also need adjustments based on the
+rename/ALTER/backfill steps. M03–M16 may also need adjustments based on the
 actual types, keys, policies and data.
 
 The optional `payment_refunds` table is deferred until a real refund backend is
@@ -187,19 +200,19 @@ wiring step must upsert each owner's existing draft/progress payload.
 npm run lint                # TypeScript type check (tsc --noEmit)
 npm run test:auth           # Auth modal and login reliability regression tests
 node verify-22-screens.js   # Static verification of all 25 screens & features
-npm run validate:migrations # PGlite: apply M01–M15 twice + run tests A–L
+npm run validate:migrations # PGlite: apply M01–M16 twice + run tests A–N
 npm run build               # Vite build + esbuild server bundle
 ```
 
 Expected output:
 - `lint`: 0 errors
-- `test:auth`: 13/13 passed
+- `test:auth`: 14/14 passed
 - `verify-22-screens`: 25/25 verified
-- `validate:migrations`: 15/15 applied cleanly x2, 12/12 functional tests passed
+- `validate:migrations`: 16/16 applied cleanly x2, 14/14 functional tests passed
 
 ## Guardrails / gotchas
 
-- **Do not apply M01–M15 yet.** Draft generation and PGlite validation are not
+- **Do not apply M01–M16 yet.** Draft generation and PGlite validation are not
   execution approval.
 - Read-only live introspection comes first; sanitize outputs before committing.
 - Regenerate M02 rather than bypassing its collision exception.
@@ -221,9 +234,9 @@ Expected output:
 2. **Regenerate M02** and adapt downstream drafts to preserve the actual schema/data.
 3. Re-run clean replay, legacy-upgrade fixtures and security review.
 4. Obtain a **separate explicit go-ahead** for database execution.
-5. Apply M01–M15 in order via Supabase CLI (preferred) or SQL editor.
-6. Run acceptance tests **A–L** from spec P88 on the approved environment.
+5. Apply M01–M16 in order via Supabase CLI (preferred) or SQL editor.
+6. Run P88 acceptance tests **A–L** plus Phase 7.1 tests **M–N** on the approved environment.
 7. Generate/commit Supabase **TypeScript types** per P72 and wire the service layer.
 
-In short: **live Supabase introspection → M02 regenerate → approved M01–M15
-apply → acceptance A–L → TypeScript types**.
+In short: **live Supabase introspection → M02 regenerate → approved M01–M16
+apply → acceptance A–N → TypeScript types**.

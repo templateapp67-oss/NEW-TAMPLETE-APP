@@ -1753,6 +1753,11 @@ Per P67: services.business_id; staff_members.business_id; staff_services(staff_i
 ### 5.14 Services/Packages Architecture
 
 - `services` + `packages` catalogs + `package_services` composition (P6–P8); single source shared by all screens; `short_description` holds final AI-reviewed copy (P24); soft archive (P69).
+- Phase 7.1 adds a separate global onboarding reference catalog:
+  `themes → service_categories → predefined_services`. These rows are platform
+  suggestions only and never replace or duplicate a business's user-owned
+  `services` rows. A composite `(category_id, theme_id)` foreign key prevents
+  cross-theme category/service relationships.
 
 ### 5.15 Website/Publishing Architecture
 
@@ -1813,5 +1818,6 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 13. **M13** storage buckets + policies
 14. **M14** indexes/constraints (final CHECKs, UNIQUEs, indexes)
 15. **M15** backfill/data migration (localStorage → DB, owner memberships, defaults) — dev seed script separate (P82)
+16. **M16** Phase 7.1 global theme/service reference architecture (themes, categories, predefined services; no dataset seed)
 
-**Execution gate:** M01–M15 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
+**Execution gate:** M01–M16 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.

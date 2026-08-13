@@ -32,7 +32,7 @@ begin
     raise exception using
       errcode = 'P0001',
       message = format(
-        'M02 DRAFT blocked execution: legacy live tables detected (%s). Run read-only Supabase introspection, map them to the canonical model, and regenerate M02 before applying M01-M15.',
+        'M02 DRAFT blocked execution: legacy live tables detected (%s). Run read-only Supabase introspection, map them to the canonical model, and regenerate M02 before applying M01-M16.',
         array_to_string(collisions, ', ')
       );
   end if;

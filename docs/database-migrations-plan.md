@@ -1,6 +1,6 @@
-# Nexora Database Migrations Plan — M01–M15 (DRAFT)
+# Nexora Database Migrations Plan — M01–M16 (DRAFT)
 
-> **Status (2026-08-11): DRAFT SQL committed; NOT applied to any database.**
+> **Status (2026-08-13): DRAFT SQL committed and extended through Phase 7.1; NOT applied to any database.**
 >
 > The migrations implement the ordering proposed by the 90-point master
 > specification §5.25. They have been validated on an embedded real PostgreSQL
@@ -42,6 +42,7 @@ No `DROP TABLE` or destructive replacement is allowed.
 | M13 | `20260811001301_m13_storage.sql` | Private buckets and business/user path-scoped Storage policies |
 | M14 | `20260811001401_m14_indexes_constraints.sql` | Query indexes and GiST overlap protection for assigned staff bookings |
 | M15 | `20260811001501_m15_backfill_defaults.sql` | Non-destructive identities/memberships/defaults backfill; no demo data |
+| M16 | `20260813000101_m16_theme_service_catalog.sql` | Phase 7.1 global themes/categories/predefined-services architecture; no seed data |
 
 ### Deliberate decisions
 
@@ -63,6 +64,9 @@ No `DROP TABLE` or destructive replacement is allowed.
 - Buckets are private. Public media reads require a published website and an
   allowed business-scoped display path; uploads/updates/deletes require tenant
   membership. No social-video bucket is created.
+- M16 keeps global predefined suggestions separate from tenant-owned `services`;
+  its composite `(category_id, theme_id)` FK blocks cross-theme category links.
+  See [`phase-7.1-theme-service-database.md`](phase-7.1-theme-service-database.md).
 
 ## Validation performed
 
@@ -76,11 +80,11 @@ The validator uses `@electric-sql/pglite` **0.3.16**, a real PostgreSQL engine
 compiled to WebAssembly, including its `pgcrypto` and `btree_gist` extensions.
 It creates only minimal Supabase-compatible `auth`/`storage` test fixtures.
 
-Result on 2026-08-11:
+Result on 2026-08-13:
 
-- **15/15 migrations applied cleanly on an empty schema**
-- **15/15 migrations applied cleanly a second time** (replay/idempotency)
-- **12/12 functional tests passed**
+- **16/16 migrations applied cleanly on an empty schema**
+- **16/16 migrations applied cleanly a second time** (replay/idempotency)
+- **14/14 functional tests passed**
 
 | Test | Assertion |
 |---|---|
@@ -96,6 +100,8 @@ Result on 2026-08-11:
 | J | Progress + JSON draft preserve onboarding resume state |
 | K | A published slug loads; a missing/draft slug does not |
 | L | Anonymous payload excludes commission, access roles, permissions and payment internals |
+| M | Theme/category/service FKs reject orphans and cross-theme links without changing business services |
+| N | Client roles see only active catalog rows and cannot mutate the global catalog |
 
 This validation proves draft consistency on a clean PostgreSQL schema. It does
 **not** replace live-project introspection, Supabase-specific review, staging
@@ -132,12 +138,12 @@ M02 SQL.
    upgrade fixtures and verify data-preserving behavior.
 4. Review the full diff, take a recoverable backup, and obtain explicit
    migration-execution approval.
-5. Apply M01–M15 in order with Supabase CLI migrations (preferred) or carefully
+5. Apply M01–M16 in order with Supabase CLI migrations (preferred) or carefully
    through the SQL editor; stop on the first error and do not skip migrations.
-6. Run acceptance tests A–L from spec P88 against staging/live as approved,
-   including multi-user RLS and browser/server flows.
+6. Run acceptance tests A–L from spec P88 plus Phase 7.1 tests M–N against
+   staging/live as approved, including multi-user RLS and browser/server flows.
 7. Generate Supabase TypeScript types (`supabase gen types typescript`) per P72,
    commit them, and wire the service layer/screens to the single source of truth.
 
-**Next step:** live Supabase introspection → regenerate M02 → approved M01–M15
-application → P88 acceptance tests A–L → P72 TypeScript types.
+**Next step:** live Supabase introspection → regenerate M02 → approved M01–M16
+application → P88 tests A–L + Phase 7.1 tests M–N → P72 TypeScript types.

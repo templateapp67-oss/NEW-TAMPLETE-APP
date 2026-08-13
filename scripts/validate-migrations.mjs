@@ -12,7 +12,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 15, 'expected exactly M01-M15');
+assert.equal(migrationFiles.length, 16, 'expected exactly M01-M16');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -73,7 +73,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/15 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/16 applied cleanly`);
 }
 
 const ids = {
@@ -88,6 +88,13 @@ const ids = {
   customerA: '40000000-0000-4000-8000-0000000000a1',
   customerB: '40000000-0000-4000-8000-0000000000b1',
   bookingA: '50000000-0000-4000-8000-0000000000a1',
+  themeA: '60000000-0000-4000-8000-0000000000a1',
+  themeB: '60000000-0000-4000-8000-0000000000b1',
+  categoryA: '70000000-0000-4000-8000-0000000000a1',
+  categoryB: '70000000-0000-4000-8000-0000000000b1',
+  predefinedA: '80000000-0000-4000-8000-0000000000a1',
+  predefinedB: '80000000-0000-4000-8000-0000000000b1',
+  predefinedInactive: '80000000-0000-4000-8000-0000000000a2',
 };
 
 await db.query(
@@ -369,6 +376,124 @@ await test('L — anonymous access exposes only published/public-safe data', asy
   });
 });
 
-assert.equal(passed, 12);
-console.log(`Functional tests: ${passed}/12 passed`);
+await test('M — theme catalog enforces valid same-theme relationships without touching business services', async () => {
+  const emptyCatalog = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined
+  `);
+  assert.deepEqual(emptyCatalog.rows[0], { themes: 0, categories: 0, predefined: 0 });
+
+  const businessServicesBefore = await db.query('select count(*)::int as count from public.services');
+
+  await db.query(
+    `insert into public.themes (id, theme_id, name, description, target_audience, ui_config)
+     values
+       ($1, 'test-theme-a', 'Test Theme A', 'Architecture fixture A', 'Audience A', '{"accent":"#111111"}'),
+       ($2, 'test-theme-b', 'Test Theme B', 'Architecture fixture B', 'Audience B', '{"accent":"#222222"}')`,
+    [ids.themeA, ids.themeB],
+  );
+  await db.query(
+    `insert into public.service_categories (id, theme_id, name, sort_order)
+     values ($1, $2, 'Category A', 0), ($3, $4, 'Category B', 0)`,
+    [ids.categoryA, ids.themeA, ids.categoryB, ids.themeB],
+  );
+  await db.query(
+    `insert into public.predefined_services
+       (id, theme_id, category_id, name, description, is_suggested, sort_order)
+     values ($1, $2, $3, 'Valid Service A', 'Valid same-theme fixture', true, 0)`,
+    [ids.predefinedA, ids.themeA, ids.categoryA],
+  );
+
+  await expectReject(
+    () => db.query(
+      `insert into public.service_categories (theme_id, name)
+       values ('ffffffff-ffff-4fff-8fff-ffffffffffff', 'Orphan Category')`,
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.predefined_services (theme_id, category_id, name)
+       values ($1, $2, 'Cross-theme Service')`,
+      [ids.themeB, ids.categoryA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.themes (theme_id, name)
+       values ('test-theme-a', 'Duplicate Stable ID')`,
+    ),
+    /unique|duplicate/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.service_categories (theme_id, name)
+       values ($1, 'Category A')`,
+      [ids.themeA],
+    ),
+    /unique|duplicate/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.predefined_services (theme_id, category_id, name)
+       values ($1, $2, 'Valid Service A')`,
+      [ids.themeA, ids.categoryA],
+    ),
+    /unique|duplicate/i,
+  );
+  await expectReject(
+    () => db.query('delete from public.themes where id = $1', [ids.themeA]),
+    /foreign key|violates/i,
+  );
+
+  await db.query(
+    `update public.service_categories
+     set sort_order = 1, updated_at = '2000-01-01T00:00:00Z'
+     where id = $1`,
+    [ids.categoryA],
+  );
+  const updatedCategory = await db.query(
+    `select sort_order, updated_at > '2000-01-01T00:00:00Z'::timestamptz as timestamp_refreshed
+     from public.service_categories where id = $1`,
+    [ids.categoryA],
+  );
+  assert.deepEqual(updatedCategory.rows[0], { sort_order: 1, timestamp_refreshed: true });
+
+  const businessServicesAfter = await db.query('select count(*)::int as count from public.services');
+  assert.equal(businessServicesAfter.rows[0].count, businessServicesBefore.rows[0].count);
+});
+
+await test('N — clients read only the active theme catalog and cannot mutate it', async () => {
+  await db.query(
+    `insert into public.predefined_services
+       (id, theme_id, category_id, name, is_suggested, is_active)
+     values
+       ($1, $2, $3, 'Hidden Inactive Service', false, false),
+       ($4, $5, $6, 'Hidden Inactive Theme Service', true, true)`,
+    [
+      ids.predefinedInactive, ids.themeA, ids.categoryA,
+      ids.predefinedB, ids.themeB, ids.categoryB,
+    ],
+  );
+  await db.query('update public.themes set is_active = false where id = $1', [ids.themeB]);
+
+  await asRole('anon', '', async () => {
+    const themes = await db.query('select theme_id from public.themes order by theme_id');
+    const categories = await db.query('select name from public.service_categories order by name');
+    const services = await db.query('select name from public.predefined_services order by name');
+    assert.deepEqual(themes.rows.map((row) => row.theme_id), ['test-theme-a']);
+    assert.deepEqual(categories.rows.map((row) => row.name), ['Category A']);
+    assert.deepEqual(services.rows.map((row) => row.name), ['Valid Service A']);
+    await expectReject(
+      () => db.query("insert into public.themes (theme_id, name) values ('client-write', 'Blocked')"),
+      /permission denied/i,
+    );
+  });
+});
+
+assert.equal(passed, 14);
+console.log(`Functional tests: ${passed}/14 passed`);
 await db.close();
