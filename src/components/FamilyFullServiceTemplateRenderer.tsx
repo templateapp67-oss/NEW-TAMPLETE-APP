@@ -697,7 +697,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
         {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
       <SiteFloatingActions themeId="family_full_service" data={data} mode={mode} />
-      <SiteBookingHost data={data} />
+      <SiteBookingHost themeId="family_full_service" data={data} />
     </div>
   );
 }

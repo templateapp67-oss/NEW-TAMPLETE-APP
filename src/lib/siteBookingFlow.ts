@@ -1,0 +1,479 @@
+/**
+ * PHASE 10.6 — BOOK APPOINTMENT ENTRY FLOW · single engine for all five themes.
+ *
+ * This is the ONE booking entry architecture for the public website. It:
+ *
+ *   - derives the service list from the ACTIVE theme only (theme-isolated
+ *     category → service selection, reusing the active-catalog filter);
+ *   - respects weekly `openingHours`, dated `holidays` and `bookingRules`
+ *     (min notice / max advance / buffer) when generating days and slots;
+ *   - shows only available slots and disables past / taken / closed ones;
+ *   - prevents double-booking with short-lived slot holds (localStorage),
+ *     keyed per theme + service + local date + start time;
+ *   - validates the customer entry form (name required, mobile required,
+ *     email + notes optional).
+ *
+ * No database writes, no payment, no final confirmation — those arrive in
+ * later phases. The engine reuses the Phase 10.5 salon clock
+ * (`salonStatus.salonNow`) so status and booking agree on "now".
+ */
+import type { SalonData, SalonHoliday, SalonOpeningHours, Service } from '../types';
+import { digitsOnly } from './siteBooking';
+import { activeCatalogItems } from './siteStructure';
+import type { SiteHeaderThemeId } from './siteNavigation';
+import {
+  formatClockLabel,
+  holidayOn,
+  isClosedHoliday,
+  localDateKey,
+  minutesSinceMidnight,
+  parseClockToMinutes,
+  salonNow,
+  scheduleForDay,
+  weekdayKeyOf,
+} from './salonStatus';
+
+/* ------------------------------------------------------------------ */
+/* Steps + holds                                                       */
+/* ------------------------------------------------------------------ */
+
+export type BookingStepId = 'service' | 'date' | 'time' | 'details' | 'summary';
+export const BOOKING_STEP_IDS: BookingStepId[] = ['service', 'date', 'time', 'details', 'summary'];
+
+export const BOOKING_HOLDS_KEY = 'nexora_site_booking_holds';
+export const BOOKING_BROWSER_KEY = 'nexora_site_booking_browser';
+export const BOOKING_HOLD_EVENT = 'nexora:booking-holds';
+export const BOOKING_HOLD_MINUTES = 15;
+
+/* ------------------------------------------------------------------ */
+/* Theme-isolated service list                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Services for the ACTIVE theme only. Rows carrying explicit theme
+ * provenance must match the active theme; inactive/archived rows are
+ * dropped. Rows without provenance are the active theme's own plain
+ * catalog and stay visible. Cross-theme services can never leak in.
+ */
+export function bookingServicesForTheme(data: SalonData, themeId: string): Service[] {
+  return activeCatalogItems(data.services).filter(
+    (service) => !service.themeId || service.themeId === themeId,
+  );
+}
+
+/** Category → services, preserving catalog order inside each category. */
+export function bookingServicesByCategory(services: readonly Service[]): Array<{ category: string; services: Service[] }> {
+  const map = new Map<string, Service[]>();
+  for (const service of services) {
+    const category = (service.category || '').trim() || 'Other';
+    const list = map.get(category);
+    if (list) list.push(service);
+    else map.set(category, [service]);
+  }
+  return Array.from(map.entries()).map(([category, items]) => ({ category, services: items }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Booking rules parsing                                               */
+/* ------------------------------------------------------------------ */
+
+export interface ParsedBookingRules {
+  /** Minimum notice before a slot can be booked, in minutes. */
+  minNoticeMinutes: number;
+  /** How many days ahead can be booked (inclusive of today). */
+  maxAdvanceDays: number;
+  /** Buffer minutes appended to a service before the next slot starts. */
+  bufferMinutes: number;
+}
+
+/** Accepts `1 hour`, `45 min`, `30 days`, `No buffer`, `15 minutes`. */
+export function parseDurationToMinutes(value: string | null | undefined): number | null {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  if (raw.includes('no buffer') || raw.includes('none') || raw === '0') return 0;
+  const match = raw.match(/(\d+(?:\.\d+)?)\s*(minute|minutes|mins|min|hour|hours|hr|hrs|day|days)?/);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  const unit = match[2] || 'min';
+  if (unit.startsWith('hour') || unit === 'hr' || unit === 'hrs') return Math.round(amount * 60);
+  if (unit.startsWith('day')) return Math.round(amount * 24 * 60);
+  return Math.round(amount);
+}
+
+export function parsedBookingRules(data: Pick<SalonData, 'bookingRules'>): ParsedBookingRules {
+  const rules = data.bookingRules;
+  const maxAdvanceRaw = parseDurationToMinutes(rules?.maxAdvance);
+  return {
+    minNoticeMinutes: parseDurationToMinutes(rules?.minNotice) ?? 60,
+    maxAdvanceDays: maxAdvanceRaw != null ? Math.max(1, Math.round(maxAdvanceRaw / (24 * 60))) : 30,
+    bufferMinutes: parseDurationToMinutes(rules?.bufferTime) ?? 0,
+  };
+}
+
+/** Gap between slot start times: ≥30 min, rounded up to 30-min grid. */
+export function bookingSlotIntervalMinutes(
+  service: Pick<Service, 'duration'>,
+  data: Pick<SalonData, 'bookingRules'>,
+): number {
+  const { bufferMinutes } = parsedBookingRules(data);
+  const total = Math.max(service.duration || 30, 1) + Math.max(bufferMinutes, 0);
+  return Math.min(120, Math.max(30, Math.ceil(total / 30) * 30));
+}
+
+/* ------------------------------------------------------------------ */
+/* Dates                                                               */
+/* ------------------------------------------------------------------ */
+
+export type BookingDayReason = 'outside-window' | 'holiday' | 'closed' | 'past' | 'full';
+
+export interface BookingDayInfo {
+  date: Date;
+  /** Local calendar key `YYYY-MM-DD` — never UTC. */
+  dateKey: string;
+  weekday: keyof SalonOpeningHours;
+  isToday: boolean;
+  selectable: boolean;
+  reason?: BookingDayReason;
+  holiday?: SalonHoliday | null;
+  openLabel?: string;
+  closeLabel?: string;
+}
+
+/** First selectable day of the window (today, local midnight). */
+export function bookingWindowStart(now: Date = salonNow()): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** `YYYY-MM-DD` keys from start (inclusive) to start + days (exclusive). */
+export function bookingWindowDateKeys(data: Pick<SalonData, 'bookingRules'>, now: Date = salonNow()): Set<string> {
+  const start = bookingWindowStart(now);
+  const days = parsedBookingRules(data).maxAdvanceDays;
+  const keys = new Set<string>();
+  for (let i = 0; i < days; i += 1) {
+    const d = new Date(start.getTime());
+    d.setDate(start.getDate() + i);
+    keys.add(localDateKey(d));
+  }
+  return keys;
+}
+
+export function bookingDayInfo(
+  data: Pick<SalonData, 'openingHours' | 'holidays' | 'bookingRules'>,
+  date: Date,
+  now: Date = salonNow(),
+): BookingDayInfo {
+  const dateKey = localDateKey(date);
+  const weekday = weekdayKeyOf(date);
+  const holiday = holidayOn(data.holidays, dateKey);
+  const base: BookingDayInfo = {
+    date,
+    dateKey,
+    weekday,
+    isToday: dateKey === localDateKey(now),
+    selectable: true,
+    holiday,
+  };
+
+  if (!bookingWindowDateKeys(data, now).has(dateKey)) {
+    return { ...base, selectable: false, reason: 'outside-window' };
+  }
+  if (isClosedHoliday(holiday)) {
+    return { ...base, selectable: false, reason: 'holiday' };
+  }
+  const schedule = scheduleForDay(data.openingHours, weekday);
+  if (!schedule.open) {
+    return { ...base, selectable: false, reason: 'closed' };
+  }
+  const openMinutes = parseClockToMinutes(schedule.startTime);
+  const closeMinutes = parseClockToMinutes(schedule.endTime);
+  const openLabel = openMinutes != null ? formatClockLabel(openMinutes) : undefined;
+  const closeLabel = closeMinutes != null ? formatClockLabel(closeMinutes) : undefined;
+  if (base.isToday && closeMinutes != null && minutesSinceMidnight(now) >= closeMinutes) {
+    return { ...base, selectable: false, reason: 'past', openLabel, closeLabel };
+  }
+  return { ...base, openLabel, closeLabel };
+}
+
+/** The next `count` days from today (never UTC-shifted). */
+export function bookingDayList(
+  data: Pick<SalonData, 'openingHours' | 'holidays' | 'bookingRules'>,
+  count: number,
+  now: Date = salonNow(),
+): BookingDayInfo[] {
+  const start = bookingWindowStart(now);
+  const days: BookingDayInfo[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(start.getTime());
+    d.setDate(start.getDate() + i);
+    days.push(bookingDayInfo(data, d, now));
+  }
+  return days;
+}
+
+/* ------------------------------------------------------------------ */
+/* Slots                                                               */
+/* ------------------------------------------------------------------ */
+
+export type BookingSlotState = 'available' | 'past' | 'taken' | 'held';
+
+export interface BookingSlot {
+  /** Minutes from midnight when the service starts. */
+  minutes: number;
+  startLabel: string;
+  endLabel: string;
+  state: BookingSlotState;
+}
+
+export interface BookingHold {
+  key: string;
+  browserId: string;
+  themeId: string;
+  serviceId: string;
+  dateKey: string;
+  startMinutes: number;
+  endMinutes: number;
+  expiresAt: number;
+}
+
+export function bookingSlotKey(
+  themeId: string,
+  serviceId: string,
+  dateKey: string,
+  startMinutes: number,
+): string {
+  return `${themeId}|${serviceId}|${dateKey}|${startMinutes}`;
+}
+
+let injectedHolds: BookingHold[] | null = null;
+
+/** Test-only injection of foreign holds (simulates other visitors' bookings). */
+export function setBookingHoldsForTests(holds: BookingHold[] | null): void {
+  injectedHolds = holds ? holds.slice() : null;
+}
+
+/** Stable per-browser id so a visitor's own holds never block themselves. */
+export function bookingBrowserId(): string {
+  if (typeof window === 'undefined') return 'booking-test';
+  try {
+    let id = window.localStorage.getItem(BOOKING_BROWSER_KEY);
+    if (!id) {
+      id = `b-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      window.localStorage.setItem(BOOKING_BROWSER_KEY, id);
+    }
+    return id;
+  } catch {
+    return `b-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+export function readBookingHolds(): BookingHold[] {
+  if (injectedHolds) return injectedHolds.slice();
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(BOOKING_HOLDS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is BookingHold =>
+        !!item && typeof item === 'object'
+        && typeof (item as BookingHold).key === 'string'
+        && typeof (item as BookingHold).expiresAt === 'number',
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function activeBookingHolds(nowEpochMs: number = Date.now()): BookingHold[] {
+  return readBookingHolds().filter((hold) => hold.expiresAt > nowEpochMs);
+}
+
+function writeBookingHolds(holds: BookingHold[]): void {
+  if (injectedHolds) {
+    injectedHolds = holds.slice();
+  } else if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(BOOKING_HOLDS_KEY, JSON.stringify(holds));
+    } catch {
+      /* storage unavailable — holds simply won't persist */
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(BOOKING_HOLD_EVENT));
+  }
+}
+
+export interface BookingHoldResult {
+  ok: boolean;
+  reason?: 'taken' | 'expired';
+  hold?: BookingHold;
+}
+
+/**
+ * Reserve a slot for the current browser. Rejects when the exact slot or any
+ * overlapping slot on the same theme/day is already held by someone else —
+ * this is the double-booking guard. Re-reserving your own slot refreshes it.
+ */
+export function reserveBookingSlot(
+  themeId: string,
+  service: Pick<Service, 'id' | 'duration'>,
+  dateKey: string,
+  startMinutes: number,
+): BookingHoldResult {
+  const duration = Math.max(service.duration || 30, 1);
+  const endMinutes = startMinutes + duration;
+  const key = bookingSlotKey(themeId, service.id, dateKey, startMinutes);
+  const myId = bookingBrowserId();
+  const now = Date.now();
+  const holds = activeBookingHolds(now);
+
+  const existing = holds.find((hold) => hold.key === key);
+  if (existing && existing.browserId !== myId) {
+    return { ok: false, reason: 'taken' };
+  }
+  const rest = holds.filter((hold) => hold.key !== key);
+  const overlapping = rest.find(
+    (hold) =>
+      hold.themeId === themeId
+      && hold.dateKey === dateKey
+      && hold.startMinutes < endMinutes
+      && hold.endMinutes > startMinutes,
+  );
+  if (overlapping) {
+    return { ok: false, reason: 'taken' };
+  }
+
+  const hold: BookingHold = {
+    key,
+    browserId: myId,
+    themeId,
+    serviceId: service.id,
+    dateKey,
+    startMinutes,
+    endMinutes,
+    expiresAt: now + BOOKING_HOLD_MINUTES * 60_000,
+  };
+  writeBookingHolds([...rest, hold]);
+  return { ok: true, hold };
+}
+
+export function releaseBookingSlot(key: string | null | undefined): void {
+  if (!key) return;
+  writeBookingHolds(readBookingHolds().filter((hold) => hold.key !== key));
+}
+
+export function bookingHoldFor(themeId: string, serviceId: string, dateKey: string, startMinutes: number): BookingHold | null {
+  const key = bookingSlotKey(themeId, serviceId, dateKey, startMinutes);
+  return activeBookingHolds().find((hold) => hold.key === key) || null;
+}
+
+/**
+ * All slots for a service on a day. Slots respect opening hours (never start
+ * before open, never run past close), the slot interval, today's minimum
+ * notice, and existing holds — past and taken slots stay visible but are
+ * disabled (`state: 'past' | 'taken'`). `held` = reserved by THIS browser.
+ */
+export function bookingSlotsForDay(
+  data: Pick<SalonData, 'openingHours' | 'holidays' | 'bookingRules'>,
+  themeId: string,
+  service: Pick<Service, 'id' | 'duration'>,
+  date: Date,
+  now: Date = salonNow(),
+): BookingSlot[] {
+  const info = bookingDayInfo(data, date, now);
+  if (!info.selectable) return [];
+
+  const schedule = scheduleForDay(data.openingHours, info.weekday);
+  const openMinutes = parseClockToMinutes(schedule.startTime) ?? 10 * 60;
+  const closeMinutes = parseClockToMinutes(schedule.endTime) ?? 20 * 60;
+  const duration = Math.max(service.duration || 30, 1);
+  const interval = bookingSlotIntervalMinutes(service, data);
+  const { minNoticeMinutes } = parsedBookingRules(data);
+  const nowMinutes = info.isToday ? minutesSinceMidnight(now) : -1;
+  const myId = bookingBrowserId();
+  const holds = activeBookingHolds();
+
+  const slots: BookingSlot[] = [];
+  for (let start = openMinutes; start + duration <= closeMinutes && slots.length < 48; start += interval) {
+    const end = start + duration;
+    const key = bookingSlotKey(themeId, service.id, info.dateKey, start);
+
+    let state: BookingSlotState = 'available';
+    if (info.isToday && start < nowMinutes + minNoticeMinutes) {
+      // Started already, or inside the minimum-notice window.
+      state = 'past';
+    } else {
+      const mine = holds.find((hold) => hold.key === key && hold.browserId === myId);
+      const foreign = holds.find(
+        (hold) =>
+          hold.themeId === themeId
+          && hold.dateKey === info.dateKey
+          && hold.startMinutes < end
+          && hold.endMinutes > start
+          && !(hold.key === key && hold.browserId === myId),
+      );
+      if (foreign) state = 'taken';
+      else if (mine) state = 'held';
+    }
+
+    slots.push({
+      minutes: start,
+      startLabel: formatClockLabel(start),
+      endLabel: formatClockLabel(end),
+      state,
+    });
+  }
+  return slots;
+}
+
+/** True when the slot is still bookable (available or held by this browser). */
+export function bookingSlotIsStillAvailable(
+  data: Pick<SalonData, 'openingHours' | 'holidays' | 'bookingRules'>,
+  themeId: string,
+  service: Pick<Service, 'id' | 'duration'>,
+  date: Date,
+  startMinutes: number,
+  now: Date = salonNow(),
+): boolean {
+  const slot = bookingSlotsForDay(data, themeId, service, date, now).find(
+    (item) => item.minutes === startMinutes,
+  );
+  return !!slot && (slot.state === 'available' || slot.state === 'held');
+}
+
+/* ------------------------------------------------------------------ */
+/* Customer details validation                                         */
+/* ------------------------------------------------------------------ */
+
+export interface BookingCustomerDetails {
+  name: string;
+  mobile: string;
+  email: string;
+  notes: string;
+}
+
+export interface BookingDetailsErrors {
+  name?: boolean;
+  mobile?: boolean;
+  email?: boolean;
+}
+
+export function validateBookingCustomer(details: BookingCustomerDetails): BookingDetailsErrors {
+  const errors: BookingDetailsErrors = {};
+  if ((details.name || '').trim().length < 2) errors.name = true;
+  const digits = digitsOnly(details.mobile);
+  if (digits.length < 10 || digits.length > 13) errors.mobile = true;
+  const email = (details.email || '').trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = true;
+  return errors;
+}
+
+export const BOOKING_THEME_IDS: SiteHeaderThemeId[] = [
+  'barber_mens_grooming',
+  'hair_studio_color_bar',
+  'beauty_skin_spa',
+  'family_full_service',
+  'nail_lash_studio',
+];

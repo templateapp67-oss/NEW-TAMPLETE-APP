@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SalonData } from '../types';
-import CustomerBookingPreview from './CustomerBookingPreview';
+import SiteBookingFlow from './SiteBookingFlow';
+import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import {
   BOOKING_TRIGGER_ATTR,
   SITE_BOOKING_CLOSE_EVENT,
@@ -10,12 +11,16 @@ import {
 } from '../lib/siteBooking';
 
 /**
- * PHASE 10.4 — hosts the EXISTING customer booking flow inside the
- * themed website frame. Nothing new is invented here; we only listen
- * for `nexora:open-booking` (and `data-open-booking` clicks) and mount
- * `CustomerBookingPreview`.
+ * PHASE 10.6 — hosts the Book Appointment ENTRY flow inside the themed
+ * website frame. There is still exactly ONE booking architecture: header /
+ * final / floating Book CTAs dispatch `nexora:open-booking` (and
+ * `data-open-booking` clicks), and this host mounts the five-step
+ * Service → Date → Time → Details → Summary flow for the ACTIVE theme.
+ *
+ * `themeId` comes from the renderer so the flow inherits the exact theme
+ * identity (services, surfaces, language, dark mode) of the page it opened on.
  */
-export default function SiteBookingHost({ data }: { data: SalonData }) {
+export default function SiteBookingHost({ themeId, data }: { themeId: SiteHeaderThemeId; data: SalonData }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -47,10 +52,10 @@ export default function SiteBookingHost({ data }: { data: SalonData }) {
   return (
     <div
       data-testid="site-booking-flow"
-      className="absolute inset-0 z-[70] flex flex-col overflow-hidden bg-[#f9f9f9]"
+      className="absolute inset-0 z-[70] flex flex-col overflow-hidden"
       style={{ transform: 'translateZ(0)' }}
     >
-      <CustomerBookingPreview data={data} onBackToWebsite={closeSiteBooking} />
+      <SiteBookingFlow themeId={themeId} data={data} onBackToWebsite={closeSiteBooking} />
     </div>
   );
 }

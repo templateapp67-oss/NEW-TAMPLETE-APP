@@ -591,7 +591,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
         {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
       <SiteFloatingActions themeId="beauty_skin_spa" data={data} mode={mode} />
-      <SiteBookingHost data={data} />
+      <SiteBookingHost themeId="beauty_skin_spa" data={data} />
     </div>
   );
 }

@@ -6,6 +6,33 @@
 
 ## Current repository state
 
+- **Phase 10.6 — BOOK APPOINTMENT ENTRY FLOW: COMPLETE for all five themes.**
+  - One five-step flow — Select Service → Select Date → Available Time Slots →
+    Customer Details → Booking Summary — rendered inside the existing
+    `SiteBookingHost` (header / final / floating CTAs keep working; still ONE
+    booking architecture, no payment / no confirmation-receipt yet).
+  - Service list comes from the ACTIVE theme only (inactive rows dropped,
+    cross-theme rows can never leak); category → service stays theme-isolated;
+    every card shows price + duration.
+  - Date picker respects weekly opening hours, dated holidays (name shown) and
+    the `maxAdvance` window; slots respect open/close times, today's minimum
+    notice and the service duration; past/taken slots render disabled.
+  - Double-booking prevented with 15-minute slot holds in localStorage
+    (`nexora_site_booking_holds`), keyed theme|service|date|start, with
+    overlap detection; a visitor's own hold never blocks themselves.
+  - Details form: Name, Mobile (validated), Email + Notes (optional).
+    Summary recaps everything with Change links; Confirm intentionally stops
+    at the summary with a “next phase” note.
+  - Selections survive moving back/forward between steps. EN/HI and
+    Light/Dark reuse the 10.2 global systems; five distinct themed visuals;
+    flow inherits the renderer's `themeId`.
+  - New files: `src/lib/siteBookingFlow.ts`, `src/lib/siteBookingTheme.ts`,
+    `src/lib/siteBookingI18n.ts`, `src/components/SiteBookingFlow.tsx`.
+    10.1–10.5 suites stay green. Details:
+    `docs/phase-10.6-book-appointment-entry-flow.md`; run
+    `npm run test:phase-10.6` (102/102) or `npm run test:phase-10`
+    (491 tests across 10.1–10.6).
+
 - **Phase 10.5 — ANNOUNCEMENT BAR & LIVE SALON STATUS: COMPLETE for all five themes.**
   - Dated festival / seasonal / important / custom announcements with
     active/inactive, start/end dates, optional theme scope, EN/HI and CTA.
@@ -462,6 +489,13 @@ npm run test:phase-8.2     # complete Phase 8.2 validation
 npm run test:phase-8.3     # complete Phase 8.3 final acceptance
 npm run test:phase-8       # every Phase 7-8 suite (161 tests)
 npm run test:phase-9.1     # M01–M24 replay + five-theme Phase 9.1 acceptance
+npm run test:phase-10.1    # global header & navigation across all five themes
+npm run test:phase-10.2    # global EN/HI language + per-theme dark mode
+npm run test:phase-10.3    # canonical section order + responsive structure
+npm run test:phase-10.4    # final CTA, footer & floating actions
+npm run test:phase-10.5    # announcement bar & live salon status
+npm run test:phase-10.6    # Book Appointment entry flow (102 tests)
+npm run test:phase-10      # every Phase 10 suite (491 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -471,6 +505,10 @@ Expected output:
 - `verify-22-screens`: 25/25 verified
 - `validate:migrations`: M18 source check + 24/24 applied cleanly x2, 20/20 tests passed
 - `test:phase-9.1`: 9/9 passed across all five themes
+- `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
+- `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
+- `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
+- `test:phase-10`: 491 tests, all green
 - `test:theme-catalog`: 4/4 passed
 - `test:service-saving`: 14/14 passed
 - `test:service-management`: 9/9 passed
