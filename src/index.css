@@ -16,3 +16,21 @@
   background-color: #e5e2e1;
   border-radius: 10px;
 }
+
+/* PHASE 10.3 — keep themed websites inside the viewport */
+.site-scroll {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+.site-section {
+  scroll-margin-top: 5.75rem;
+  min-width: 0;
+}
+.site-section img,
+.site-section video {
+  max-width: 100%;
+}
+.site-touch {
+  min-height: 44px;
+  min-width: 44px;
+}

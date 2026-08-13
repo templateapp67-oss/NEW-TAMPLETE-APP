@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { SalonData } from '../types';
 import TemplateRenderer from '../components/TemplateRenderer';
-import { ArrowLeft, ArrowRight, Monitor, Smartphone, Eye, Sparkles, Layout, Compass, Info } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Monitor, Smartphone, Tablet, Eye, Sparkles, Layout, Compass, Info } from 'lucide-react';
 
 interface Props {
   data: SalonData;
@@ -81,6 +81,16 @@ export default function StepFullWebsitePreview({ data, onNext, onPrev }: Props) 
               }`}
             >
               <Monitor className="w-4 h-4" /> Desktop
+            </button>
+            <button
+              onClick={() => setMode('tablet')}
+              className={`px-4 py-1.5 rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                mode === 'tablet'
+                  ? 'bg-white shadow-sm text-gray-950 font-bold'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Tablet className="w-4 h-4" /> Tablet
             </button>
             <button
               onClick={() => setMode('mobile')}

@@ -13,7 +13,7 @@ import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigatio
 
 interface Props {
   data: SalonData;
-  mode: 'desktop' | 'mobile';
+  mode: 'desktop' | 'tablet' | 'mobile';
 }
 
 export default function TemplateRenderer({ data, mode }: Props) {
