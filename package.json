@@ -15,7 +15,9 @@
     "test:owner": "tsx scripts/test-owner-profile.mjs",
     "test:theme-catalog": "tsx scripts/test-theme-catalog-ui.mjs",
     "test:service-saving": "tsx scripts/test-service-saving.mjs",
+    "test:service-management": "tsx scripts/test-service-management-e2e.mjs",
     "test:phase-7.4-final": "npm run validate:migrations && npm run test:theme-catalog && npm run test:service-saving",
+    "test:phase-8.1": "npm run validate:migrations && npm run test:theme-catalog && npm run test:service-saving && npm run test:service-management",
     "generate:theme-seed": "tsx scripts/generate-theme-seed.mts --write",
     "validate:migrations": "tsx scripts/generate-theme-seed.mts --check && tsx scripts/validate-migrations.mjs"
   },
