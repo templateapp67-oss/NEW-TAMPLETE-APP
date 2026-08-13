@@ -392,7 +392,7 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
         {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
       <SiteFloatingActions themeId="nail_lash_studio" data={data} mode={mode} />
-      <SiteBookingHost data={data} />
+      <SiteBookingHost themeId="nail_lash_studio" data={data} />
     </div>
   );
 }

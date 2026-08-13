@@ -523,7 +523,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
         {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
       <SiteFloatingActions themeId="hair_studio_color_bar" data={data} mode={mode} />
-      <SiteBookingHost data={data} />
+      <SiteBookingHost themeId="hair_studio_color_bar" data={data} />
     </div>
   );
 }

@@ -533,7 +533,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
         {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
       </div>
       <SiteFloatingActions themeId="barber_mens_grooming" data={data} mode={mode} />
-      <SiteBookingHost data={data} />
+      <SiteBookingHost themeId="barber_mens_grooming" data={data} />
     </div>
   );
 }
