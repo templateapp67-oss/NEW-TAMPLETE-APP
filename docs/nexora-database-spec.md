@@ -1762,6 +1762,10 @@ Per P67: services.business_id; staff_members.business_id; staff_services(staff_i
   `theme_id`, `category_id`, and `predefined_service_id` provenance. A composite
   `(predefined_service_id, theme_id, category_id)` FK requires an exact catalog
   match while leaving legacy/custom services safely unlinked.
+- Phase 7.3 idempotently seeds the exact five Phase 2–6 catalogs: 5 themes,
+  17 categories, 78 canonical predefined services, and 30 suggested mappings.
+  Suggested labels/orders remain attributes of their canonical predefined row,
+  including aliases where chip and canonical names differ.
 
 ### 5.15 Website/Publishing Architecture
 
@@ -1824,5 +1828,6 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 15. **M15** backfill/data migration (localStorage → DB, owner memberships, defaults) — dev seed script separate (P82)
 16. **M16** Phase 7.1 global theme/service reference architecture (themes, categories, predefined services; no dataset seed)
 17. **M17** Phase 7.2 nullable catalog provenance on existing business-owned saved services
+18. **M18** Phase 7.3 exact, generated, idempotent five-theme catalog seed
 
-**Execution gate:** M01–M17 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
+**Execution gate:** M01–M18 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.

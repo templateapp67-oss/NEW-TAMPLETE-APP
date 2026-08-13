@@ -1,6 +1,6 @@
-# Nexora Database Migrations Plan — M01–M17 (DRAFT)
+# Nexora Database Migrations Plan — M01–M18 (DRAFT)
 
-> **Status (2026-08-13): DRAFT SQL committed and extended through Phase 7.2; NOT applied to any database.**
+> **Status (2026-08-13): DRAFT SQL committed and extended through Phase 7.3; NOT applied to any database.**
 >
 > The migrations implement the ordering proposed by the 90-point master
 > specification §5.25. They have been validated on an embedded real PostgreSQL
@@ -44,6 +44,7 @@ No `DROP TABLE` or destructive replacement is allowed.
 | M15 | `20260811001501_m15_backfill_defaults.sql` | Non-destructive identities/memberships/defaults backfill; no demo data |
 | M16 | `20260813000101_m16_theme_service_catalog.sql` | Phase 7.1 global themes/categories/predefined-services architecture; no seed data |
 | M17 | `20260813000201_m17_saved_service_catalog_links.sql` | Phase 7.2 nullable provenance links from business-owned saved services to the global catalog |
+| M18 | `20260813000301_m18_seed_five_theme_catalog.sql` | Phase 7.3 idempotent seed generated from the exact five application theme catalogs |
 
 ### Deliberate decisions
 
@@ -72,6 +73,9 @@ No `DROP TABLE` or destructive replacement is allowed.
   theme/category/predefined provenance. Composite FKs reject wrong-theme or
   wrong-category links without deleting or guessing links for custom services.
   See [`phase-7.2-saved-service-catalog-links.md`](phase-7.2-saved-service-catalog-links.md).
+- M18 is generated from `src/lib/themeServices.ts`; it upserts exactly five
+  themes, 17 categories, 78 canonical predefined services, and 30 relational
+  suggested mappings. See [`phase-7.3-five-theme-seed.md`](phase-7.3-five-theme-seed.md).
 
 ## Validation performed
 
@@ -87,9 +91,9 @@ It creates only minimal Supabase-compatible `auth`/`storage` test fixtures.
 
 Result on 2026-08-13:
 
-- **17/17 migrations applied cleanly on an empty schema**
-- **17/17 migrations applied cleanly a second time** (replay/idempotency)
-- **15/15 functional tests passed**
+- **18/18 migrations applied cleanly on an empty schema**
+- **18/18 migrations applied cleanly a second time** (replay/idempotency)
+- **16/16 functional tests passed**
 
 | Test | Assertion |
 |---|---|
@@ -108,6 +112,7 @@ Result on 2026-08-13:
 | M | Theme/category/service FKs reject orphans and cross-theme links without changing business services |
 | N | Client roles see only active catalog rows and cannot mutate the global catalog |
 | O | Saved services preserve manual rows and require exact theme/category/predefined provenance |
+| P | Five-theme seed exactly matches Phase 2–6 source data and remains duplicate-free |
 
 This validation proves draft consistency on a clean PostgreSQL schema. It does
 **not** replace live-project introspection, Supabase-specific review, staging
@@ -144,12 +149,12 @@ M02 SQL.
    upgrade fixtures and verify data-preserving behavior.
 4. Review the full diff, take a recoverable backup, and obtain explicit
    migration-execution approval.
-5. Apply M01–M17 in order with Supabase CLI migrations (preferred) or carefully
+5. Apply M01–M18 in order with Supabase CLI migrations (preferred) or carefully
    through the SQL editor; stop on the first error and do not skip migrations.
-6. Run acceptance tests A–L from spec P88 plus Phase tests M–O against
+6. Run acceptance tests A–L from spec P88 plus Phase tests M–P against
    staging/live as approved, including multi-user RLS and browser/server flows.
 7. Generate Supabase TypeScript types (`supabase gen types typescript`) per P72,
    commit them, and wire the service layer/screens to the single source of truth.
 
-**Next step:** live Supabase introspection → regenerate M02 → approved M01–M17
-application → P88 tests A–L + Phase tests M–O → P72 TypeScript types.
+**Next step:** live Supabase introspection → regenerate M02 → approved M01–M18
+application → P88 tests A–L + Phase tests M–P → P72 TypeScript types.

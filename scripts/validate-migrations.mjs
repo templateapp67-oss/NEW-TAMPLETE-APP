@@ -5,6 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import {
+  SERVICES_BY_THEME,
+  SUGGESTED_SERVICE_ALIASES,
+  SUGGESTED_SERVICE_NAMES,
+  THEME_CATEGORIES,
+  THEME_LABELS,
+} from '../src/lib/themeServices.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const migrationsDir = join(root, 'supabase', 'migrations');
@@ -12,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 17, 'expected exactly M01-M17');
+assert.equal(migrationFiles.length, 18, 'expected exactly M01-M18');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -73,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/17 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/18 applied cleanly`);
 }
 
 const ids = {
@@ -379,34 +386,38 @@ await test('L — anonymous access exposes only published/public-safe data', asy
 });
 
 await test('M — theme catalog enforces valid same-theme relationships without touching business services', async () => {
-  const emptyCatalog = await db.query(`
+  const catalogCounts = await db.query(`
     select
       (select count(*)::int from public.themes) as themes,
       (select count(*)::int from public.service_categories) as categories,
       (select count(*)::int from public.predefined_services) as predefined
   `);
-  assert.deepEqual(emptyCatalog.rows[0], { themes: 0, categories: 0, predefined: 0 });
+  assert.deepEqual(catalogCounts.rows[0], { themes: 5, categories: 17, predefined: 78 });
 
-  const businessServicesBefore = await db.query('select count(*)::int as count from public.services');
+  const themeRows = await db.query(
+    `select id, theme_id from public.themes
+     where theme_id in ('barber_mens_grooming', 'hair_studio_color_bar')`,
+  );
+  ids.themeA = themeRows.rows.find((row) => row.theme_id === 'barber_mens_grooming').id;
+  ids.themeB = themeRows.rows.find((row) => row.theme_id === 'hair_studio_color_bar').id;
 
-  await db.query(
-    `insert into public.themes (id, theme_id, name, description, target_audience, ui_config)
-     values
-       ($1, 'test-theme-a', 'Test Theme A', 'Architecture fixture A', 'Audience A', '{"accent":"#111111"}'),
-       ($2, 'test-theme-b', 'Test Theme B', 'Architecture fixture B', 'Audience B', '{"accent":"#222222"}')`,
+  const categoryRows = await db.query(
+    `select id, theme_id, name from public.service_categories
+     where (theme_id = $1 and name = 'Haircuts')
+        or (theme_id = $2 and name = 'Styling & Cuts')`,
     [ids.themeA, ids.themeB],
   );
-  await db.query(
-    `insert into public.service_categories (id, theme_id, name, sort_order)
-     values ($1, $2, 'Category A', 0), ($3, $4, 'Category B', 0)`,
-    [ids.categoryA, ids.themeA, ids.categoryB, ids.themeB],
+  ids.categoryA = categoryRows.rows.find((row) => row.theme_id === ids.themeA).id;
+  ids.categoryB = categoryRows.rows.find((row) => row.theme_id === ids.themeB).id;
+
+  const predefinedRow = await db.query(
+    `select id from public.predefined_services
+     where theme_id = $1 and category_id = $2 and name = 'Skin Fade'`,
+    [ids.themeA, ids.categoryA],
   );
-  await db.query(
-    `insert into public.predefined_services
-       (id, theme_id, category_id, name, description, is_suggested, sort_order)
-     values ($1, $2, $3, 'Valid Service A', 'Valid same-theme fixture', true, 0)`,
-    [ids.predefinedA, ids.themeA, ids.categoryA],
-  );
+  ids.predefinedA = predefinedRow.rows[0].id;
+
+  const businessServicesBefore = await db.query('select count(*)::int as count from public.services');
 
   await expectReject(
     () => db.query(
@@ -426,14 +437,14 @@ await test('M — theme catalog enforces valid same-theme relationships without 
   await expectReject(
     () => db.query(
       `insert into public.themes (theme_id, name)
-       values ('test-theme-a', 'Duplicate Stable ID')`,
+       values ('barber_mens_grooming', 'Duplicate Stable ID')`,
     ),
     /unique|duplicate/i,
   );
   await expectReject(
     () => db.query(
       `insert into public.service_categories (theme_id, name)
-       values ($1, 'Category A')`,
+       values ($1, 'Haircuts')`,
       [ids.themeA],
     ),
     /unique|duplicate/i,
@@ -441,7 +452,7 @@ await test('M — theme catalog enforces valid same-theme relationships without 
   await expectReject(
     () => db.query(
       `insert into public.predefined_services (theme_id, category_id, name)
-       values ($1, $2, 'Valid Service A')`,
+       values ($1, $2, 'Skin Fade')`,
       [ids.themeA, ids.categoryA],
     ),
     /unique|duplicate/i,
@@ -453,7 +464,7 @@ await test('M — theme catalog enforces valid same-theme relationships without 
 
   await db.query(
     `update public.service_categories
-     set sort_order = 1, updated_at = '2000-01-01T00:00:00Z'
+     set sort_order = sort_order, updated_at = '2000-01-01T00:00:00Z'
      where id = $1`,
     [ids.categoryA],
   );
@@ -462,38 +473,34 @@ await test('M — theme catalog enforces valid same-theme relationships without 
      from public.service_categories where id = $1`,
     [ids.categoryA],
   );
-  assert.deepEqual(updatedCategory.rows[0], { sort_order: 1, timestamp_refreshed: true });
+  assert.deepEqual(updatedCategory.rows[0], { sort_order: 0, timestamp_refreshed: true });
 
   const businessServicesAfter = await db.query('select count(*)::int as count from public.services');
   assert.equal(businessServicesAfter.rows[0].count, businessServicesBefore.rows[0].count);
 });
 
 await test('N — clients read only the active theme catalog and cannot mutate it', async () => {
-  await db.query(
-    `insert into public.predefined_services
-       (id, theme_id, category_id, name, is_suggested, is_active)
-     values
-       ($1, $2, $3, 'Hidden Inactive Service', false, false),
-       ($4, $5, $6, 'Hidden Inactive Theme Service', true, true)`,
-    [
-      ids.predefinedInactive, ids.themeA, ids.categoryA,
-      ids.predefinedB, ids.themeB, ids.categoryB,
-    ],
-  );
   await db.query('update public.themes set is_active = false where id = $1', [ids.themeB]);
+  await db.query('update public.predefined_services set is_active = false where id = $1', [ids.predefinedA]);
 
   await asRole('anon', '', async () => {
-    const themes = await db.query('select theme_id from public.themes order by theme_id');
-    const categories = await db.query('select name from public.service_categories order by name');
-    const services = await db.query('select name from public.predefined_services order by name');
-    assert.deepEqual(themes.rows.map((row) => row.theme_id), ['test-theme-a']);
-    assert.deepEqual(categories.rows.map((row) => row.name), ['Category A']);
-    assert.deepEqual(services.rows.map((row) => row.name), ['Valid Service A']);
+    const themes = await db.query('select theme_id from public.themes order by sort_order');
+    const categories = await db.query('select count(*)::int as count from public.service_categories');
+    const services = await db.query('select count(*)::int as count from public.predefined_services');
+    assert.deepEqual(
+      themes.rows.map((row) => row.theme_id),
+      ['barber_mens_grooming', 'beauty_skin_spa', 'family_full_service', 'nail_lash_studio'],
+    );
+    assert.equal(categories.rows[0].count, 14);
+    assert.equal(services.rows[0].count, 60);
     await expectReject(
       () => db.query("insert into public.themes (theme_id, name) values ('client-write', 'Blocked')"),
       /permission denied/i,
     );
   });
+
+  await db.query('update public.themes set is_active = true where id = $1', [ids.themeB]);
+  await db.query('update public.predefined_services set is_active = true where id = $1', [ids.predefinedA]);
 });
 
 await test('O — saved services preserve custom rows and enforce exact catalog provenance', async () => {
@@ -650,6 +657,114 @@ await test('O — saved services preserve custom rows and enforce exact catalog 
   });
 });
 
-assert.equal(passed, 15);
-console.log(`Functional tests: ${passed}/15 passed`);
+await test('P — five-theme seed exactly matches the Phase 2–6 application datasets', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+
+  const themes = await db.query(
+    `select theme_id, name, description, target_audience, ui_config,
+            sort_order, is_active
+     from public.themes
+     order by sort_order, theme_id`,
+  );
+  assert.deepEqual(themes.rows.map((row) => row.theme_id), seededThemeIds);
+  themes.rows.forEach((row, sortOrder) => {
+    assert.equal(row.name, THEME_LABELS[row.theme_id]);
+    assert.equal(row.sort_order, sortOrder);
+    assert.equal(row.is_active, true);
+    assert.ok(row.description.length > 0);
+    assert.ok(row.target_audience.length > 0);
+    assert.equal(row.ui_config.tokens.id, row.theme_id);
+  });
+
+  let expectedCategoryCount = 0;
+  let expectedServiceCount = 0;
+  let expectedSuggestedCount = 0;
+
+  for (const themeId of seededThemeIds) {
+    const categories = await db.query(
+      `select c.name, c.sort_order
+       from public.service_categories c
+       join public.themes t on t.id = c.theme_id
+       where t.theme_id = $1
+       order by c.sort_order, c.name`,
+      [themeId],
+    );
+    const expectedCategories = THEME_CATEGORIES[themeId].map((name, sortOrder) => ({
+      name,
+      sort_order: sortOrder,
+    }));
+    assert.deepEqual(categories.rows, expectedCategories);
+    expectedCategoryCount += expectedCategories.length;
+
+    const aliases = SUGGESTED_SERVICE_ALIASES[themeId] ?? {};
+    const suggestionByCanonicalName = new Map(
+      SUGGESTED_SERVICE_NAMES[themeId].map((suggestedLabel, suggestedSortOrder) => [
+        aliases[suggestedLabel] ?? suggestedLabel,
+        { suggestedLabel, suggestedSortOrder },
+      ]),
+    );
+    const expectedServices = SERVICES_BY_THEME[themeId].map((service, sortOrder) => {
+      const suggestion = suggestionByCanonicalName.get(service.name);
+      return {
+        name: service.name,
+        category: service.category,
+        description: service.description,
+        sort_order: sortOrder,
+        is_suggested: Boolean(suggestion),
+        suggested_label: suggestion?.suggestedLabel ?? null,
+        suggested_sort_order: suggestion?.suggestedSortOrder ?? null,
+        is_active: true,
+      };
+    });
+    const services = await db.query(
+      `select ps.name, c.name as category, ps.description, ps.sort_order,
+              ps.is_suggested, ps.suggested_label,
+              ps.suggested_sort_order, ps.is_active
+       from public.predefined_services ps
+       join public.themes t on t.id = ps.theme_id
+       join public.service_categories c on c.id = ps.category_id
+       where t.theme_id = $1
+       order by ps.sort_order, ps.name`,
+      [themeId],
+    );
+    assert.deepEqual(services.rows, expectedServices);
+    expectedServiceCount += expectedServices.length;
+
+    const suggestedLabels = services.rows
+      .filter((service) => service.is_suggested)
+      .sort((left, right) => left.suggested_sort_order - right.suggested_sort_order)
+      .map((service) => service.suggested_label);
+    assert.deepEqual(suggestedLabels, SUGGESTED_SERVICE_NAMES[themeId]);
+    expectedSuggestedCount += suggestedLabels.length;
+  }
+
+  const totals = await db.query(`
+    select
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined,
+      (select count(*)::int from public.predefined_services where is_suggested) as suggested,
+      (select count(distinct (theme_id, name))::int from public.service_categories) as unique_categories,
+      (select count(distinct (theme_id, name))::int from public.predefined_services) as unique_predefined
+  `);
+  assert.deepEqual(totals.rows[0], {
+    categories: expectedCategoryCount,
+    predefined: expectedServiceCount,
+    suggested: expectedSuggestedCount,
+    unique_categories: expectedCategoryCount,
+    unique_predefined: expectedServiceCount,
+  });
+  assert.deepEqual(
+    { expectedCategoryCount, expectedServiceCount, expectedSuggestedCount },
+    { expectedCategoryCount: 17, expectedServiceCount: 78, expectedSuggestedCount: 30 },
+  );
+});
+
+assert.equal(passed, 16);
+console.log(`Functional tests: ${passed}/16 passed`);
 await db.close();
