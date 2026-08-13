@@ -1,10 +1,56 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-13** (session `arena/019ffaae-new-tamplete-app`).
+> Last updated: **2026-08-13** (session `arena/019ffb70-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **Phase 10.7 — ADVANCE PAYMENT & BOOKING CONFIRMATION: COMPLETE for all five themes.**
+  - One five-step payment flow — Payment Option → Payment Gateway → Payment
+    Result → Booking Confirmation → Receipt — rendered inside the existing
+    `SiteBookingHost` (header / final / floating CTAs keep working; still ONE
+    booking architecture, ONE payment architecture, no duplicate tables).
+  - Three payment options on every theme: Pay at Salon (no gateway, instant
+    confirmation), Advance / Token (configurable %, default 25% from
+    `bookingRules.advanceDepositPercentage`), Full Payment. Amount math comes
+    from the offer-aware service final price so an active Phase 9.1 offer
+    lowers both the due-now and the due-at-salon numbers.
+  - Mock payment gateway simulator with four scenarios (`all_success`,
+    `mixed`, `force_failure`, `force_timeout`) covering success, failure,
+    cancellation and timeout outcomes; the booking is NEVER confirmed before
+    the gateway returns `success`. Reason text is human-readable; raw SQL is
+    never exposed.
+  - Idempotency: every persisted record carries a stable per-(business, theme,
+    booking, option, amount, slot) key. A refresh of the page during
+    confirmation re-renders the same booking id (verified by the host-level
+    orchestrator test); a retry never creates a second payment row.
+  - Sensitive data is masked: only `•••• <last4>` for cards, `<local>•••@<bank>`
+    for UPI, masked bank labels; CVV / card holder are NEVER stored anywhere.
+  - Booking confirmation card lists salon, service, date, time, staff, amount
+    and payment status; booking id is human-readable (`NX-#####`) and
+    copyable. Receipt view renders booking + payment details with the
+    masked payment identifier, gateway reference, and themed "receipt
+    paper" styling per theme. Print / Download (text) / WhatsApp all work.
+  - WhatsApp share message includes only the essentials (booking id, salon,
+    service, date, time, staff, amount, payment status) — no full card,
+    UPI, CVV.
+  - EN ↔ हिन्दी copy follows the 10.2 global language system; the payment
+    screens repaint instantly when the header Language control switches.
+  - Light ↔ Dark follows the 10.2 global Dark Mode system; payment surfaces
+    resolve through the existing five theme palettes.
+  - Five distinct themed visuals (barber / hair / spa / family / nail) —
+    pairwise-distinct, asserted by the test suite.
+  - New files: `src/lib/siteBookingPayment.ts`,
+    `src/lib/siteBookingPaymentI18n.ts`,
+    `src/lib/siteBookingPaymentTheme.ts`,
+    `src/components/SiteBookingPaymentFlow.tsx`,
+    `src/components/SiteBookingFullFlow.tsx`. `SiteBookingHost` now mounts
+    `SiteBookingFullFlow`; the existing `nexora:open-booking` /
+    `nexora:close-booking` events still drive it. 10.1–10.6 suites stay
+    green. Details: `docs/phase-10.7-advance-payment-booking-confirmation.md`;
+    run `npm run test:phase-10.7` (66/66) or `npm run test:phase-10`
+    (557 tests across 10.1–10.7).
 
 - **Phase 10.6 — BOOK APPOINTMENT ENTRY FLOW: COMPLETE for all five themes.**
   - One five-step flow — Select Service → Select Date → Available Time Slots →
@@ -495,7 +541,8 @@ npm run test:phase-10.3    # canonical section order + responsive structure
 npm run test:phase-10.4    # final CTA, footer & floating actions
 npm run test:phase-10.5    # announcement bar & live salon status
 npm run test:phase-10.6    # Book Appointment entry flow (102 tests)
-npm run test:phase-10      # every Phase 10 suite (491 tests)
+npm run test:phase-10.7    # Advance payment & booking confirmation (66 tests)
+npm run test:phase-10      # every Phase 10 suite (557 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -508,7 +555,8 @@ Expected output:
 - `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
 - `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
-- `test:phase-10`: 491 tests, all green
+- `test:phase-10.7`: 66/66 passed
+- `test:phase-10`: 557 tests, all green
 - `test:theme-catalog`: 4/4 passed
 - `test:service-saving`: 14/14 passed
 - `test:service-management`: 9/9 passed
