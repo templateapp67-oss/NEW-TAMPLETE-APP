@@ -12,7 +12,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 16, 'expected exactly M01-M16');
+assert.equal(migrationFiles.length, 17, 'expected exactly M01-M17');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -73,7 +73,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/16 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/17 applied cleanly`);
 }
 
 const ids = {
@@ -95,6 +95,8 @@ const ids = {
   predefinedA: '80000000-0000-4000-8000-0000000000a1',
   predefinedB: '80000000-0000-4000-8000-0000000000b1',
   predefinedInactive: '80000000-0000-4000-8000-0000000000a2',
+  savedPredefinedA: '90000000-0000-4000-8000-0000000000a1',
+  savedManualA: '90000000-0000-4000-8000-0000000000a2',
 };
 
 await db.query(
@@ -494,6 +496,160 @@ await test('N — clients read only the active theme catalog and cannot mutate i
   });
 });
 
-assert.equal(passed, 14);
-console.log(`Functional tests: ${passed}/14 passed`);
+await test('O — saved services preserve custom rows and enforce exact catalog provenance', async () => {
+  const legacyRows = await db.query(
+    `select
+       count(*)::int as total,
+       count(*) filter (
+         where theme_id is null
+           and category_id is null
+           and predefined_service_id is null
+       )::int as safely_unlinked
+     from public.services
+     where id in ($1, $2)`,
+    [ids.serviceA, ids.serviceB],
+  );
+  assert.deepEqual(legacyRows.rows[0], { total: 2, safely_unlinked: 2 });
+
+  await db.query(
+    `insert into public.services (
+       id, business_id, theme_id, category_id, predefined_service_id,
+       name, category, price_paise, duration_minutes, short_description,
+       is_featured, status, display_order
+     ) values (
+       $1, $2, $3, $4, $5,
+       'Saved Curated Service', 'Preserved display category', 175000, 75,
+       'Owner-edited saved description', true, 'active', 4
+     )`,
+    [
+      ids.savedPredefinedA, ids.businessA, ids.themeA, ids.categoryA,
+      ids.predefinedA,
+    ],
+  );
+  await db.query(
+    `insert into public.services (
+       id, business_id, name, category, price_paise, duration_minutes,
+       short_description, status
+     ) values (
+       $1, $2, 'Manual Custom Service', 'Owner custom category', 99000, 45,
+       'Custom service remains unlinked', 'inactive'
+     )`,
+    [ids.savedManualA, ids.businessA],
+  );
+
+  const saved = await db.query(
+    `select business_id, theme_id, category_id, predefined_service_id,
+            name, category, price_paise, duration_minutes, short_description,
+            is_featured, status::text, display_order
+     from public.services where id = $1`,
+    [ids.savedPredefinedA],
+  );
+  assert.deepEqual(
+    {
+      ...saved.rows[0],
+      price_paise: Number(saved.rows[0].price_paise),
+    },
+    {
+      business_id: ids.businessA,
+      theme_id: ids.themeA,
+      category_id: ids.categoryA,
+      predefined_service_id: ids.predefinedA,
+      name: 'Saved Curated Service',
+      category: 'Preserved display category',
+      price_paise: 175000,
+      duration_minutes: 75,
+      short_description: 'Owner-edited saved description',
+      is_featured: true,
+      status: 'active',
+      display_order: 4,
+    },
+  );
+
+  const manual = await db.query(
+    `select business_id, theme_id, category_id, predefined_service_id,
+            name, category, price_paise, duration_minutes, short_description,
+            status::text
+     from public.services where id = $1`,
+    [ids.savedManualA],
+  );
+  assert.deepEqual(
+    {
+      ...manual.rows[0],
+      price_paise: Number(manual.rows[0].price_paise),
+    },
+    {
+      business_id: ids.businessA,
+      theme_id: null,
+      category_id: null,
+      predefined_service_id: null,
+      name: 'Manual Custom Service',
+      category: 'Owner custom category',
+      price_paise: 99000,
+      duration_minutes: 45,
+      short_description: 'Custom service remains unlinked',
+      status: 'inactive',
+    },
+  );
+
+  await expectReject(
+    () => db.query(
+      `insert into public.services (
+         business_id, theme_id, category_id, predefined_service_id,
+         name, price_paise, duration_minutes
+       ) values ($1, $2, $3, $4, 'Wrong Theme Link', 10000, 15)`,
+      [ids.businessA, ids.themeB, ids.categoryB, ids.predefinedA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.services (
+         business_id, theme_id, category_id, predefined_service_id,
+         name, price_paise, duration_minutes
+       ) values ($1, $2, $3, $4, 'Wrong Category Link', 10000, 15)`,
+      [ids.businessA, ids.themeA, ids.categoryB, ids.predefinedA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.services (
+         business_id, predefined_service_id, name, price_paise, duration_minutes
+       ) values ($1, $2, 'Incomplete Provenance', 10000, 15)`,
+      [ids.businessA, ids.predefinedA],
+    ),
+    /check constraint|violates/i,
+  );
+  await expectReject(
+    () => db.query(
+      `update public.services
+       set theme_id = $1, category_id = $2
+       where id = $3`,
+      [ids.themeB, ids.categoryB, ids.savedPredefinedA],
+    ),
+    /foreign key|violates/i,
+  );
+  await expectReject(
+    () => db.query('delete from public.predefined_services where id = $1', [ids.predefinedA]),
+    /foreign key|violates/i,
+  );
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    const rows = await db.query(
+      'select id from public.services where id in ($1, $2) order by id',
+      [ids.savedPredefinedA, ids.savedManualA],
+    );
+    assert.deepEqual(rows.rows.map((row) => row.id), [ids.savedPredefinedA, ids.savedManualA]);
+  });
+  await asRole('authenticated', ids.ownerB, async () => {
+    const rows = await db.query(
+      'select id from public.services where id in ($1, $2)',
+      [ids.savedPredefinedA, ids.savedManualA],
+    );
+    assert.equal(rows.rows.length, 0);
+  });
+});
+
+assert.equal(passed, 15);
+console.log(`Functional tests: ${passed}/15 passed`);
 await db.close();
