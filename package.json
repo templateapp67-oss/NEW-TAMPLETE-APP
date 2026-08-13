@@ -24,6 +24,7 @@
     "test:phase-8.2": "npm run validate:migrations && npm run test:theme-catalog && npm run test:service-saving && npm run test:service-management && npm run test:service-security",
     "test:phase-8.3": "npm run test:acceptance && npm run test:acceptance-ui",
     "test:phase-8": "npm run validate:migrations && npm run test:theme-catalog && npm run test:service-saving && npm run test:service-management && npm run test:service-security && npm run test:acceptance && npm run test:acceptance-ui",
+    "test:phase-9.1": "npm run validate:migrations && tsx scripts/test-phase-9.1.mjs",
     "generate:theme-seed": "tsx scripts/generate-theme-seed.mts --write",
     "validate:migrations": "tsx scripts/generate-theme-seed.mts --check && tsx scripts/validate-migrations.mjs"
   },

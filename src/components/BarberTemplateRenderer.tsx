@@ -3,6 +3,7 @@ import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { BARBER_THEME } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
+import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import {
   Scissors, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard,
@@ -150,7 +151,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-sm font-black" style={{ color: gold }}>₹{s.price.toLocaleString('en-IN')}</span>
+                      <ServicePrice service={s} offers={data.offers} style={{ color: gold }} compact dark />
                       <p className="text-[10px] font-semibold" style={{ color: muted }}>{s.duration} min</p>
                     </div>
                   </div>
@@ -190,7 +191,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                        <span className="font-black text-lg" style={{ color: gold }}>₹{p.price.toLocaleString('en-IN')}</span>
+                        <BundlePrice bundle={p} offers={data.offers} style={{ color: gold }} dark />
                         <button className="px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all hover:brightness-110" style={btnGold}>
                           Book Bundle
                         </button>

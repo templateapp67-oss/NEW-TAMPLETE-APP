@@ -1,3 +1,18 @@
+export type CatalogStatus = 'active' | 'inactive' | 'archived';
+export type DiscountType = 'percentage' | 'fixed';
+export type OfferTargetType = 'theme' | 'category' | 'predefined_service' | 'saved_service' | 'bundle';
+export type OfferEffectiveStatus = CatalogStatus | 'scheduled' | 'expired';
+
+export interface ServicePriceVariant {
+  id: string;
+  serviceId: string;
+  name: string;
+  price: number;
+  duration?: number;
+  status: CatalogStatus;
+  displayOrder: number;
+}
+
 export interface Service {
   id: string;
   name: string;
@@ -13,15 +28,60 @@ export interface Service {
   themeKey?: string;
   categoryId?: string | null;
   predefinedServiceId?: string | null;
-  status?: 'active' | 'inactive' | 'archived';
+  status?: CatalogStatus;
+  /** Optional direct badge (for example Best Seller / New / Premium). */
+  promotionalBadge?: string;
+  /** Additional price choices. These never replace the base service row. */
+  pricingVariants?: ServicePriceVariant[];
+}
+
+export interface BundleService {
+  serviceId: string;
+  name: string;
+  category: string;
+  individualPrice: number;
+  duration: number;
+  displayOrder: number;
 }
 
 export interface Package {
   id: string;
   name: string;
   description: string;
+  /** Final bundle price after its preserved bundle discount. */
   price: number;
   duration: number; // minutes
+  businessId?: string;
+  themeId?: string | null;
+  themeKey?: string;
+  categoryId?: string | null;
+  originalPrice?: number;
+  discountType?: DiscountType;
+  discountValue?: number;
+  promotionalBadge?: string;
+  status?: CatalogStatus;
+  includedServices?: BundleService[];
+}
+
+export interface ServiceOffer {
+  id: string;
+  businessId: string;
+  themeId: string;
+  themeKey: string;
+  targetType: OfferTargetType;
+  categoryId: string | null;
+  predefinedServiceId: string | null;
+  savedServiceId: string | null;
+  packageId: string | null;
+  title: string;
+  promotionalBadge: string;
+  discountType: DiscountType;
+  /** Percentage points for percentage offers; rupees for fixed offers. */
+  discountValue: number;
+  startDate: string;
+  endDate: string;
+  status: CatalogStatus;
+  effectiveStatus: OfferEffectiveStatus;
 }
 
 export type StaffStatus = 'Available' | 'Busy' | 'On Leave' | 'Inactive';
@@ -183,6 +243,8 @@ export interface SalonData {
   openingHours?: SalonOpeningHours;
   services: Service[];
   packages: Package[];
+  /** Theme-scoped promotions loaded for the current five-theme catalog. */
+  offers?: ServiceOffer[];
   team: TeamMember[];
   websiteAppearance?: WebsiteAppearance;
   brandColor?: string;

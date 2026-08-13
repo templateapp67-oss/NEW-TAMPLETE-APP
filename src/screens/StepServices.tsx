@@ -1,4 +1,5 @@
 import { Sparkles, Mic, ArrowLeft, ArrowRight, Plus, Check, Copy, Trash2, GripVertical, Info, Volume2, X, Search, ChevronDown, List, Pencil, Power } from 'lucide-react';
+import CommerceManager from '../components/CommerceManager';
 import { SalonData, Service, Package } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import { motion, AnimatePresence } from 'motion/react';
@@ -29,6 +30,10 @@ import {
   type SavedService,
   type SavedServiceStatus,
 } from '../lib/savedServiceService';
+import {
+  loadThemeCommerce,
+  mergeCommerceIntoServices,
+} from '../lib/pricingPromotionService';
 
 // Generates a professional, customer-friendly, category-specific service description.
 // Kept offline (rule-based) so it works without any API key, consistent with the app's
@@ -135,6 +140,8 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const isNailLashStudio = theme === 'nail_lash_studio';
 
   const [loadedCatalog, setLoadedCatalog] = useState<ThemeServiceCatalog | null>(null);
+  const [commerceLoading, setCommerceLoading] = useState(usesDatabaseCatalog);
+  const [commerceError, setCommerceError] = useState('');
   const [catalogStatusTheme, setCatalogStatusTheme] = useState<string | null>(
     usesDatabaseCatalog ? theme : null,
   );
@@ -274,37 +281,58 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setPendingDeleteServiceId(null);
 
     if (!isDatabaseCatalogTheme(targetTheme)) {
+      setCommerceLoading(false);
+      setCommerceError('');
       setSavedServicesLoading(false);
       setSavedStatusTheme(targetTheme);
       return;
     }
 
     setSavedStatusTheme(null);
+    setCommerceLoading(true);
+    setCommerceError('');
     setSavedServicesLoading(true);
-    // Drop any previous-theme/localStorage rows before the request starts.
+    // Drop any previous-theme/localStorage rows before the requests start.
     setData((previous) => normalizeThemeId(previous.templateId) === targetTheme
-      ? { ...previous, services: [] }
+      ? { ...previous, services: [], packages: [], offers: [] }
       : previous
     );
 
-    loadSavedServicesForTheme(targetTheme)
-      .then((services) => {
+    // Services and their Phase 9.1 commerce metadata are one theme-scoped
+    // hydration boundary. Nothing renders until BOTH responses identify the
+    // same active theme, so previous-theme offers/variants/bundles cannot leak.
+    Promise.all([
+      loadSavedServicesForTheme(targetTheme),
+      loadThemeCommerce(targetTheme),
+    ])
+      .then(([services, commerce]) => {
         if (savedLoadRequestRef.current !== requestId) return;
+        const uiServices = mergeCommerceIntoServices(
+          services.map(savedServiceToUi),
+          commerce,
+        );
         setData((previous) => normalizeThemeId(previous.templateId) === targetTheme
-          ? { ...previous, services: services.map(savedServiceToUi) }
+          ? {
+              ...previous,
+              services: uiServices,
+              packages: commerce.bundles,
+              offers: commerce.offers,
+            }
           : previous
         );
+        setCommerceLoading(false);
         setSavedServicesLoading(false);
         setSavedStatusTheme(targetTheme);
       })
       .catch((error: unknown) => {
         if (savedLoadRequestRef.current !== requestId) return;
+        setCommerceLoading(false);
         setSavedServicesLoading(false);
+        const message = error instanceof Error ? error.message : 'Unable to load saved services.';
+        setCommerceError(message);
         // Deliberately leave savedStatusTheme null: a failed load must not
         // render a partial or stale list.
-        setSavedServicesError(
-          error instanceof Error ? error.message : 'Unable to load saved services.',
-        );
+        setSavedServicesError(message);
       });
   }, [setData]);
 
@@ -318,6 +346,31 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
   /** Retry handler for the saved-service error state. */
   const reloadSavedServices = () => runSavedServicesLoad(theme);
+
+  /** Refreshes Phase 9.1 metadata after a variant/badge/offer/bundle write. */
+  const reloadCommerce = useCallback(async () => {
+    if (!isDatabaseCatalogTheme(theme)) return;
+    setCommerceLoading(true);
+    setCommerceError('');
+    try {
+      const commerce = await loadThemeCommerce(theme);
+      setData((previous) => normalizeThemeId(previous.templateId) === theme
+        ? {
+            ...previous,
+            services: mergeCommerceIntoServices(previous.services, commerce),
+            packages: commerce.bundles,
+            offers: commerce.offers,
+          }
+        : previous
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to refresh pricing and promotions.';
+      setCommerceError(message);
+      throw error;
+    } finally {
+      setCommerceLoading(false);
+    }
+  }, [setData, theme]);
 
   // The saved list renders ONLY when the held state provably belongs to the
   // active theme. This is the single guard that prevents a previous theme's
@@ -902,7 +955,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       setData((previous) => ({
         ...previous,
         services: previous.services.map((item) =>
-          item.id === service.id ? savedServiceToUi(updated) : item
+          item.id === service.id
+            ? { ...savedServiceToUi(updated), promotionalBadge: item.promotionalBadge, pricingVariants: item.pricingVariants }
+            : item
         ),
       }));
       if (onSave) onSave();
@@ -957,7 +1012,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       setData((previous) => ({
         ...previous,
         services: previous.services.map((item) =>
-          item.id === service.id ? savedServiceToUi(updated) : item
+          item.id === service.id
+            ? { ...savedServiceToUi(updated), promotionalBadge: item.promotionalBadge, pricingVariants: item.pricingVariants }
+            : item
         ),
       }));
       if (onSave) onSave();
@@ -1254,6 +1311,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                                 Featured
                               </span>
                             )}
+                            {s.promotionalBadge && (
+                              <span className="bg-[#fff1f4] text-[#8e0045] border border-[#f8c8dc] font-semibold text-[10px] px-2 py-0.5 rounded-full">
+                                {s.promotionalBadge}
+                              </span>
+                            )}
                             {s.status === 'inactive' && (
                               <span className="bg-gray-100 text-gray-600 font-medium text-[10px] px-2 py-0.5 rounded-full">
                                 Inactive
@@ -1277,6 +1339,15 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                             <span>•</span>
                             <span className="italic">{s.category}</span>
                           </div>
+                          {(s.pricingVariants ?? []).filter((variant) => variant.status === 'active').length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {(s.pricingVariants ?? []).filter((variant) => variant.status === 'active').map((variant) => (
+                                <span key={variant.id} className="text-[10px] rounded-full bg-[#f7f7f7] border border-[#eeeeee] px-2 py-1 text-[#565755]">
+                                  {variant.name} · ₹{variant.price.toLocaleString('en-IN')}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <p className="text-sm text-[#565755] mt-1">{s.description}</p>
                           <p className="text-xs text-[#565755] italic mt-2 flex items-center gap-1">
                             <Info className="w-3.5 h-3.5" />
@@ -1653,11 +1724,14 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
               )}
             </div>
 
-            <hr className="border-[#eeeeee]" />
+            {!usesDatabaseCatalog && (
+              <>
+                <hr className="border-[#eeeeee]" />
 
-            {/* Packages List */}
-            <div className="flex flex-col gap-4 pb-24">
-              <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">PACKAGES</h3>
+                {/* Preserved Existing Theme package editor. The five database
+                    themes use the validated Phase 9.1 manager below. */}
+                <div className="flex flex-col gap-4 pb-24">
+                  <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">PACKAGES</h3>
 
               {data.packages.map((p) => (
                 <div key={p.id} className="bg-white border border-[#eeeeee] rounded-lg p-5 shadow-sm flex flex-col gap-4 group hover:border-[#ac0053]/40 transition-colors">
@@ -1761,8 +1835,27 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                 >
                   <Plus className="w-5 h-5" /> Add Package
                 </button>
-              )}
-            </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {usesDatabaseCatalog && activeCatalog && showSavedServices && (
+              <>
+                <hr className="border-[#eeeeee]" />
+                <CommerceManager
+                  themeId={theme}
+                  services={data.services}
+                  bundles={data.packages}
+                  offers={data.offers ?? []}
+                  categories={activeCatalog.categories}
+                  predefinedServices={activeCatalog.predefinedServices}
+                  loading={commerceLoading}
+                  error={commerceError}
+                  onRefresh={reloadCommerce}
+                />
+              </>
+            )}
           </motion.div>
         </div>
 

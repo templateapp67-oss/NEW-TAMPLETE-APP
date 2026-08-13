@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { serviceDisplayPrice } from '../lib/pricing';
 import { SalonData, Service, TeamMember, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { motion, AnimatePresence } from 'motion/react';
@@ -78,6 +79,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
 
   // Booking form states
   const [selectedService, setSelectedService] = useState<Service>(services[0]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   
   // Customer details states
@@ -108,8 +110,16 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const depositPercentage = 25;
-  const depositAmount = Math.round((selectedService.price * depositPercentage) / 100);
-  const remainingAmount = selectedService.price - depositAmount;
+  const selectedPricing = serviceDisplayPrice(selectedService, data.offers, selectedVariantId);
+  const selectedPrice = selectedPricing.finalPrice;
+  const selectedDuration = selectedService.pricingVariants?.find((variant) => variant.id === selectedVariantId)?.duration
+    ?? selectedService.duration;
+  const depositAmount = Math.round((selectedPrice * depositPercentage) / 100);
+  const remainingAmount = selectedPrice - depositAmount;
+
+  useEffect(() => {
+    setSelectedVariantId(null);
+  }, [selectedService.id]);
 
   const formatDateLabel = (d: Date) => {
     return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
@@ -224,7 +234,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
                 <ul className="space-y-3 text-xs font-semibold text-gray-700 mb-4">
                   <li className="flex justify-between items-center">
                     <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Service Price</span>
-                    <span className="font-bold text-gray-900">₹{selectedService.price.toLocaleString('en-IN')}</span>
+                    <span className="font-bold text-gray-900">₹{selectedPrice.toLocaleString('en-IN')}</span>
                   </li>
                   <li className="flex justify-between items-center text-emerald-700 bg-emerald-50/50 p-2 rounded-lg border border-emerald-100">
                     <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
@@ -413,7 +423,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
                             <p className="text-xs font-bold text-gray-900">{s.name}</p>
                             <p className="text-[10px] text-gray-500 font-semibold">{s.duration} mins • {s.category}</p>
                           </div>
-                          <span className="text-xs font-extrabold text-gray-900">₹{s.price}</span>
+                          <span className="text-xs font-extrabold text-gray-900">₹{serviceDisplayPrice(s, data.offers).finalPrice.toLocaleString('en-IN')}</span>
                         </button>
                       ))}
                     </motion.div>
@@ -425,18 +435,51 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-extrabold text-sm text-gray-900 leading-snug">{selectedService.name}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-extrabold text-sm text-gray-900 leading-snug">{selectedService.name}</h3>
+                      {(selectedPricing.offer?.promotionalBadge || selectedService.promotionalBadge) && (
+                        <span className="rounded-full bg-[#fff1f4] text-[#8e0045] border border-[#f8c8dc] px-2 py-0.5 text-[9px] font-extrabold">
+                          {selectedPricing.offer?.promotionalBadge || selectedService.promotionalBadge}
+                        </span>
+                      )}
+                    </div>
+                    {selectedPricing.offer && <p className="text-[10px] font-bold text-[#ac0053] mt-1">{selectedPricing.offer.title}</p>}
                     <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">{selectedService.description}</p>
                     <div className="flex items-center gap-4 mt-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                       <span className="flex items-center gap-1 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-                        <Clock className="w-3 h-3 text-[#ac0053]" /> {selectedService.duration} min
+                        <Clock className="w-3 h-3 text-[#ac0053]" /> {selectedDuration} min
                       </span>
                       <span className="flex items-center gap-1 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-                        <CreditCard className="w-3 h-3 text-[#ac0053]" /> ₹{selectedService.price}
+                        <CreditCard className="w-3 h-3 text-[#ac0053]" /> ₹{selectedPrice}
                       </span>
                     </div>
                   </div>
                 </div>
+
+                {(selectedService.pricingVariants ?? []).filter((variant) => variant.status === 'active').length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Choose pricing option</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedVariantId(null)}
+                        className={`rounded-lg border px-3 py-2 text-[10px] font-bold ${selectedVariantId === null ? 'border-[#ac0053] bg-[#fff1f4] text-[#ac0053]' : 'border-gray-200 text-gray-600'}`}
+                      >
+                        Standard · ₹{serviceDisplayPrice(selectedService, data.offers).finalPrice.toLocaleString('en-IN')}
+                      </button>
+                      {(selectedService.pricingVariants ?? []).filter((variant) => variant.status === 'active').map((variant) => (
+                        <button
+                          key={variant.id}
+                          type="button"
+                          onClick={() => setSelectedVariantId(variant.id)}
+                          className={`rounded-lg border px-3 py-2 text-[10px] font-bold ${selectedVariantId === variant.id ? 'border-[#ac0053] bg-[#fff1f4] text-[#ac0053]' : 'border-gray-200 text-gray-600'}`}
+                        >
+                          {variant.name} · ₹{serviceDisplayPrice(selectedService, data.offers, variant.id).finalPrice.toLocaleString('en-IN')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
 
               {/* Step 2: Date Selection */}
@@ -583,7 +626,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
                     </div>
                     <div>
                       <div className="font-bold text-gray-900 leading-tight">{selectedService.name}</div>
-                      <div className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">{selectedService.duration} min</div>
+                      <div className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">{selectedDuration} min</div>
                     </div>
                   </div>
 
@@ -618,7 +661,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
                 <div className="flex flex-col gap-2.5 text-xs">
                   <div className="flex justify-between text-gray-500 font-semibold">
                     <span>Treatment Subtotal</span>
-                    <span className="text-gray-900 font-bold">₹{selectedService.price.toLocaleString('en-IN')}</span>
+                    <span className="text-gray-900 font-bold">₹{selectedPrice.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#ac0053] font-extrabold p-2 bg-[#ffd9e1]/15 rounded-lg border border-[#ffd9e1]/30">
                     <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide">
@@ -937,7 +980,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
                 <div className="flex flex-col gap-3 font-medium text-xs">
                   <div className="flex justify-between text-gray-400 font-bold text-[10px] uppercase tracking-wider">
                     <span>Total Service Value</span>
-                    <span className="text-gray-900 font-extrabold">₹{selectedService.price.toLocaleString('en-IN')}</span>
+                    <span className="text-gray-900 font-extrabold">₹{selectedPrice.toLocaleString('en-IN')}</span>
                   </div>
 
                   <div className="p-3 bg-[#ffd9e1]/15 rounded-xl border border-[#ffd9e1]/40 flex justify-between items-center text-[#ac0053]">
@@ -1002,7 +1045,7 @@ export default function CustomerBookingPreview({ data, onBackToWebsite, onShowTo
 
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-left space-y-1">
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Receipt Summary:</div>
-                <div className="text-xs font-bold text-gray-800">• {selectedService.name} (₹{selectedService.price})</div>
+                <div className="text-xs font-bold text-gray-800">• {selectedService.name} (₹{selectedPrice})</div>
                 <div className="text-xs font-semibold text-gray-600">• Date: {selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at {selectedTime}</div>
                 <div className="text-xs font-semibold text-gray-600">• Stylist: {selectedStylist ? selectedStylist.name : 'Anyone Available'}</div>
                 <div className="text-xs font-extrabold text-[#ac0053]">• Online Deposit Paid: ₹{depositAmount} (Via {paymentMethod === 'card' ? 'Card' : 'UPI'})</div>

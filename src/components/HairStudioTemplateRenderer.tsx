@@ -3,6 +3,7 @@ import { SalonData, getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { HAIR_STUDIO_THEME } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
+import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import {
   Scissors, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard, Palette,
@@ -185,7 +186,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                           </button>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="text-sm font-semibold" style={{ color: roseDeep }}>₹{s.price.toLocaleString('en-IN')}</span>
+                          <ServicePrice service={s} offers={data.offers} style={{ color: roseDeep }} compact />
                           <p className="text-[10px] mt-0.5" style={{ color: muted }}>{s.duration} min</p>
                         </div>
                       </div>
@@ -218,7 +219,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                        <span className="font-semibold text-lg" style={{ color: roseDeep }}>₹{p.price.toLocaleString('en-IN')}</span>
+                        <BundlePrice bundle={p} offers={data.offers} style={{ color: roseDeep }} />
                         <button className="px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-110" style={btnRose}>
                           Book Package
                         </button>

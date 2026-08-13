@@ -2,7 +2,7 @@
  * PHASE 8.3 — FINAL 5-THEME ACCEPTANCE TEST (UI layer)
  *
  * Mounts the REAL `StepServices` React component in jsdom, wired to the REAL
- * supabase-js client over REAL PostgreSQL (M01–M23). Interactions are genuine
+ * supabase-js client over REAL PostgreSQL (M01–M24). Interactions are genuine
  * DOM clicks and typing — nothing about the component is mocked or stubbed.
  *
  * Verifies, per theme: correct UI, correct categories/suggested chips rendered,
