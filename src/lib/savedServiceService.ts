@@ -58,6 +58,45 @@ const asNumber = (value: unknown, label: string): number => {
   return number;
 };
 
+const mapSavedService = (
+  rawValue: unknown,
+  expectedBusinessId: string,
+  expectedThemeId: DatabaseCatalogThemeId,
+  allowedPredefinedIds?: Set<string>,
+): SavedPredefinedService => {
+  const raw = asRecord(rawValue, 'saved service');
+  const predefinedServiceId = asString(raw.predefined_service_id, 'predefined_service_id');
+  if (allowedPredefinedIds && !allowedPredefinedIds.has(predefinedServiceId)) {
+    throw new SavedServiceError('The database returned an unrequested predefined service.');
+  }
+  if (asString(raw.business_id, 'service business_id') !== expectedBusinessId) {
+    throw new SavedServiceError('The database returned a service for a different salon.');
+  }
+  if (asString(raw.theme_key, 'service theme key') !== expectedThemeId) {
+    throw new SavedServiceError('The database returned a cross-theme saved service.');
+  }
+  const status = asString(raw.status, 'saved service status');
+  if (status !== 'active' && status !== 'inactive' && status !== 'archived') {
+    throw new SavedServiceError('Invalid saved service status returned by the database.');
+  }
+
+  return {
+    id: asString(raw.id, 'saved service id'),
+    businessId: expectedBusinessId,
+    themeId: asString(raw.theme_id, 'service theme_id'),
+    themeKey: expectedThemeId,
+    categoryId: asString(raw.category_id, 'service category_id'),
+    predefinedServiceId,
+    name: asString(raw.name, 'saved service name'),
+    category: asString(raw.category, 'saved service category'),
+    description: typeof raw.description === 'string' ? raw.description : '',
+    price: asNumber(raw.price_paise, 'saved service price') / 100,
+    duration: asNumber(raw.duration_minutes, 'saved service duration'),
+    status,
+    featured: raw.is_featured === true,
+  };
+};
+
 /**
  * Saves only predefined IDs from one database theme. M20 derives the tenant
  * from auth.uid() + business_members; no client-provided salon/business ID is
@@ -94,39 +133,9 @@ export async function savePredefinedServicesWithClient(
   const businessId = asString(payload.business_id, 'saved business_id');
   const requestedIdSet = new Set(uniqueIds);
   const rawServices = Array.isArray(payload.services) ? payload.services : [];
-  const services = rawServices.map((rawValue): SavedPredefinedService => {
-    const raw = asRecord(rawValue, 'saved service');
-    const predefinedServiceId = asString(raw.predefined_service_id, 'predefined_service_id');
-    if (!requestedIdSet.has(predefinedServiceId)) {
-      throw new SavedServiceError('The database returned an unrequested predefined service.');
-    }
-    if (asString(raw.business_id, 'service business_id') !== businessId) {
-      throw new SavedServiceError('The database returned a service for a different salon.');
-    }
-    if (asString(raw.theme_key, 'service theme key') !== themeId) {
-      throw new SavedServiceError('The database returned a cross-theme saved service.');
-    }
-    const status = asString(raw.status, 'saved service status');
-    if (status !== 'active' && status !== 'inactive' && status !== 'archived') {
-      throw new SavedServiceError('Invalid saved service status returned by the database.');
-    }
-
-    return {
-      id: asString(raw.id, 'saved service id'),
-      businessId,
-      themeId: asString(raw.theme_id, 'service theme_id'),
-      themeKey: themeId,
-      categoryId: asString(raw.category_id, 'service category_id'),
-      predefinedServiceId,
-      name: asString(raw.name, 'saved service name'),
-      category: asString(raw.category, 'saved service category'),
-      description: typeof raw.description === 'string' ? raw.description : '',
-      price: asNumber(raw.price_paise, 'saved service price') / 100,
-      duration: asNumber(raw.duration_minutes, 'saved service duration'),
-      status,
-      featured: raw.is_featured === true,
-    };
-  });
+  const services = rawServices.map((rawValue) =>
+    mapSavedService(rawValue, businessId, themeId, requestedIdSet)
+  );
 
   const requestedCount = asNumber(payload.requested_count, 'requested count');
   const insertedCount = asNumber(payload.inserted_count, 'inserted count');
@@ -153,4 +162,99 @@ export function savePredefinedServices(
   predefinedServiceIds: string[],
 ): Promise<SavePredefinedServicesResult> {
   return savePredefinedServicesWithClient(requireSupabase(), themeId, predefinedServiceIds);
+}
+
+export async function loadSavedServicesForThemeWithClient(
+  client: SupabaseClient,
+  themeId: DatabaseCatalogThemeId,
+): Promise<SavedPredefinedService[]> {
+  const { data, error } = await client.rpc('get_saved_services_for_theme', {
+    p_theme_id: themeId,
+  });
+  if (error) throw new SavedServiceError();
+  const payload = asRecord(data, 'saved services response');
+  if (asString(payload.theme_id, 'saved services theme_id') !== themeId) {
+    throw new SavedServiceError('The database returned saved services for a different theme.');
+  }
+  const businessId = asString(payload.business_id, 'saved services business_id');
+  const rows = Array.isArray(payload.services) ? payload.services : [];
+  return rows.map((row) => mapSavedService(row, businessId, themeId));
+}
+
+export function loadSavedServicesForTheme(
+  themeId: DatabaseCatalogThemeId,
+): Promise<SavedPredefinedService[]> {
+  return loadSavedServicesForThemeWithClient(requireSupabase(), themeId);
+}
+
+export interface SavedServiceChanges {
+  name: string;
+  description: string;
+  price: number;
+  duration: number;
+}
+
+export async function updateSavedServiceWithClient(
+  client: SupabaseClient,
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  changes: SavedServiceChanges,
+): Promise<SavedPredefinedService> {
+  const { data, error } = await client.rpc('update_saved_service', {
+    p_service_id: serviceId,
+    p_name: changes.name,
+    p_description: changes.description,
+    p_price_paise: Math.round(changes.price * 100),
+    p_duration_minutes: changes.duration,
+  });
+  if (error) throw new SavedServiceError();
+  const raw = asRecord(data, 'updated saved service');
+  return mapSavedService(raw, asString(raw.business_id, 'updated business_id'), themeId);
+}
+
+export function updateSavedService(
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  changes: SavedServiceChanges,
+): Promise<SavedPredefinedService> {
+  return updateSavedServiceWithClient(requireSupabase(), themeId, serviceId, changes);
+}
+
+export async function setSavedServiceActiveWithClient(
+  client: SupabaseClient,
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  isActive: boolean,
+): Promise<SavedPredefinedService> {
+  const { data, error } = await client.rpc('set_saved_service_active', {
+    p_service_id: serviceId,
+    p_is_active: isActive,
+  });
+  if (error) throw new SavedServiceError();
+  const raw = asRecord(data, 'saved service status');
+  return mapSavedService(raw, asString(raw.business_id, 'status business_id'), themeId);
+}
+
+export function setSavedServiceActive(
+  themeId: DatabaseCatalogThemeId,
+  serviceId: string,
+  isActive: boolean,
+): Promise<SavedPredefinedService> {
+  return setSavedServiceActiveWithClient(requireSupabase(), themeId, serviceId, isActive);
+}
+
+export async function deleteSavedServiceWithClient(
+  client: SupabaseClient,
+  serviceId: string,
+): Promise<string> {
+  const { data, error } = await client.rpc('delete_saved_service', {
+    p_service_id: serviceId,
+  });
+  if (error) throw new SavedServiceError('Unable to delete this saved service.');
+  if (data !== serviceId) throw new SavedServiceError('The database deleted a different service.');
+  return serviceId;
+}
+
+export function deleteSavedService(serviceId: string): Promise<string> {
+  return deleteSavedServiceWithClient(requireSupabase(), serviceId);
 }

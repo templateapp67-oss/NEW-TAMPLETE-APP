@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 20, 'expected exactly M01-M20');
+assert.equal(migrationFiles.length, 21, 'expected exactly M01-M21');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/20 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/21 applied cleanly`);
 }
 
 const ids = {
@@ -1027,6 +1027,185 @@ await test('R — Add Selected saves all five themes once with tenant-safe exact
   assert.deepEqual(customAfter.rows, customBefore.rows);
 });
 
-assert.equal(passed, 18);
-console.log(`Functional tests: ${passed}/18 passed`);
+await test('S — refresh, management, theme switching, and tenant isolation remain safe', async () => {
+  const seededThemeIds = [
+    'barber_mens_grooming',
+    'hair_studio_color_bar',
+    'beauty_skin_spa',
+    'family_full_service',
+    'nail_lash_studio',
+  ];
+  const globalBefore = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined
+  `);
+  let managedServiceId;
+  let managedPredefinedId;
+  let relationshipBefore;
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    // Existing → five database themes → Existing is represented by the five
+    // exact scoped loads plus the unsupported original-theme NULL contract.
+    for (const themeId of seededThemeIds) {
+      const firstLoad = await db.query(
+        'select public.get_saved_services_for_theme($1) as result',
+        [themeId],
+      );
+      const secondLoad = await db.query(
+        'select public.get_saved_services_for_theme($1) as result',
+        [themeId],
+      );
+      assert.equal(firstLoad.rows[0].result.business_id, ids.businessA);
+      assert.equal(firstLoad.rows[0].result.theme_id, themeId);
+      assert.equal(firstLoad.rows[0].result.services.length, 6);
+      assert.deepEqual(secondLoad.rows[0].result, firstLoad.rows[0].result);
+      assert.equal(
+        new Set(firstLoad.rows[0].result.services.map((service) => service.predefined_service_id)).size,
+        6,
+      );
+      firstLoad.rows[0].result.services.forEach((service) => {
+        assert.equal(service.business_id, ids.businessA);
+        assert.equal(service.theme_key, themeId);
+      });
+
+      if (themeId === 'hair_studio_color_bar') {
+        managedServiceId = firstLoad.rows[0].result.services[0].id;
+        managedPredefinedId = firstLoad.rows[0].result.services[0].predefined_service_id;
+      }
+    }
+
+    const before = await db.query(
+      `select theme_id, category_id, predefined_service_id
+       from public.services where id = $1`,
+      [managedServiceId],
+    );
+    relationshipBefore = before.rows[0];
+
+    const globalPredefinedBefore = await db.query(
+      `select theme_id, category_id, name, description, is_active
+       from public.predefined_services where id = $1`,
+      [managedPredefinedId],
+    );
+
+    const edited = await db.query(
+      `select public.update_saved_service(
+         $1, 'Owner Edited Service', 'Owner edited description', 222200, 88
+       ) as result`,
+      [managedServiceId],
+    );
+    assert.equal(edited.rows[0].result.name, 'Owner Edited Service');
+    assert.equal(edited.rows[0].result.description, 'Owner edited description');
+    assert.equal(Number(edited.rows[0].result.price_paise), 222200);
+    assert.equal(edited.rows[0].result.duration_minutes, 88);
+
+    const relationAfterEdit = await db.query(
+      `select theme_id, category_id, predefined_service_id
+       from public.services where id = $1`,
+      [managedServiceId],
+    );
+    assert.deepEqual(relationAfterEdit.rows[0], relationshipBefore);
+
+    const globalPredefinedAfterEdit = await db.query(
+      `select theme_id, category_id, name, description, is_active
+       from public.predefined_services where id = $1`,
+      [managedPredefinedId],
+    );
+    assert.deepEqual(globalPredefinedAfterEdit.rows, globalPredefinedBefore.rows);
+
+    const deactivated = await db.query(
+      'select public.set_saved_service_active($1, false) as result',
+      [managedServiceId],
+    );
+    assert.equal(deactivated.rows[0].result.status, 'inactive');
+    const globalStillActive = await db.query(
+      'select is_active from public.predefined_services where id = $1',
+      [managedPredefinedId],
+    );
+    assert.equal(globalStillActive.rows[0].is_active, true);
+
+    const refreshAfterEdit = await db.query(
+      `select public.get_saved_services_for_theme('hair_studio_color_bar') as result`,
+    );
+    const refreshed = refreshAfterEdit.rows[0].result.services.find(
+      (service) => service.id === managedServiceId,
+    );
+    assert.equal(refreshed.name, 'Owner Edited Service');
+    assert.equal(refreshed.status, 'inactive');
+    assert.equal(refreshed.predefined_service_id, managedPredefinedId);
+  });
+
+  await asRole('authenticated', ids.ownerB, async () => {
+    await expectReject(
+      () => db.query(
+        `select public.update_saved_service(
+           $1, 'Cross Salon Edit', 'Blocked', 10000, 10
+         )`,
+        [managedServiceId],
+      ),
+      /not found for your salon/i,
+    );
+    await expectReject(
+      () => db.query('select public.delete_saved_service($1)', [managedServiceId]),
+      /not found for your salon/i,
+    );
+
+    const directUpdate = await db.query(
+      `update public.services set name = 'Cross Salon Direct Edit'
+       where id = $1 returning id`,
+      [managedServiceId],
+    );
+    const directDelete = await db.query(
+      'delete from public.services where id = $1 returning id',
+      [managedServiceId],
+    );
+    assert.equal(directUpdate.rows.length, 0);
+    assert.equal(directDelete.rows.length, 0);
+
+    const ownNailServices = await db.query(
+      `select public.get_saved_services_for_theme('nail_lash_studio') as result`,
+    );
+    assert.equal(ownNailServices.rows[0].result.business_id, ids.businessB);
+    assert.equal(ownNailServices.rows[0].result.services.length, 1);
+
+    await expectReject(
+      () => db.query('delete from public.predefined_services where id = $1', [managedPredefinedId]),
+      /permission denied/i,
+    );
+  });
+
+  await asRole('authenticated', ids.ownerA, async () => {
+    const deleted = await db.query(
+      'select public.delete_saved_service($1) as id',
+      [managedServiceId],
+    );
+    assert.equal(deleted.rows[0].id, managedServiceId);
+    const afterDelete = await db.query(
+      `select public.get_saved_services_for_theme('hair_studio_color_bar') as result`,
+    );
+    assert.equal(afterDelete.rows[0].result.services.length, 5);
+  });
+
+  const savedDeleted = await db.query(
+    'select count(*)::int as count from public.services where id = $1',
+    [managedServiceId],
+  );
+  const globalPredefinedPreserved = await db.query(
+    'select count(*)::int as count from public.predefined_services where id = $1',
+    [managedPredefinedId],
+  );
+  const globalAfter = await db.query(`
+    select
+      (select count(*)::int from public.themes) as themes,
+      (select count(*)::int from public.service_categories) as categories,
+      (select count(*)::int from public.predefined_services) as predefined
+  `);
+  assert.equal(savedDeleted.rows[0].count, 0);
+  assert.equal(globalPredefinedPreserved.rows[0].count, 1);
+  assert.deepEqual(globalAfter.rows, globalBefore.rows);
+});
+
+assert.equal(passed, 19);
+console.log(`Functional tests: ${passed}/19 passed`);
 await db.close();

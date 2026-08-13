@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { savePredefinedServicesWithClient } from '../src/lib/savedServiceService.ts';
+import {
+  deleteSavedServiceWithClient,
+  loadSavedServicesForThemeWithClient,
+  savePredefinedServicesWithClient,
+  setSavedServiceActiveWithClient,
+  updateSavedServiceWithClient,
+} from '../src/lib/savedServiceService.ts';
 
 const themeId = 'barber_mens_grooming';
 const serviceA = '10000000-0000-4000-8000-000000000001';
@@ -147,4 +153,76 @@ await test('custom service creation stays explicitly unlinked from predefined ro
   assert.ok(customBlock.includes('predefinedServiceId: null'));
 });
 
-console.log(`Service saving tests: ${passed}/4 passed`);
+await test('refresh load and management RPCs never accept relationship or tenant rewrites', async () => {
+  const calls = [];
+  const saved = makeSaved(serviceA, 1);
+  const client = {
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      if (name === 'get_saved_services_for_theme') {
+        return {
+          data: {
+            business_id: saved.business_id,
+            theme_id: themeId,
+            services: [saved],
+          },
+          error: null,
+        };
+      }
+      if (name === 'update_saved_service') {
+        return {
+          data: {
+            ...saved,
+            name: args.p_name,
+            description: args.p_description,
+            price_paise: args.p_price_paise,
+            duration_minutes: args.p_duration_minutes,
+          },
+          error: null,
+        };
+      }
+      if (name === 'set_saved_service_active') {
+        return { data: { ...saved, status: args.p_is_active ? 'active' : 'inactive' }, error: null };
+      }
+      if (name === 'delete_saved_service') return { data: saved.id, error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    },
+  };
+
+  const loaded = await loadSavedServicesForThemeWithClient(client, themeId);
+  assert.equal(loaded.length, 1);
+  const updated = await updateSavedServiceWithClient(client, themeId, saved.id, {
+    name: 'Edited', description: 'Edited description', price: 999, duration: 45,
+  });
+  assert.equal(updated.name, 'Edited');
+  assert.equal(updated.themeId, saved.theme_id);
+  assert.equal(updated.categoryId, saved.category_id);
+  assert.equal(updated.predefinedServiceId, saved.predefined_service_id);
+  const inactive = await setSavedServiceActiveWithClient(client, themeId, saved.id, false);
+  assert.equal(inactive.status, 'inactive');
+  assert.equal(await deleteSavedServiceWithClient(client, saved.id), saved.id);
+
+  const updateArgs = calls.find((call) => call.name === 'update_saved_service').args;
+  for (const forbidden of ['business_id', 'theme_id', 'category_id', 'predefined_service_id']) {
+    assert.equal(Object.hasOwn(updateArgs, forbidden), false);
+  }
+});
+
+await test('theme switching clears snapshots, selections, forms, and stale saved data', async () => {
+  const app = await readFile('src/App.tsx', 'utf8');
+  const services = await readFile('src/screens/StepServices.tsx', 'utf8');
+  assert.equal(app.includes('themeServiceSnapshots'), false);
+  assert.ok(app.includes('templateId: nextTheme'));
+  assert.ok(app.includes('services: []'));
+  assert.ok(app.includes('packages: []'));
+  assert.ok(services.includes('setLoadedCatalog(null)'));
+  assert.ok(services.includes('setSelectedSuggested([])'));
+  assert.ok(services.includes("setSuggestedFilter('All')"));
+  assert.ok(services.includes("setNewServiceCategory(firstCategory)"));
+  assert.ok(services.includes("setNewServiceName('')"));
+  assert.ok(services.includes('services: []'));
+  assert.ok(services.includes('loadSavedServicesForTheme(theme)'));
+  assert.ok(services.includes('savedLoadRequestRef.current !== requestId'));
+});
+
+console.log(`Service saving tests: ${passed}/6 passed`);

@@ -140,8 +140,8 @@ async function runAllTests() {
   // 5. Check that the draft migrations remain intact and unexecuted
   const migrationsDir = 'supabase/migrations';
   const migrationFiles = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql'));
-  await test('All 20 draft migrations exist and are preserved', () => {
-    assert.equal(migrationFiles.length, 20, `Expected 20 migrations, found ${migrationFiles.length}`);
+  await test('All 21 draft migrations exist and are preserved', () => {
+    assert.equal(migrationFiles.length, 21, `Expected 21 migrations, found ${migrationFiles.length}`);
   });
 
   console.log(`\n========================================`);

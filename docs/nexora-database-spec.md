@@ -1774,6 +1774,10 @@ Per P67: services.business_id; staff_members.business_id; staff_services(staff_i
   derived from `auth.uid()` membership, the full catalog chain is validated,
   and partial uniqueness on `(business_id, predefined_service_id)` makes Add
   Selected replay-safe without restricting custom NULL provenance rows.
+- Phase 7.4 Session 3 adds tenant-derived saved-service refresh and mutable-field
+  management. Edit cannot change catalog provenance; deactivate touches only the
+  saved status; delete targets only the tenant's `services` row and never global
+  theme/category/predefined records.
 
 ### 5.15 Website/Publishing Architecture
 
@@ -1839,5 +1843,6 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 18. **M18** Phase 7.3 exact, generated, idempotent five-theme catalog seed
 19. **M19** Phase 7.4 Session 1 mandatory theme-filtered catalog read RPC
 20. **M20** Phase 7.4 Session 2 authenticated, tenant-derived, idempotent predefined-service saving
+21. **M21** Phase 7.4 Session 3 tenant-scoped refresh/edit/status/delete management
 
-**Execution gate:** M01–M20 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
+**Execution gate:** M01–M21 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
