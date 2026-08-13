@@ -4,6 +4,8 @@ import { getSalonNameStyle } from '../lib/brandIdentity';
 import { BEAUTY_SPA_THEME } from '../lib/themeServices';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { displayService } from '../lib/displayService';
+import { readStoredLocale } from '../lib/locale';
 import {
   Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation,
   Video, Heart, Star, Quote, CreditCard, Leaf, Flower2, Sparkles, Droplets,
@@ -44,6 +46,7 @@ const REVIEWS = [
 
 export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const { emerald, emeraldDeep, emeraldMid, emeraldSoft, beige, beigeSoft, cream, blush, sage, text, muted, line } = BEAUTY_SPA_THEME;
+  const locale = readStoredLocale();
 
   // Keep the owner's chosen font style for the salon name; default to deep
   // green so the wordmark stays legible on the light surfaces.
@@ -158,16 +161,19 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
             </div>
 
             <div className={`grid gap-5 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {data.services && data.services.map((s) => (
-                <div key={s.id} className="rounded-3xl p-6 border transition-all hover:-translate-y-0.5" style={{ backgroundColor: '#ffffff', borderColor: line, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-serif font-semibold text-sm" style={{ color: text }}>{s.name}</h4>
+              {data.services && data.services.map((s) => {
+                const shown = displayService(s, locale);
+                return (
+                <div key={s.id} className="rounded-3xl p-6 border transition-all hover:-translate-y-0.5 min-w-0" style={{ backgroundColor: '#ffffff', borderColor: line, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+                  {shown.imageUrl && <img src={shown.imageUrl} alt="" className="w-full h-24 object-cover rounded-2xl mb-3" />}
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <h4 className="font-serif font-semibold text-sm break-words" style={{ color: text }}>{shown.name}</h4>
                     <ServicePrice service={s} offers={data.offers} style={{ color: emerald }} compact />
                   </div>
                   <span className="inline-block text-[9px] uppercase tracking-[0.2em] font-semibold px-2.5 py-0.5 rounded-full mb-3" style={{ backgroundColor: emeraldSoft, color: emeraldDeep }}>
                     {s.category}
                   </span>
-                  <p className="text-xs leading-relaxed line-clamp-2 mb-4" style={{ color: muted }}>{s.description}</p>
+                  <p className="text-xs leading-relaxed line-clamp-2 mb-4 break-words" style={{ color: muted }}>{shown.description}</p>
                   <div className="flex justify-between items-center pt-3 border-t" style={{ borderColor: line }}>
                     <span className="text-[11px] font-medium" style={{ color: muted }}>{s.duration} mins</span>
                     <button className="px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-105" style={btnEmerald}>
@@ -175,7 +181,8 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Packages */}

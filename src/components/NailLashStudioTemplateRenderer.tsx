@@ -4,6 +4,8 @@ import { getPublicStaffData } from '../types';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { NAIL_LASH_STUDIO_THEME } from '../lib/themeServices';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { displayService } from '../lib/displayService';
+import { readStoredLocale } from '../lib/locale';
 import {
   ArrowRight,
   Award,
@@ -248,16 +250,20 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
           <section id="section-service-menu" className="px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
             <SectionTitle eyebrow="Book the edit" title="Studio menu" body="Choose your finish, pricing option or limited-time special." />
             <div className={`grid gap-3 mt-8 ${mode === 'desktop' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {data.services.filter((service) => service.status !== 'inactive' && service.status !== 'archived').map((service) => (
-                <article key={service.id} className="rounded-[1.5rem] border p-4 flex items-start justify-between gap-4" style={{ borderColor: line, backgroundColor: cream }}>
+              {data.services.filter((service) => service.status !== 'inactive' && service.status !== 'archived').map((service) => {
+                const shown = displayService(service, readStoredLocale());
+                return (
+                <article key={service.id} className="rounded-[1.5rem] border p-4 flex items-start justify-between gap-4 min-w-0" style={{ borderColor: line, backgroundColor: cream }}>
+                  {shown.imageUrl && <img src={shown.imageUrl} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />}
                   <div className="min-w-0">
-                    <h3 className="text-sm font-extrabold" style={{ color: ink }}>{service.name}</h3>
-                    <p className="text-[9px] uppercase tracking-[0.14em] font-bold mt-1" style={{ color: pinkDeep }}>{service.category} · {service.duration} min</p>
-                    <p className="text-[10px] leading-relaxed mt-2 line-clamp-2" style={{ color: muted }}>{service.description}</p>
+                    <h3 className="text-sm font-extrabold break-words" style={{ color: ink }}>{shown.name}</h3>
+                    <p className="text-[9px] uppercase tracking-[0.14em] font-bold mt-1" style={{ color: pinkDeep }}>{shown.category} · {service.duration} min</p>
+                    <p className="text-[10px] leading-relaxed mt-2 line-clamp-2 break-words" style={{ color: muted }}>{shown.description}</p>
                   </div>
                   <ServicePrice service={service} offers={data.offers} style={{ color: pinkDeep }} compact />
                 </article>
-              ))}
+                );
+              })}
             </div>
             {data.packages.filter((bundle) => bundle.status !== 'inactive' && bundle.status !== 'archived').length > 0 && (
               <div className="mt-8 space-y-3">

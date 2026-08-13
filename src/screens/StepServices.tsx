@@ -1,5 +1,8 @@
 import { Sparkles, Mic, ArrowLeft, ArrowRight, Plus, Check, Copy, Trash2, GripVertical, Info, Volume2, X, Search, ChevronDown, List, Pencil, Power } from 'lucide-react';
 import CommerceManager from '../components/CommerceManager';
+import ServiceDiscoveryBar from '../components/ServiceDiscoveryBar';
+import ServiceMediaEditor from '../components/ServiceMediaEditor';
+import { ServiceAuditLog, ServiceDeleteGuard } from '../components/ServiceSafetyPanel';
 import { SalonData, Service, Package } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,6 +37,31 @@ import {
   loadThemeCommerce,
   mergeCommerceIntoServices,
 } from '../lib/pricingPromotionService';
+import {
+  DEFAULT_LOCALE,
+  localizedName,
+  persistLocale,
+  readStoredLocale,
+  type AppLocale,
+} from '../lib/locale';
+import {
+  DEFAULT_DISCOVERY,
+  filterAndSortServices,
+  type ServiceDiscoveryQuery,
+} from '../lib/serviceSearch';
+import {
+  deleteSavedServiceMedia,
+  upsertSavedServiceMedia,
+  upsertSavedServiceTranslation,
+  type ServiceMediaKind,
+} from '../lib/serviceContentService';
+import {
+  clearServiceFormDraft,
+  isBrowserOffline,
+  networkErrorMessage,
+  persistServiceFormDraft,
+  readServiceFormDraft,
+} from '../lib/offlineSync';
 
 // Generates a professional, customer-friendly, category-specific service description.
 // Kept offline (rule-based) so it works without any API key, consistent with the app's
@@ -131,6 +159,8 @@ const savedServiceToUi = (service: SavedService): Service => ({
   duration: service.duration,
   featured: service.featured,
   status: service.status,
+  translations: service.translations,
+  media: service.media,
 });
 
 export default function StepServices({ data, setData, onNext, onPrev, onSave }: Props) {
@@ -193,6 +223,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingPackage, setIsAddingPackage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [locale, setLocale] = useState<AppLocale>(DEFAULT_LOCALE);
+  const [discovery, setDiscovery] = useState<ServiceDiscoveryQuery>(DEFAULT_DISCOVERY);
+  const [editHindiName, setEditHindiName] = useState('');
+  const [editHindiDescription, setEditHindiDescription] = useState('');
+  const [isOffline, setIsOffline] = useState(false);
+  const [syncNotice, setSyncNotice] = useState('');
 
   // New Service Form state
   const [newServiceName, setNewServiceName] = useState('');
@@ -337,6 +373,27 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   }, [setData]);
 
   useEffect(() => {
+    setLocale(readStoredLocale());
+    const sync = () => {
+      const offline = isBrowserOffline();
+      setIsOffline(offline);
+      if (!offline) setSyncNotice('');
+    };
+    sync();
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+    };
+  }, []);
+
+  const handleLocaleChange = (next: AppLocale) => {
+    setLocale(next);
+    persistLocale(next);
+  };
+
+  useEffect(() => {
     runSavedServicesLoad(theme);
     return () => {
       // Invalidate the in-flight request so a late response cannot paint.
@@ -435,6 +492,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setNewPackagePrice(95);
     setNewPackageDuration(60);
     setNewPackageDesc('');
+    setDiscovery(DEFAULT_DISCOVERY);
+    setEditHindiName('');
+    setEditHindiDescription('');
     // Intentionally only depends on [theme]; the individual setState calls above
     // cover every piece of theme-scoped state, so no other deps are needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -451,11 +511,23 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
   // can never initialise this form.
   useEffect(() => {
     if (!usesDatabaseCatalog || !activeCatalog) return;
+    const draft = readServiceFormDraft(theme);
+    if (draft) {
+      setNewServiceCategory(draft.category || activeCatalog.categories[0]?.name || '');
+      setNewServiceName(draft.name);
+      setNewServicePrice(draft.price);
+      setNewServiceDuration(draft.duration);
+      setNewServiceDesc(draft.description);
+      setNewServiceDescTouched(true);
+      setIsAddingService(true);
+      setSyncNotice('Unsaved service form restored. Review and save when you are online.');
+      return;
+    }
     const firstCategory = activeCatalog.categories[0]?.name || '';
     setNewServiceCategory(firstCategory);
     setNewServiceDesc(suggestServiceDescription(firstCategory || 'General', ''));
     setNewServiceDescTouched(false);
-  }, [activeCatalog, usesDatabaseCatalog]);
+  }, [activeCatalog, usesDatabaseCatalog, theme]);
 
   // Close the service combobox when clicking outside it.
   useEffect(() => {
@@ -516,6 +588,10 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
   const handleAddSelected = async () => {
     if (selectedSuggested.length === 0 || isSavingSelected) return;
+    if (isOffline || isBrowserOffline()) {
+      setSaveSelectedError('You are offline. Selection is kept — tap Add Selected again when you reconnect. Nothing will be duplicated.');
+      return;
+    }
 
     // Preserve the original Existing Theme behavior. Session 2 database saving
     // applies only to the five M18/M19 database catalogs.
@@ -615,7 +691,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
       if (onSave) onSave();
     } catch (error) {
       if (saveRequestRef.current !== requestId) return;
-      setSaveSelectedError(error instanceof Error ? error.message : 'Unable to save the selected services.');
+      setSaveSelectedError(networkErrorMessage(error, isBrowserOffline()));
     } finally {
       if (saveRequestRef.current === requestId) setIsSavingSelected(false);
     }
@@ -802,6 +878,19 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     e.preventDefault();
     const name = newServiceName.trim();
     if (!name || isCreatingService) return;
+    persistServiceFormDraft({
+      themeId: theme,
+      name,
+      description: newServiceDesc,
+      price: Number(newServicePrice) || 0,
+      duration: Number(newServiceDuration) || 30,
+      category: newServiceCategory,
+      savedAt: new Date().toISOString(),
+    });
+    if (isOffline || isBrowserOffline()) {
+      setAddServiceError('You are offline. This form is kept on this device — save again when you reconnect.');
+      return;
+    }
 
     const price = Number(newServicePrice) || 0;
     const duration = Number(newServiceDuration) || 30;
@@ -883,11 +972,12 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
           }
         : previous
       );
+      clearServiceFormDraft();
       closeAddServiceForm();
       if (onSave) onSave();
     } catch (error) {
       if (saveRequestRef.current !== requestId) return;
-      setAddServiceError(error instanceof Error ? error.message : 'Unable to add this service.');
+      setAddServiceError(networkErrorMessage(error, isBrowserOffline()));
     } finally {
       if (saveRequestRef.current === requestId) setIsCreatingService(false);
     }
@@ -925,6 +1015,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     setEditServicePrice(service.price);
     setEditServiceDuration(service.duration);
     setEditServiceStatus(service.status ?? 'active');
+    const hindi = service.translations?.find((item) => item.locale === 'hi');
+    setEditHindiName(hindi?.name ?? '');
+    setEditHindiDescription(hindi?.description ?? '');
     setSavedServicesError('');
   };
 
@@ -956,7 +1049,13 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
         ...previous,
         services: previous.services.map((item) =>
           item.id === service.id
-            ? { ...savedServiceToUi(updated), promotionalBadge: item.promotionalBadge, pricingVariants: item.pricingVariants }
+            ? {
+                ...savedServiceToUi(updated),
+                promotionalBadge: item.promotionalBadge,
+                pricingVariants: item.pricingVariants,
+                translations: updated.translations ?? item.translations,
+                media: updated.media ?? item.media,
+              }
             : item
         ),
       }));
@@ -1013,7 +1112,13 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
         ...previous,
         services: previous.services.map((item) =>
           item.id === service.id
-            ? { ...savedServiceToUi(updated), promotionalBadge: item.promotionalBadge, pricingVariants: item.pricingVariants }
+            ? {
+                ...savedServiceToUi(updated),
+                promotionalBadge: item.promotionalBadge,
+                pricingVariants: item.pricingVariants,
+                translations: updated.translations ?? item.translations,
+                media: updated.media ?? item.media,
+              }
             : item
         ),
       }));
@@ -1118,6 +1223,51 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     if (onSave) onSave();
   };
 
+  const patchServiceContent = (serviceId: string, patch: Partial<Service>) => {
+    setData((previous) => ({
+      ...previous,
+      services: previous.services.map((item) =>
+        item.id === serviceId ? { ...item, ...patch } : item
+      ),
+    }));
+  };
+
+  const handleSaveHindiTranslation = async (service: Service) => {
+    if (!isDatabaseCatalogTheme(theme) || !service.businessId) return;
+    try {
+      const saved = await upsertSavedServiceTranslation(
+        theme, service.id, 'hi', editHindiName, editHindiDescription,
+      );
+      const next = [
+        ...(service.translations ?? []).filter((item) => item.locale !== 'hi'),
+        saved,
+      ];
+      patchServiceContent(service.id, { translations: next });
+    } catch (error) {
+      setSavedServicesError(error instanceof Error ? error.message : 'Unable to save translation.');
+    }
+  };
+
+  const handleServiceMediaUpload = async (service: Service, kind: ServiceMediaKind, dataUrl: string) => {
+    if (!isDatabaseCatalogTheme(theme) || !service.businessId) return;
+    try {
+      const media = await upsertSavedServiceMedia(theme, service.id, kind, dataUrl);
+      patchServiceContent(service.id, { media: { ...service.media, ...media } });
+    } catch (error) {
+      setSavedServicesError(error instanceof Error ? error.message : 'Unable to save media.');
+    }
+  };
+
+  const handleServiceMediaRemove = async (service: Service, kind: ServiceMediaKind) => {
+    if (!isDatabaseCatalogTheme(theme) || !service.businessId) return;
+    try {
+      const media = await deleteSavedServiceMedia(theme, service.id, kind);
+      patchServiceContent(service.id, { media });
+    } catch (error) {
+      setSavedServicesError(error instanceof Error ? error.message : 'Unable to remove media.');
+    }
+  };
+
   const handleDeletePackage = (id: string) => {
     setData({
       ...data,
@@ -1136,6 +1286,16 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     ? []
     : categoryServices.filter((s) => s.name.toLowerCase().includes(serviceQuery));
 
+  const suggestedPredefinedIds: Set<string> = new Set<string>(
+    suggestedList.flatMap((service) => {
+      const id = (service as { id?: unknown }).id;
+      return typeof id === 'string' && id ? [id] : [];
+    }),
+  );
+  const visibleServices = showSavedServices
+    ? filterAndSortServices(data.services, discovery, locale, suggestedPredefinedIds)
+    : [];
+
   const chipClass = (active: boolean) =>
     `px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
       active
@@ -1144,14 +1304,21 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
     }`;
 
   return (
-    <div className="flex-1 flex w-full h-full bg-[#f9f9f9]">
-      <div className="w-full md:w-[55%] h-full flex flex-col relative bg-[#f9f9f9] border-r border-[#eeeeee]">
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10">
+    <div className="flex-1 flex w-full h-full bg-[#f9f9f9] overflow-x-hidden">
+      <div className="w-full md:w-[55%] h-full flex flex-col relative bg-[#f9f9f9] border-r border-[#eeeeee] min-w-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-4 sm:p-6 md:p-10">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto pb-32 space-y-8">
             <div>
               <span className="text-xs font-semibold tracking-widest text-[#5f5e5e] uppercase">SERVICES</span>
-              <h1 className="text-3xl md:text-4xl font-bold text-[#1a1c1c] mt-1 mb-2">What services do you offer?</h1>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#1a1c1c] mt-1 mb-2 break-words">What services do you offer?</h1>
               <p className="text-[#5f5e5e] text-base">Choose your services, add prices and your website will update instantly.</p>
+              {(isOffline || syncNotice) && (
+                <p className="mt-3 text-xs rounded-lg border border-amber-200 bg-amber-50 text-amber-900 p-3" role="status">
+                  {isOffline
+                    ? 'Offline — Add Selected / Edit / Save are paused so retries cannot create duplicates. Unsaved form text is kept on this device.'
+                    : syncNotice}
+                </p>
+              )}
             </div>
 
             {/* Suggested Services — theme-specific */}
@@ -1163,7 +1330,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                 </div>
                 <button
                   onClick={selectAllSuggested}
-                  className="text-xs font-semibold text-[#ac0053] hover:underline self-start sm:self-auto"
+                  className="min-h-11 text-xs font-semibold text-[#ac0053] hover:underline self-start sm:self-auto"
                 >
                   {allVisibleSelected ? 'Deselect All' : 'Select All'}
                 </button>
@@ -1171,11 +1338,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
               {/* Category filter (per theme) */}
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => setSuggestedFilter('All')} className={chipClass(suggestedFilter === 'All')}>
+                <button onClick={() => setSuggestedFilter('All')} className={`${chipClass(suggestedFilter === 'All')} min-h-11`}>
                   All
                 </button>
                 {categories.map((c) => (
-                  <button key={c} onClick={() => setSuggestedFilter(c)} className={chipClass(suggestedFilter === c)}>
+                  <button key={c} onClick={() => setSuggestedFilter(c)} className={`${chipClass(suggestedFilter === c)} min-h-11`}>
                     {c}
                   </button>
                 ))}
@@ -1195,7 +1362,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                       key={s.name}
                       onClick={() => toggleSuggested(s.name)}
                       title={s.description}
-                      className={`px-4 py-2 rounded-full border text-sm font-medium transition-all flex items-center gap-1.5 ${
+                      className={`min-h-11 px-4 py-2 rounded-full border text-sm font-medium transition-all flex items-center gap-1.5 break-words ${
                         isSelected
                           ? 'border-[#ac0053] bg-[#ffd9e1] text-[#3f001a]'
                           : 'border-[#eeeeee] bg-[#f9f9f9] text-[#1a1c1c] hover:border-[#ac0053] hover:text-[#ac0053]'
@@ -1214,7 +1381,7 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                 <button
                   onClick={handleAddSelected}
                   disabled={selectedSuggested.length === 0 || isSavingSelected || currentCatalogLoading}
-                  className="bg-[#ac0053] text-white font-semibold text-sm px-6 py-2.5 rounded-lg hover:bg-[#ba005b] transition-colors disabled:opacity-40"
+                  className="min-h-11 bg-[#ac0053] text-white font-semibold text-sm px-6 py-2.5 rounded-lg hover:bg-[#ba005b] transition-colors disabled:opacity-40"
                 >
                   {isSavingSelected ? 'Saving…' : `Add Selected (${selectedSuggested.length})`}
                 </button>
@@ -1227,12 +1394,11 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
               </div>
             </div>
 
-            {/* Fast Add */}
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={handleSpeechInput}
                 disabled={isSpeaking}
-                className="flex-1 bg-white border border-[#eeeeee] rounded-lg p-4 flex items-center justify-center gap-2 hover:border-[#ac0053] transition-colors group shadow-sm"
+                className="flex-1 min-h-11 bg-white border border-[#eeeeee] rounded-lg p-4 flex items-center justify-center gap-2 hover:border-[#ac0053] transition-colors group shadow-sm"
               >
                 {isSpeaking ? (
                   <Volume2 className="w-5 h-5 text-[#ac0053] animate-pulse" />
@@ -1243,10 +1409,9 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   {isSpeaking ? 'Listening...' : 'Speak your services'}
                 </span>
               </button>
-
               <button
                 onClick={handleAISuggest}
-                className="flex-1 bg-white border border-[#eeeeee] rounded-lg p-4 flex items-center justify-center gap-2 hover:border-[#ac0053] transition-colors group shadow-sm"
+                className="flex-1 min-h-11 bg-white border border-[#eeeeee] rounded-lg p-4 flex items-center justify-center gap-2 hover:border-[#ac0053] transition-colors group shadow-sm"
               >
                 <Sparkles className="w-5 h-5 text-[#5f5e5e] group-hover:text-[#ac0053] transition-colors" />
                 <span className="text-sm font-semibold text-[#1a1c1c] group-hover:text-[#ac0053] transition-colors">
@@ -1257,40 +1422,42 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
 
             <hr className="border-[#eeeeee]" />
 
-            {/* My Services List */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 min-w-0">
               <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">
-                MY SERVICES ({showSavedServices ? data.services.length : 0})
+                MY SERVICES ({showSavedServices ? visibleServices.length : 0}
+                {showSavedServices && visibleServices.length !== data.services.length
+                  ? ` of ${data.services.length}`
+                  : ''})
               </h3>
+              {usesDatabaseCatalog && (
+                <ServiceDiscoveryBar
+                  query={discovery}
+                  onChange={setDiscovery}
+                  locale={locale}
+                  onLocaleChange={handleLocaleChange}
+                  categories={categories}
+                />
+              )}
               {savedServicesLoading && usesDatabaseCatalog && (
                 <p className="text-xs text-[#5f5e5e]" role="status">Loading saved services…</p>
               )}
               {savedServicesError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <p className="text-xs text-red-700" role="alert">{savedServicesError}</p>
-                  <button
-                    type="button"
-                    onClick={reloadSavedServices}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 shrink-0"
-                  >
+                  <button type="button" onClick={reloadSavedServices} className="min-h-11 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 shrink-0">
                     Try again
                   </button>
                 </div>
               )}
-
-              {/* Empty state — only once the current theme has actually loaded,
-                  so it never flashes while a request is still in flight. */}
               {showSavedServices && !savedServicesError && data.services.length === 0 && (
                 <div className="rounded-lg border border-dashed border-[#eeeeee] bg-white p-6 text-center">
                   <p className="text-sm font-semibold text-[#1a1c1c]">No services yet</p>
-                  <p className="text-xs text-[#5f5e5e] mt-1">
-                    Pick from the suggested services above, or use “Add Service” to create your own.
-                  </p>
+                  <p className="text-xs text-[#5f5e5e] mt-1">Pick from the suggested services above, or use “Add Service” to create your own.</p>
                 </div>
               )}
 
               <AnimatePresence>
-                {showSavedServices && data.services.map((s) => (
+                {showSavedServices && visibleServices.map((s) => (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1298,158 +1465,83 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                     key={s.id}
                     className={`bg-white border border-[#eeeeee] rounded-lg p-5 shadow-sm flex flex-col gap-4 group hover:border-[#ac0053]/40 transition-colors ${s.status && s.status !== 'active' ? 'opacity-65' : ''}`}
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-start gap-4">
-                        <div className="text-[#5f5e5e] cursor-grab pt-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                          <GripVertical className="w-5 h-5" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-lg font-bold text-[#1a1c1c]">{s.name}</h4>
-                            {s.featured && (
-                              <span className="bg-[#ffd9e1] text-[#3f001a] font-medium text-[10px] px-2 py-0.5 rounded-full">
-                                Featured
-                              </span>
-                            )}
-                            {s.promotionalBadge && (
-                              <span className="bg-[#fff1f4] text-[#8e0045] border border-[#f8c8dc] font-semibold text-[10px] px-2 py-0.5 rounded-full">
-                                {s.promotionalBadge}
-                              </span>
-                            )}
-                            {s.status === 'inactive' && (
-                              <span className="bg-gray-100 text-gray-600 font-medium text-[10px] px-2 py-0.5 rounded-full">
-                                Inactive
-                              </span>
-                            )}
-                            {s.status === 'archived' && (
-                              <span className="bg-amber-50 text-amber-700 font-medium text-[10px] px-2 py-0.5 rounded-full">
-                                Archived
-                              </span>
-                            )}
-                            {s.businessId && !s.predefinedServiceId && (
-                              <span className="bg-[#f1f5ff] text-[#31456a] font-medium text-[10px] px-2 py-0.5 rounded-full">
-                                Custom
-                              </span>
-                            )}
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        {(s.media?.iconUrl || s.media?.imageUrl) && (
+                          <img src={s.media.iconUrl || s.media.imageUrl} alt="" className="w-12 h-12 rounded-md object-cover shrink-0" />
+                        )}
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-base sm:text-lg font-bold text-[#1a1c1c] break-words">
+                              {localizedName(s.name, s.translations, locale)}
+                            </h4>
+                            {s.featured && <span className="bg-[#ffd9e1] text-[#3f001a] font-medium text-[10px] px-2 py-0.5 rounded-full">Featured</span>}
+                            {s.promotionalBadge && <span className="bg-[#fff1f4] text-[#8e0045] border border-[#f8c8dc] font-semibold text-[10px] px-2 py-0.5 rounded-full">{s.promotionalBadge}</span>}
+                            {s.status === 'inactive' && <span className="bg-gray-100 text-gray-600 font-medium text-[10px] px-2 py-0.5 rounded-full">Inactive</span>}
+                            {s.status === 'archived' && <span className="bg-amber-50 text-amber-700 font-medium text-[10px] px-2 py-0.5 rounded-full">Archived</span>}
+                            {s.businessId && !s.predefinedServiceId && <span className="bg-[#f1f5ff] text-[#31456a] font-medium text-[10px] px-2 py-0.5 rounded-full">Custom</span>}
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-[#5f5e5e]">
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-[#5f5e5e]">
                             <span className="font-semibold text-[#1a1c1c]">₹{s.price.toLocaleString('en-IN')}</span>
                             <span>•</span>
                             <span>{s.duration} min</span>
                             <span>•</span>
                             <span className="italic">{s.category}</span>
                           </div>
-                          {(s.pricingVariants ?? []).filter((variant) => variant.status === 'active').length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {(s.pricingVariants ?? []).filter((variant) => variant.status === 'active').map((variant) => (
-                                <span key={variant.id} className="text-[10px] rounded-full bg-[#f7f7f7] border border-[#eeeeee] px-2 py-1 text-[#565755]">
-                                  {variant.name} · ₹{variant.price.toLocaleString('en-IN')}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          <p className="text-sm text-[#565755] mt-1">{s.description}</p>
-                          <p className="text-xs text-[#565755] italic mt-2 flex items-center gap-1">
-                            <Info className="w-3.5 h-3.5" />
-                            25% advance at booking
-                          </p>
+                          <p className="text-sm text-[#565755] mt-1 break-words">{s.description}</p>
                         </div>
                       </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex flex-wrap gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                         {s.businessId && (
                           <>
-                            <button
-                              onClick={() => beginEditService(s)}
-                              disabled={managingServiceId === s.id}
-                              title="Edit Service"
-                              className="p-2 text-[#5f5e5e] hover:text-[#ac0053] hover:bg-[#f9f9f9] rounded-full transition-colors disabled:opacity-40"
-                            >
+                            <button onClick={() => beginEditService(s)} disabled={managingServiceId === s.id} title="Edit Service" className="min-h-11 min-w-11 p-2 text-[#5f5e5e] hover:text-[#ac0053] hover:bg-[#f9f9f9] rounded-full">
                               <Pencil className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => handleToggleSavedService(s)}
-                              disabled={managingServiceId === s.id}
-                              title={s.status === 'active' ? 'Deactivate Service' : 'Activate Service'}
-                              className="p-2 text-[#5f5e5e] hover:text-[#ac0053] hover:bg-[#f9f9f9] rounded-full transition-colors disabled:opacity-40"
-                            >
+                            <button onClick={() => handleToggleSavedService(s)} disabled={managingServiceId === s.id} title={s.status === 'active' ? 'Deactivate Service' : 'Activate Service'} className="min-h-11 min-w-11 p-2 text-[#5f5e5e] hover:text-[#ac0053] hover:bg-[#f9f9f9] rounded-full">
                               <Power className="w-4 h-4" />
                             </button>
                           </>
                         )}
-                        <button
-                          onClick={() => handleDuplicateService(s)}
-                          title="Duplicate"
-                          className="p-2 text-[#5f5e5e] hover:text-[#ac0053] hover:bg-[#f9f9f9] rounded-full transition-colors"
-                        >
+                        <button onClick={() => handleDuplicateService(s)} title="Duplicate" className="min-h-11 min-w-11 p-2 text-[#5f5e5e] hover:text-[#ac0053] hover:bg-[#f9f9f9] rounded-full">
                           <Copy className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => (s.businessId
-                            ? setPendingDeleteServiceId(s.id)
-                            : handleDeleteService(s))}
-                          disabled={managingServiceId === s.id}
-                          title="Delete Service"
-                          className="p-2 text-[#5f5e5e] hover:text-red-600 hover:bg-red-50 rounded-full transition-colors disabled:opacity-40"
-                        >
+                        <button onClick={() => (s.businessId ? setPendingDeleteServiceId(s.id) : handleDeleteService(s))} disabled={managingServiceId === s.id} title="Delete Service" className="min-h-11 min-w-11 p-2 text-[#5f5e5e] hover:text-red-600 hover:bg-red-50 rounded-full">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-
-                    {/* Delete confirmation — removes only this salon's saved
-                        service; the global theme catalog is never touched. */}
-                    {pendingDeleteServiceId === s.id && (
-                      <div className="border-t border-[#eeeeee] pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <p className="text-xs text-[#5f5e5e]">
-                          Delete <span className="font-semibold text-[#1a1c1c]">{s.name}</span> from your salon’s services?
-                          The theme’s predefined service stays available.
-                        </p>
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setPendingDeleteServiceId(null)}
-                            className="px-3 py-1.5 text-xs font-semibold text-[#5f5e5e] bg-white border border-[#eeeeee] rounded-lg hover:bg-gray-50"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteService(s)}
-                            disabled={managingServiceId === s.id}
-                            className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-40"
-                          >
-                            {managingServiceId === s.id ? 'Deleting…' : 'Delete Service'}
-                          </button>
-                        </div>
+                    {pendingDeleteServiceId === s.id && s.businessId && isDatabaseCatalogTheme(theme) && (
+                      <ServiceDeleteGuard
+                        serviceId={s.id}
+                        serviceName={s.name}
+                        onCancel={() => setPendingDeleteServiceId(null)}
+                        onDelete={() => handleDeleteService(s)}
+                        onArchive={() => {
+                          setPendingDeleteServiceId(null);
+                          setData((previous) => ({
+                            ...previous,
+                            services: previous.services.map((item) =>
+                              item.id === s.id ? { ...item, status: 'archived' } : item
+                            ),
+                          }));
+                        }}
+                      />
+                    )}
+                    {pendingDeleteServiceId === s.id && !s.businessId && (
+                      <div className="border-t border-[#eeeeee] pt-4 flex justify-end gap-2">
+                        <button type="button" onClick={() => setPendingDeleteServiceId(null)} className="min-h-11 px-3 py-1.5 text-xs font-semibold border rounded-lg">Cancel</button>
+                        <button type="button" onClick={() => handleDeleteService(s)} className="min-h-11 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg">Delete</button>
                       </div>
                     )}
                     {editingServiceId === s.id && (
                       <div className="border-t border-[#eeeeee] pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Editing changes only these fields. The saved
-                            theme/category/predefined link is never sent. */}
-                        <div className="md:col-span-2 text-[11px] text-[#5f5e5e]">
-                          {s.predefinedServiceId
-                            ? <>Linked to the <span className="font-semibold text-[#1a1c1c]">{themeDisplayName}</span> catalog · <span className="font-semibold text-[#1a1c1c]">{s.category}</span>. Editing keeps that link.</>
-                            : <>Custom service in <span className="font-semibold text-[#1a1c1c]">{s.category}</span>. It stays independent of the predefined catalog.</>}
-                        </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Service Name</label>
-                          <input
-                            value={editServiceName}
-                            onChange={(event) => setEditServiceName(event.target.value)}
-                            placeholder="Service name"
-                            className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                          />
+                          <input value={editServiceName} onChange={(event) => setEditServiceName(event.target.value)} className="w-full min-h-11 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]" />
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Status</label>
-                          <select
-                            value={editServiceStatus}
-                            onChange={(event) => setEditServiceStatus(event.target.value as SavedServiceStatus)}
-                            className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                          >
+                          <select value={editServiceStatus} onChange={(event) => setEditServiceStatus(event.target.value as SavedServiceStatus)} className="w-full min-h-11 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]">
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                             <option value="archived">Archived</option>
@@ -1457,81 +1549,33 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Price (₹)</label>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              value={editServicePrice}
-                              onChange={(event) => setEditServicePrice(Number(event.target.value))}
-                              placeholder="Price"
-                              className="flex-1 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateServicePrice(s, editServicePrice)}
-                              disabled={managingServiceId === s.id || editServicePrice < 0}
-                              title="Update price only"
-                              className="px-3 py-2 border border-[#eeeeee] rounded-lg text-[11px] font-semibold text-[#ac0053] hover:bg-[#fff1f4] disabled:opacity-40"
-                            >
-                              Update
-                            </button>
-                          </div>
+                          <input type="number" min="0" value={editServicePrice} onChange={(event) => setEditServicePrice(Number(event.target.value))} className="w-full min-h-11 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]" />
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Duration (mins)</label>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              min="1"
-                              value={editServiceDuration}
-                              onChange={(event) => setEditServiceDuration(Number(event.target.value))}
-                              placeholder="Duration"
-                              className="flex-1 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateServiceDuration(s, editServiceDuration)}
-                              disabled={managingServiceId === s.id || editServiceDuration <= 0}
-                              title="Update duration only"
-                              className="px-3 py-2 border border-[#eeeeee] rounded-lg text-[11px] font-semibold text-[#ac0053] hover:bg-[#fff1f4] disabled:opacity-40"
-                            >
-                              Update
-                            </button>
-                          </div>
+                          <input type="number" min="1" value={editServiceDuration} onChange={(event) => setEditServiceDuration(Number(event.target.value))} className="w-full min-h-11 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]" />
                         </div>
                         <div className="md:col-span-2">
                           <label className="block text-[11px] font-semibold text-[#1a1c1c] mb-1">Description</label>
-                          <textarea
-                            value={editServiceDescription}
-                            onChange={(event) => setEditServiceDescription(event.target.value)}
-                            placeholder="Description"
-                            rows={2}
-                            className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateServiceDescription(s, editServiceDescription)}
-                            disabled={managingServiceId === s.id}
-                            title="Update description only"
-                            className="mt-2 px-3 py-1.5 border border-[#eeeeee] rounded-lg text-[11px] font-semibold text-[#ac0053] hover:bg-[#fff1f4] disabled:opacity-40"
-                          >
-                            Update description
-                          </button>
+                          <textarea value={editServiceDescription} onChange={(event) => setEditServiceDescription(event.target.value)} rows={2} className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none" />
                         </div>
+                        {s.businessId && isDatabaseCatalogTheme(theme) && (
+                          <>
+                            <div className="md:col-span-2 space-y-2">
+                              <p className="text-[11px] font-semibold text-[#1a1c1c]">Hindi translation (stored separately)</p>
+                              <input value={editHindiName} onChange={(event) => setEditHindiName(event.target.value)} placeholder="हिन्दी नाम" className="w-full px-3 py-2 min-h-11 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]" />
+                              <textarea value={editHindiDescription} onChange={(event) => setEditHindiDescription(event.target.value)} placeholder="हिन्दी विवरण" rows={2} className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none" />
+                              <button type="button" onClick={() => handleSaveHindiTranslation(s)} className="min-h-11 px-3 py-1.5 border border-[#eeeeee] rounded-lg text-[11px] font-semibold text-[#ac0053]">Save Hindi copy</button>
+                            </div>
+                            <div className="md:col-span-2 space-y-2">
+                              <p className="text-[11px] font-semibold text-[#1a1c1c]">Service media (this salon + theme only)</p>
+                              <ServiceMediaEditor media={s.media} disabled={managingServiceId === s.id} onUpload={(kind, url) => handleServiceMediaUpload(s, kind, url)} onRemove={(kind) => handleServiceMediaRemove(s, kind)} />
+                            </div>
+                          </>
+                        )}
                         <div className="md:col-span-2 flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setEditingServiceId(null)}
-                            className="px-4 py-2 border border-[#eeeeee] rounded-lg text-xs font-semibold text-[#5f5e5e]"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateSavedService(s)}
-                            disabled={managingServiceId === s.id || !editServiceName.trim()}
-                            className="px-4 py-2 bg-[#ac0053] text-white rounded-lg text-xs font-semibold disabled:opacity-40"
-                          >
+                          <button type="button" onClick={() => setEditingServiceId(null)} className="min-h-11 px-4 py-2 border border-[#eeeeee] rounded-lg text-xs font-semibold text-[#5f5e5e]">Cancel</button>
+                          <button type="button" onClick={() => handleUpdateSavedService(s)} disabled={managingServiceId === s.id || !editServiceName.trim()} className="min-h-11 px-4 py-2 bg-[#ac0053] text-white rounded-lg text-xs font-semibold disabled:opacity-40">
                             {managingServiceId === s.id ? 'Saving…' : 'Save Changes'}
                           </button>
                         </div>
@@ -1541,304 +1585,59 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                 ))}
               </AnimatePresence>
 
-              {/* Add Service Form */}
               {isAddingService ? (
                 <form onSubmit={handleCreateService} className="bg-white border-2 border-[#ac0053] rounded-lg p-5 shadow-md space-y-4">
                   <div className="flex justify-between items-center border-b border-[#eeeeee] pb-3">
                     <h4 className="font-bold text-[#1a1c1c]">Add New Service</h4>
-                    <button type="button" onClick={closeAddServiceForm} className="text-[#5f5e5e] hover:text-black">
-                      <X className="w-5 h-5" />
-                    </button>
+                    <button type="button" onClick={closeAddServiceForm} className="min-h-11 min-w-11 text-[#5f5e5e]"><X className="w-5 h-5" /></button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Category</label>
-                      <select
-                        value={newServiceCategory}
-                        onChange={(e) => handleCategoryChange(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                      >
-                        {categories.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
+                      <select value={newServiceCategory} onChange={(e) => handleCategoryChange(e.target.value)} className="w-full min-h-11 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]">
+                        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">
-                        Service Name
-                        {customService && <span className="ml-2 text-[10px] font-normal text-[#ac0053]">Custom</span>}
-                      </label>
-                      {/* Searchable predefined service-name combobox */}
+                      <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Service Name</label>
                       <div className="relative" ref={serviceComboRef}>
-                        <div className="relative">
-                          <Search className="w-4 h-4 text-[#5f5e5e] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          <input
-                            type="text"
-                            required
-                            value={newServiceName}
-                            onChange={(e) => handleServiceNameInput(e.target.value)}
-                            onFocus={() => setServiceDropdownOpen(true)}
-                            placeholder={customService ? 'Type your custom service name' : `Search ${themeDisplayName} services…`}
-                            className="w-full pl-9 pr-9 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                          />
-                          <ChevronDown
-                            className={`w-4 h-4 text-[#5f5e5e] absolute right-3 top-1/2 -translate-y-1/2 transition-transform ${serviceDropdownOpen ? 'rotate-180' : ''}`}
-                          />
-                        </div>
-
+                        <Search className="w-4 h-4 text-[#5f5e5e] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input type="text" required value={newServiceName} onChange={(e) => handleServiceNameInput(e.target.value)} onFocus={() => setServiceDropdownOpen(true)} placeholder={customService ? 'Type your custom service name' : `Search ${themeDisplayName} services…`} className="w-full min-h-11 pl-9 pr-9 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]" />
                         {serviceDropdownOpen && (
-                          <div className="absolute z-30 mt-1 w-full bg-white border border-[#eeeeee] rounded-lg shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
-                            {customService ? (
-                              <button
-                                type="button"
-                                onClick={backToPredefined}
-                                className="w-full text-left px-3 py-2.5 text-sm text-[#ac0053] hover:bg-[#fff1f4] flex items-center gap-2"
-                              >
-                                <List className="w-4 h-4" /> Choose from predefined list
+                          <div className="absolute z-30 mt-1 w-full bg-white border border-[#eeeeee] rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            {filteredServices.map((s) => (
+                              <button type="button" key={s.name} onClick={() => selectPredefined(s)} className="w-full min-h-11 text-left px-3 py-2.5 hover:bg-[#fff1f4] flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium text-[#1a1c1c] break-words">{s.name}</span>
+                                <span className="text-xs text-[#5f5e5e] whitespace-nowrap">₹{s.price.toLocaleString('en-IN')}</span>
                               </button>
-                            ) : (
-                              <>
-                                {filteredServices.length === 0 ? (
-                                  <div className="px-3 py-3 text-sm text-[#5f5e5e]">
-                                    No matching service — add your own via “Other / Custom”.
-                                  </div>
-                                ) : (
-                                  filteredServices.map((s) => (
-                                    <button
-                                      type="button"
-                                      key={s.name}
-                                      onClick={() => selectPredefined(s)}
-                                      className="w-full text-left px-3 py-2.5 hover:bg-[#fff1f4] flex items-center justify-between gap-3 border-b border-[#f3f3f3] last:border-0"
-                                    >
-                                      <span className="text-sm font-medium text-[#1a1c1c]">{s.name}</span>
-                                      <span className="text-xs text-[#5f5e5e] whitespace-nowrap">
-                                        ₹{s.price.toLocaleString('en-IN')} • {s.duration}m
-                                      </span>
-                                    </button>
-                                  ))
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={enableCustom}
-                                  className="w-full text-left px-3 py-2.5 text-sm font-semibold text-[#ac0053] hover:bg-[#fff1f4] flex items-center gap-2"
-                                >
-                                  <Plus className="w-4 h-4" /> Other / Custom Service
-                                </button>
-                              </>
-                            )}
+                            ))}
+                            <button type="button" onClick={enableCustom} className="w-full min-h-11 text-left px-3 py-2.5 text-sm font-semibold text-[#ac0053] hover:bg-[#fff1f4]">Other / Custom Service</button>
                           </div>
                         )}
                       </div>
-                      <p className="text-[11px] text-[#5f5e5e] mt-1">
-                        Pick from the list — no need to type. Use “Other / Custom” only if your service isn’t listed.
-                      </p>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Price (₹)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newServicePrice}
-                        onChange={(e) => setNewServicePrice(Number(e.target.value))}
-                        className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                      />
+                      <input type="number" required value={newServicePrice} onChange={(e) => setNewServicePrice(Number(e.target.value))} className="w-full min-h-11 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Duration (mins)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newServiceDuration}
-                        onChange={(e) => setNewServiceDuration(Number(e.target.value))}
-                        className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                      />
+                      <input type="number" required value={newServiceDuration} onChange={(e) => setNewServiceDuration(Number(e.target.value))} className="w-full min-h-11 px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]" />
                     </div>
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-semibold text-[#1a1c1c]">Description</label>
-                      <button
-                        type="button"
-                        onClick={() => applyDescSuggestion(suggestServiceDescription(newServiceCategory, newServiceName))}
-                        className="flex items-center gap-1 text-xs font-semibold text-[#ac0053] hover:underline"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" /> Generate suggestion
-                      </button>
-                    </div>
-                    <textarea
-                      value={newServiceDesc}
-                      onChange={(e) => handleServiceDescChange(e.target.value)}
-                      placeholder="Brief details about the service"
-                      rows={2}
-                      className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
-                    />
-                    {showDescConfirm && (
-                      <div className="mt-2 rounded-lg border border-[#ac0053]/30 bg-[#fff1f4] p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                        <p className="text-xs text-[#5f5e5e]">
-                          Category changed to <span className="font-semibold text-[#1a1c1c]">{newServiceCategory}</span>. Replace your description with a suggested one?
-                        </p>
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => applyDescSuggestion(pendingDescSuggestion)}
-                            className="px-3 py-1.5 text-xs font-semibold text-white bg-[#ac0053] rounded-lg hover:bg-[#ba005b]"
-                          >
-                            Replace
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowDescConfirm(false)}
-                            className="px-3 py-1.5 text-xs font-semibold text-[#5f5e5e] bg-white border border-[#eeeeee] rounded-lg hover:bg-gray-50"
-                          >
-                            Keep mine
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {addServiceError && (
-                    <p className="text-xs text-red-600" role="alert">{addServiceError}</p>
-                  )}
+                  <textarea value={newServiceDesc} onChange={(e) => handleServiceDescChange(e.target.value)} rows={2} className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none" />
+                  {addServiceError && <p className="text-xs text-red-600" role="alert">{addServiceError}</p>}
                   <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={closeAddServiceForm} className="px-4 py-2 text-sm text-[#5f5e5e] hover:bg-gray-100 rounded-lg">
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isCreatingService || !newServiceName.trim() || currentCatalogLoading}
-                      className="px-5 py-2 text-sm bg-[#ac0053] text-white font-semibold rounded-lg hover:bg-[#ba005b] disabled:opacity-40"
-                    >
-                      {isCreatingService ? 'Saving…' : 'Save Service'}
-                    </button>
+                    <button type="button" onClick={closeAddServiceForm} className="min-h-11 px-4 py-2 text-sm text-[#5f5e5e]">Cancel</button>
+                    <button type="submit" disabled={isCreatingService || !newServiceName.trim() || currentCatalogLoading} className="min-h-11 px-5 py-2 text-sm bg-[#ac0053] text-white font-semibold rounded-lg disabled:opacity-40">{isCreatingService ? 'Saving…' : 'Save Service'}</button>
                   </div>
                 </form>
               ) : (
-                <button
-                  onClick={handleOpenAddService}
-                  className="flex items-center justify-center gap-2 w-full py-4 border border-dashed border-[#5f5e5e] hover:border-[#ac0053] hover:text-[#ac0053] text-[#5f5e5e] rounded-lg text-sm font-semibold transition-colors bg-white"
-                >
+                <button onClick={handleOpenAddService} className="flex items-center justify-center gap-2 w-full min-h-11 py-4 border border-dashed border-[#5f5e5e] hover:border-[#ac0053] hover:text-[#ac0053] text-[#5f5e5e] rounded-lg text-sm font-semibold bg-white">
                   <Plus className="w-5 h-5" /> Add Service
                 </button>
               )}
             </div>
-
-            {!usesDatabaseCatalog && (
-              <>
-                <hr className="border-[#eeeeee]" />
-
-                {/* Preserved Existing Theme package editor. The five database
-                    themes use the validated Phase 9.1 manager below. */}
-                <div className="flex flex-col gap-4 pb-24">
-                  <h3 className="text-xs font-semibold tracking-wider text-[#5f5e5e] uppercase">PACKAGES</h3>
-
-              {data.packages.map((p) => (
-                <div key={p.id} className="bg-white border border-[#eeeeee] rounded-lg p-5 shadow-sm flex flex-col gap-4 group hover:border-[#ac0053]/40 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start gap-4">
-                      <div className="text-[#5f5e5e] cursor-grab pt-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                        <GripVertical className="w-5 h-5" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <h4 className="text-lg font-bold text-[#1a1c1c]">{p.name}</h4>
-                        <div className="flex items-center gap-2 text-sm text-[#5f5e5e]">
-                          <span className="font-semibold text-[#1a1c1c]">₹{p.price.toLocaleString('en-IN')}</span>
-                          <span>•</span>
-                          <span>{p.duration} min</span>
-                        </div>
-                        <p className="text-sm text-[#565755] mt-1">{p.description}</p>
-                        <p className="text-xs text-[#565755] italic mt-2 flex items-center gap-1">
-                          <Info className="w-3.5 h-3.5" />
-                          25% advance at booking
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleDeletePackage(p.id)}
-                        className="p-2 text-[#5f5e5e] hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Add Package Form */}
-              {isAddingPackage ? (
-                <form onSubmit={handleCreatePackage} className="bg-white border-2 border-[#ac0053] rounded-lg p-5 shadow-md space-y-4">
-                  <div className="flex justify-between items-center border-b border-[#eeeeee] pb-3">
-                    <h4 className="font-bold text-[#1a1c1c]">Add New Package</h4>
-                    <button type="button" onClick={() => setIsAddingPackage(false)} className="text-[#5f5e5e] hover:text-black">
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Package Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={newPackageName}
-                        onChange={(e) => setNewPackageName(e.target.value)}
-                        placeholder="e.g. Bridal Beauty Special"
-                        className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Price (₹)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newPackagePrice}
-                        onChange={(e) => setNewPackagePrice(Number(e.target.value))}
-                        className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Duration (mins)</label>
-                    <input
-                      type="number"
-                      required
-                      value={newPackageDuration}
-                      onChange={(e) => setNewPackageDuration(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1a1c1c] mb-1">Description</label>
-                    <textarea
-                      value={newPackageDesc}
-                      onChange={(e) => setNewPackageDesc(e.target.value)}
-                      placeholder="e.g. Full hair styling, makeup, and manicures"
-                      rows={2}
-                      className="w-full px-3 py-2 bg-[#f9f9f9] border border-[#eeeeee] rounded-lg text-sm outline-none focus:border-[#ac0053] resize-none"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={() => setIsAddingPackage(false)} className="px-4 py-2 text-sm text-[#5f5e5e] hover:bg-gray-100 rounded-lg">
-                      Cancel
-                    </button>
-                    <button type="submit" className="px-5 py-2 text-sm bg-[#ac0053] text-white font-semibold rounded-lg hover:bg-[#ba005b]">
-                      Save Package
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <button
-                  onClick={() => setIsAddingPackage(true)}
-                  className="flex items-center justify-center gap-2 w-full py-4 border border-dashed border-[#5f5e5e] hover:border-[#ac0053] hover:text-[#ac0053] text-[#5f5e5e] rounded-lg text-sm font-semibold transition-colors bg-white"
-                >
-                  <Plus className="w-5 h-5" /> Add Package
-                </button>
-                  )}
-                </div>
-              </>
-            )}
 
             {usesDatabaseCatalog && activeCatalog && showSavedServices && (
               <>
@@ -1854,32 +1653,25 @@ export default function StepServices({ data, setData, onNext, onPrev, onSave }: 
                   error={commerceError}
                   onRefresh={reloadCommerce}
                 />
+                <ServiceAuditLog themeId={theme} />
               </>
             )}
           </motion.div>
         </div>
 
-        {/* Bottom Navigation Area */}
         <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-[#eeeeee] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] p-4">
           <div className="max-w-screen-2xl mx-auto flex justify-between items-center px-4 md:px-8">
-            <button
-              onClick={onPrev}
-              className="text-sm font-semibold text-[#5f5e5e] hover:text-[#1a1c1c] transition-colors flex items-center gap-2 py-2 px-4 rounded-lg border border-transparent hover:border-[#eeeeee]"
-            >
+            <button onClick={onPrev} className="min-h-11 text-sm font-semibold text-[#5f5e5e] flex items-center gap-2 py-2 px-4 rounded-lg">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
-            <button
-              onClick={onNext}
-              className="bg-[#ac0053] hover:bg-[#ba005b] text-white text-sm font-semibold flex items-center gap-2 px-8 py-3 rounded-lg transition-all shadow-sm"
-            >
+            <button onClick={onNext} className="min-h-11 bg-[#ac0053] hover:bg-[#ba005b] text-white text-sm font-semibold flex items-center gap-2 px-8 py-3 rounded-lg">
               Continue <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Live Preview Panel */}
-      <div className="hidden md:block w-[45%] h-full">
+      <div className="hidden md:block w-[45%] h-full min-w-0">
         <PreviewPane data={data} step={3} />
       </div>
     </div>
