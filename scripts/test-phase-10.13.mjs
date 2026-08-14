@@ -238,15 +238,21 @@ for (const config of CASES) {
       // At least Call and WhatsApp should exist via FAB or mobile bar
       assert.ok(fabCall || utils.container.querySelector('a[href^="tel:"]'), 'Call action should exist');
       assert.ok(fabWa || utils.container.querySelector('a[href*="wa.me"]'), 'WhatsApp action should exist');
-      // Directions may be in mobile bar or final CTA
-      const hasDir = dir || utils.container.querySelector('[data-testid="site-mobile-bar-directions"]') || utils.container.textContent.includes('Directions') || utils.container.textContent.includes('रास्ता');
-      // Directions is required in mobile bar per 10.9, but also maps link in contact
+      // Every theme's in-section Directions control must lead to the configured address,
+      // not merely point back to its own contact section.
+      const themeDirections = utils.getByTestId('theme-contact-directions');
+      assert.ok(themeDirections, 'Theme contact Directions action should exist');
+      assert.ok(themeDirections.getAttribute('href')?.startsWith('https://maps.google.com/?q='), `Directions should open Google Maps, got ${themeDirections.getAttribute('href')}`);
       if (mode === 'mobile') {
-        assert.ok(utils.container.querySelector('[data-testid="site-mobile-bar-directions"]'), 'Directions should exist in mobile bar');
+        const mobileDirections = utils.container.querySelector('[data-testid="site-mobile-bar-directions"]');
+        assert.ok(mobileDirections, 'Directions should exist in mobile bar');
+        assert.ok(mobileDirections.getAttribute('href')?.startsWith('https://maps.google.com/?q='), 'Mobile Directions should open Google Maps');
       }
       // Verify hrefs are not broken (contain tel: or wa.me or maps)
       const callHref = fabCall?.getAttribute ? fabCall.getAttribute('href') : '' || '';
-      if (callHref) assert.ok(callHref.includes('tel:') || callHref.includes('99999'), `Call href should be tel: or contain number, got ${callHref}`);
+      if (callHref) assert.ok(callHref.startsWith('tel:'), `Call href should be tel:, got ${callHref}`);
+      const waHref = fabWa?.getAttribute ? fabWa.getAttribute('href') : '' || '';
+      if (waHref) assert.ok(waHref.startsWith('https://wa.me/'), `WhatsApp href should use wa.me, got ${waHref}`);
     });
 
     await test(`${config.id} ${mode}: Open/Closed status works`, () => {
@@ -294,17 +300,35 @@ for (const config of CASES) {
       assert.ok(canonicalLink, 'Canonical link in head should exist');
     });
 
-    await test(`${config.id} ${mode}: Loading/Skeleton states work`, () => {
-      // At least one skeleton type should be importable and renderable
-      // We test via forcing loading flag in a separate render (already covered in 10.12)
-      // Here just check that skeleton component would render if needed
-      assert.ok(utils.container.querySelector('[data-site-section]'), 'Sections should exist to test loading');
+    await test(`${config.id} ${mode}: Loading/Skeleton states work`, async () => {
+      setWebsiteSectionFlagsForTests({ services: 'loading' });
+      await act(async () => { utils.rerender(React.createElement(config.Component, { data, mode })); });
+      const servicesSection = utils.container.querySelector('[data-site-section="services"]');
+      assert.equal(servicesSection?.getAttribute('data-section-state'), 'loading');
+      assert.ok(servicesSection?.querySelector('[data-testid="section-state-loading"]'), 'Loading panel should render in Services');
+      assert.ok(servicesSection?.querySelector('[data-testid^="site-skeleton-"]'), 'Theme-aware skeleton should render in Services');
+      setWebsiteSectionFlagsForTests({});
+      await act(async () => { utils.rerender(React.createElement(config.Component, { data, mode })); });
     });
 
-    await test(`${config.id} ${mode}: Error/Empty states work`, () => {
-      // Empty and error are handled via SectionStatePanel, check that component exists in codebase
-      // For this audit, verify that at least one section-state component can appear (we don't force here)
-      assert.ok(true, 'Error/Empty handled via SectionStatePanel (verified in 10.12)');
+    await test(`${config.id} ${mode}: Error/Empty states work`, async () => {
+      setWebsiteSectionFlagsForTests({ services: 'error' });
+      await act(async () => { utils.rerender(React.createElement(config.Component, { data, mode })); });
+      const errorSection = utils.container.querySelector('[data-site-section="services"]');
+      assert.equal(errorSection?.getAttribute('data-section-state'), 'error');
+      assert.ok(errorSection?.querySelector('[data-testid="section-state-error"]'), 'Error panel should render in Services');
+      const retry = errorSection?.querySelector('[data-testid="section-state-retry"]');
+      assert.ok(retry, 'Error panel should provide Retry');
+      await act(async () => { fireEvent.click(retry); });
+
+      setWebsiteSectionFlagsForTests({ services: 'empty' });
+      await act(async () => { utils.rerender(React.createElement(config.Component, { data, mode })); });
+      const emptySection = utils.container.querySelector('[data-site-section="services"]');
+      assert.equal(emptySection?.getAttribute('data-section-state'), 'empty');
+      assert.ok(emptySection?.querySelector('[data-testid="section-state-empty"]'), 'Empty panel should render in Services');
+
+      setWebsiteSectionFlagsForTests({});
+      await act(async () => { utils.rerender(React.createElement(config.Component, { data, mode })); });
     });
 
     await test(`${config.id} ${mode}: Mobile/Tablet/Desktop works`, () => {
@@ -349,14 +373,22 @@ for (const config of CASES) {
 
     await test(`${config.id} ${mode}: No broken links/buttons`, () => {
       const links = Array.from(utils.container.querySelectorAll('a[href]'));
-      for (const a of links.slice(0, 5)) {
+      assert.ok(links.length > 0, 'Website should contain actionable links');
+      for (const a of links) {
         const href = a.getAttribute('href') || '';
         assert.ok(href.length > 0, `Link href should not be empty: ${a.outerHTML.slice(0, 100)}`);
         assert.ok(!href.includes('undefined') && !href.includes('null'), `Link href should not contain undefined/null: ${href}`);
+        if (href.startsWith('#')) {
+          const target = href.slice(1);
+          assert.ok(target && utils.container.querySelector(`#${target}`), `Internal link target should exist: ${href}`);
+        } else {
+          assert.ok(/^(https?:|tel:|mailto:)/.test(href), `Link should use a supported URL scheme: ${href}`);
+        }
       }
       const buttons = Array.from(utils.container.querySelectorAll('button'));
-      for (const b of buttons.slice(0, 5)) {
-        assert.ok(b, 'Button should exist');
+      assert.ok(buttons.length > 0, 'Website should contain actionable buttons');
+      for (const b of buttons) {
+        assert.notEqual(b.getAttribute('disabled'), 'true', `Unexpected disabled button: ${b.outerHTML.slice(0, 100)}`);
       }
     });
 
