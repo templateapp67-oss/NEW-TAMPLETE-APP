@@ -64,6 +64,16 @@ export interface HeroCopy {
   focusLabel: string;
   /** Who the theme is for — one short audience line. */
   audience: string;
+  /**
+   * PHASE 11.3 — optional hero CTA labels. Each theme words its own Call /
+   * WhatsApp / Gallery actions; they route through the existing contact and
+   * navigation systems and are never shared between themes.
+   */
+  callCta: string;
+  whatsAppCta: string;
+  galleryCta: string;
+  /** Label for the hero video control (play / watch the reel). */
+  videoCta: string;
   /** Caption printed over / beside the hero media. */
   mediaEyebrow: string;
   mediaTitle: string;
@@ -99,6 +109,10 @@ const HERO_TEXT: Table = {
       focus: ["Men's Haircuts", 'Beard Trim', 'Shave', 'Grooming Rituals'],
       focusLabel: 'What we do',
       audience: 'For men who want it done properly',
+      callCta: 'Call the Shop',
+      whatsAppCta: 'WhatsApp the Barber',
+      galleryCta: 'See Cut Gallery',
+      videoCta: 'Watch the Chair',
       mediaEyebrow: 'The chair',
       mediaTitle: 'Fade · Beard · Shave',
       mediaBody: 'Sixty focused minutes, finished with hot towel and tonic.',
@@ -121,6 +135,10 @@ const HERO_TEXT: Table = {
       focus: ['मेन्स हेयरकट', 'बियर्ड ट्रिम', 'शेव', 'ग्रूमिंग रिचुअल'],
       focusLabel: 'हम क्या करते हैं',
       audience: 'उन पुरुषों के लिए जिन्हें परफ़ेक्ट काम चाहिए',
+      callCta: 'शॉप पर कॉल करें',
+      whatsAppCta: 'बार्बर को व्हाट्सऐप',
+      galleryCta: 'कट गैलरी देखें',
+      videoCta: 'चेयर का वीडियो देखें',
       mediaEyebrow: 'द चेयर',
       mediaTitle: 'फेड · बियर्ड · शेव',
       mediaBody: 'साठ मिनट का पूरा ध्यान, अंत में हॉट टॉवल और टॉनिक।',
@@ -150,6 +168,10 @@ const HERO_TEXT: Table = {
       focus: ['Cut & Styling', 'Colour', 'Balayage', 'Hair Treatments'],
       focusLabel: 'On the menu',
       audience: 'For clients who want colour done with intent',
+      callCta: 'Call the Studio',
+      whatsAppCta: 'WhatsApp the Colourist',
+      galleryCta: 'View Colour Portfolio',
+      videoCta: 'Play Studio Film',
       mediaEyebrow: 'Studio portfolio',
       mediaTitle: 'Balayage No. 04',
       mediaBody: 'Hand-painted dimension, toned and glossed to a glass finish.',
@@ -172,6 +194,10 @@ const HERO_TEXT: Table = {
       focus: ['कट और स्टाइलिंग', 'कलर', 'बलायाज', 'हेयर ट्रीटमेंट'],
       focusLabel: 'मेनू में',
       audience: 'उनके लिए जो सोच-समझकर कलर कराना चाहते हैं',
+      callCta: 'स्टूडियो को कॉल करें',
+      whatsAppCta: 'कलरिस्ट को व्हाट्सऐप',
+      galleryCta: 'कलर पोर्टफ़ोलियो देखें',
+      videoCta: 'स्टूडियो फ़िल्म चलाएँ',
       mediaEyebrow: 'स्टूडियो पोर्टफ़ोलियो',
       mediaTitle: 'बलायाज नं. 04',
       mediaBody: 'हाथ से पेंट किया डाइमेंशन, टोन और ग्लॉस के साथ ग्लास जैसी फ़िनिश।',
@@ -201,6 +227,10 @@ const HERO_TEXT: Table = {
       focus: ['Facial', 'Skin Care', 'Spa', 'Wellness', 'Makeup'],
       focusLabel: 'Our rituals',
       audience: 'For anyone who needs an unhurried hour',
+      callCta: 'Call the Spa',
+      whatsAppCta: 'WhatsApp for Availability',
+      galleryCta: 'Tour the Spa',
+      videoCta: 'Watch a Ritual',
       mediaEyebrow: 'Signature ritual',
       mediaTitle: 'Hydra Glow Facial',
       mediaBody: '75 minutes of cleanse, steam, serum and slow lymphatic massage.',
@@ -223,6 +253,10 @@ const HERO_TEXT: Table = {
       focus: ['फेशियल', 'स्किन केयर', 'स्पा', 'वेलनेस', 'मेकअप'],
       focusLabel: 'हमारे रिचुअल',
       audience: 'उनके लिए जिन्हें एक इत्मीनान भरा घंटा चाहिए',
+      callCta: 'स्पा को कॉल करें',
+      whatsAppCta: 'उपलब्धता के लिए व्हाट्सऐप',
+      galleryCta: 'स्पा देखें',
+      videoCta: 'रिचुअल देखें',
       mediaEyebrow: 'सिग्नेचर रिचुअल',
       mediaTitle: 'हाइड्रा ग्लो फेशियल',
       mediaBody: '75 मिनट — क्लेंज़, स्टीम, सीरम और धीमी लिम्फ़ैटिक मसाज।',
@@ -252,6 +286,10 @@ const HERO_TEXT: Table = {
       focus: ['Men', 'Women', 'Kids', 'Haircare', 'Combos'],
       focusLabel: 'Everyone is welcome',
       audience: 'For families booking together, every weekend',
+      callCta: 'Call the Salon',
+      whatsAppCta: 'WhatsApp the Front Desk',
+      galleryCta: 'See Family Photos',
+      videoCta: 'Watch a Saturday',
       mediaEyebrow: 'Saturday at ours',
       mediaTitle: 'Three chairs, one slot',
       mediaBody: 'Parents and kids seated together — in and out in 90 minutes.',
@@ -274,6 +312,10 @@ const HERO_TEXT: Table = {
       focus: ['पुरुष', 'महिलाएँ', 'बच्चे', 'हेयरकेयर', 'कॉम्बो'],
       focusLabel: 'सबका स्वागत है',
       audience: 'हर वीकेंड साथ बुकिंग करने वाले परिवारों के लिए',
+      callCta: 'सैलून को कॉल करें',
+      whatsAppCta: 'फ्रंट डेस्क को व्हाट्सऐप',
+      galleryCta: 'फ़ैमिली फ़ोटो देखें',
+      videoCta: 'शनिवार का वीडियो देखें',
       mediaEyebrow: 'हमारे यहाँ शनिवार',
       mediaTitle: 'तीन चेयर, एक स्लॉट',
       mediaBody: 'माता-पिता और बच्चे साथ — 90 मिनट में सब पूरा।',
@@ -303,6 +345,10 @@ const HERO_TEXT: Table = {
       focus: ['Nail Art', 'Gel', 'Lash', 'Brow', 'Mani/Pedi'],
       focusLabel: 'Studio specialities',
       audience: 'For anyone whose hands and eyes get photographed',
+      callCta: 'Call the Studio Desk',
+      whatsAppCta: 'WhatsApp Your Inspo',
+      galleryCta: 'Open the Art Wall',
+      videoCta: 'Play the Set Reel',
       mediaEyebrow: 'This week',
       mediaTitle: 'Chrome Aura Set',
       mediaBody: 'Mirror chrome over a soft aura base, sealed with a gel gloss.',
@@ -325,6 +371,10 @@ const HERO_TEXT: Table = {
       focus: ['नेल आर्ट', 'जेल', 'लैश', 'ब्रो', 'मैनी/पेडी'],
       focusLabel: 'स्टूडियो की ख़ासियत',
       audience: 'उनके लिए जिनके हाथ और आँखें कैमरे में आती हैं',
+      callCta: 'स्टूडियो डेस्क पर कॉल करें',
+      whatsAppCta: 'अपना इंस्पो व्हाट्सऐप करें',
+      galleryCta: 'आर्ट वॉल खोलें',
+      videoCta: 'सेट रील चलाएँ',
       mediaEyebrow: 'इस हफ़्ते',
       mediaTitle: 'क्रोम ऑरा सेट',
       mediaBody: 'सॉफ़्ट ऑरा बेस पर मिरर क्रोम, जेल ग्लॉस से सील।',

@@ -6,6 +6,29 @@
 
 ## Current repository state
 
+- **Phase 11.3 — HERO MEDIA & CALL-TO-ACTION: COMPLETE for all five themes.**
+  - New `src/lib/siteHeroMedia.ts` + `src/components/heroes/HeroMediaFrame.tsx`
+    give every theme its own hero media slot inside its EXISTING 11.1 layout
+    (barber film-strip motion cell, hair editorial plate 01, spa arch, family
+    collage tile, nail look-of-the-week card). No media shared across themes.
+  - Media behaviour: existing `SiteImage` pipeline (srcset/eager/skeleton/
+    error), per-viewport width rewrite (1400/1000/640, q=70 mobile), reserved
+    aspect-ratio (no layout shift), video always muted + playsInline + loop
+    with no controls, `prefers-reduced-motion` honoured, video error → poster,
+    image error → existing SiteImage error state.
+  - **Hero video is image-first by default**: `THEME_VIDEOS` ships empty
+    because the sandbox has no network to verify third-party clip URLs.
+    Motion comes from owner `socialVideos` playable files, or from
+    `setThemeHeroVideo(themeId, src)` per-theme deployment registration.
+    Non-playable reels become click-to-open links, never autoplay.
+  - CTAs: existing Book Appointment (10.6 flow) + Explore Services, plus new
+    optional Call / WhatsApp / View Gallery via `heroCtaOptions()` on the
+    existing contact system; each theme has its own CTA text and styling and
+    they hide when the owner disables them.
+  - Validation: `npm run test:phase-11.3` = 249/249; 11.1 215/215, 11.2
+    138/138, `test:phase-10` 1259/1259, lint/build/25-screens green.
+    Details: `docs/phase-11.3-hero-media-cta.md`.
+
 - **Phase 11.2 — HERO HEADLINE & CONTENT: COMPLETE for all five themes.**
   - Mandated headlines render exactly: barber "Sharp Cuts. Classic Grooming.
     Modern Confidence.", hair "Luxury Hair. Signature Style. Beautifully You.",
@@ -624,6 +647,7 @@ npm run test:phase-10.7    # Advance payment & booking confirmation (66 tests)
 npm run test:phase-10      # every Phase 10 suite (1259 tests)
 npm run test:phase-11.1    # unique hero design across all five themes (215 tests)
 npm run test:phase-11.2    # hero headline & content, EN + HI (138 tests)
+npm run test:phase-11.3    # hero media & CTA across all five themes (249 tests)
 npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
@@ -639,6 +663,7 @@ Expected output:
 - `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
 - `test:phase-11.1`: 215/215 passed (unique hero design, all five themes)
 - `test:phase-11.2`: 138/138 passed (hero headline & content, EN + HI)
+- `test:phase-11.3`: 249/249 passed (hero media & CTA, all five themes)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

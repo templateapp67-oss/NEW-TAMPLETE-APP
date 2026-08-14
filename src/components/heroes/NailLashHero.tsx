@@ -13,16 +13,18 @@
 import type { CSSProperties } from 'react';
 import type { SalonData } from '../../types';
 import SiteImage from '../SiteImage';
+import HeroMediaFrame from './HeroMediaFrame';
 import SiteSalonStatus from '../SiteSalonStatus';
 import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
-import { Star, MapPin, Sparkles, ArrowRight, Camera, PlayCircle } from 'lucide-react';
+import { Star, MapPin, Sparkles, ArrowRight, Camera, PlayCircle, Phone, MessageCircle, Images } from 'lucide-react';
 
 interface Props {
   data: SalonData;
@@ -38,7 +40,9 @@ export default function NailLashHero({ data, mode }: Props) {
   const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('nail_lash_studio', data);
   const meta = heroMeta('nail_lash_studio', data);
-  const video = heroVideo('nail_lash_studio', data);
+  const reducedMotion = useReducedMotion();
+  const plan = heroMediaPlan('nail_lash_studio', data, reducedMotion);
+  const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
 
   const neonBtn: CSSProperties = {
@@ -172,29 +176,67 @@ export default function NailLashHero({ data, mode }: Props) {
               <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} /> {H.chip1}</span>
               <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} /> {H.chip2}</span>
             </div>
+
+            {/* PHASE 11.3 — optional actions as glossy neon tags */}
+            {(cta.call || cta.whatsApp || cta.gallery) && (
+              <div data-testid="hero-cta-secondary-row" className="flex flex-wrap gap-2 mt-6">
+                {cta.call && (
+                  <a
+                    data-testid="hero-call-cta"
+                    href={cta.call.href}
+                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
+                  >
+                    <Phone className="w-3.5 h-3.5" /> {H.callCta}
+                  </a>
+                )}
+                {cta.whatsApp && (
+                  <a
+                    data-testid="hero-whatsapp-cta"
+                    href={cta.whatsApp.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" /> {H.whatsAppCta}
+                  </a>
+                )}
+                {cta.gallery && (
+                  <button
+                    type="button"
+                    data-testid="hero-gallery-cta"
+                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
+                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
+                  >
+                    <Images className="w-3.5 h-3.5" /> {H.galleryCta}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ---- Glam card shelf ---------------------------------- */}
           <div data-testid="hero-media" className={`grid gap-3 ${compact ? 'grid-cols-2' : 'grid-cols-[1.3fr_1fr]'}`}>
-            <article
-              className="relative rounded-[1.75rem] overflow-hidden shadow-xl"
-              style={{ boxShadow: `0 18px 40px -20px ${t.pink}`, backgroundColor: t.card }}
+            {/* PHASE 11.3 — look-of-the-week card carries the studio media */}
+            <HeroMediaFrame
+              themeId="nail_lash_studio"
+              plan={plan}
+              alt={H.mediaAlt}
+              mode={mode}
+              aspectRatio="3/4"
+              className="rounded-[1.75rem] shadow-xl"
+              style={{ boxShadow: `0 18px 40px -20px ${t.pink}` }}
+              placeholderColor={t.card}
             >
-              <SiteImage
-                src={media.primary.url}
-                alt={H[media.primary.altKey]}
-                className="w-full"
-                context="hero"
-                priority
-                aspectRatio="3/4"
-              />
               <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${t.overlay}, transparent 55%)` }} />
               <div className="absolute left-3 right-3 bottom-3">
                 <span className="text-[8px] font-extrabold uppercase tracking-[0.24em]" style={{ color: t.pinkGlow }}>{H.mediaEyebrow}</span>
                 <p className="text-base font-extrabold text-white mt-1 leading-tight">{H.mediaTitle}</p>
                 <p className="text-[9px] mt-1 text-white/70">{H.mediaBody}</p>
               </div>
-            </article>
+            </HeroMediaFrame>
 
             <div className="grid gap-3 content-start">
               {media.support.map((visual, index) => (
@@ -204,9 +246,10 @@ export default function NailLashHero({ data, mode }: Props) {
                   style={{ borderColor: index === 0 ? t.pink : t.nude }}
                 >
                   <SiteImage
-                    src={visual.url}
+                    src={heroImageSrc(visual.url, mode)}
                     alt={H[visual.altKey]}
                     className="w-full"
+                    sizes={heroImageSizes(mode)}
                     context="hero"
                     priority
                     aspectRatio="1/1"
@@ -219,16 +262,16 @@ export default function NailLashHero({ data, mode }: Props) {
                   </span>
                 </article>
               ))}
-              {video && (
+              {plan.externalVideo && (
                 <a
                   data-testid="hero-video"
-                  href={video.url}
+                  href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
                   className="site-touch rounded-full px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-1.5"
                   style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                 >
-                  <PlayCircle className="w-3.5 h-3.5" /> {video.title}
+                  <PlayCircle className="w-3.5 h-3.5" /> {plan.externalVideo.title || H.videoCta}
                 </a>
               )}
             </div>

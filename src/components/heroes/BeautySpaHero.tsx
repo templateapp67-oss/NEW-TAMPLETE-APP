@@ -12,16 +12,18 @@
 import type { CSSProperties } from 'react';
 import type { SalonData } from '../../types';
 import SiteImage from '../SiteImage';
+import HeroMediaFrame from './HeroMediaFrame';
 import SiteSalonStatus from '../SiteSalonStatus';
 import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BEAUTY_SPA_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
-import { Star, MapPin, Flower2, Leaf, PlayCircle } from 'lucide-react';
+import { Star, MapPin, Flower2, Leaf, PlayCircle, Phone, MessageCircle, Images } from 'lucide-react';
 
 interface Props {
   data: SalonData;
@@ -37,7 +39,9 @@ export default function BeautySpaHero({ data, mode }: Props) {
   const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('beauty_skin_spa', data);
   const meta = heroMeta('beauty_skin_spa', data);
-  const video = heroVideo('beauty_skin_spa', data);
+  const reducedMotion = useReducedMotion();
+  const plan = heroMediaPlan('beauty_skin_spa', data, reducedMotion);
+  const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
 
   const emeraldBtn: CSSProperties = { backgroundColor: t.emerald, color: '#ffffff' };
@@ -66,19 +70,16 @@ export default function BeautySpaHero({ data, mode }: Props) {
               className="absolute inset-x-6 -top-3 bottom-6 rounded-t-full rounded-b-[3rem] opacity-70"
               style={{ backgroundColor: t.sage }}
             />
-            <div
-              className="relative mx-auto w-[86%] overflow-hidden rounded-t-full rounded-b-[3rem] shadow-xl"
-              style={{ backgroundColor: t.card }}
-            >
-              <SiteImage
-                src={media.primary.url}
-                alt={H[media.primary.altKey]}
-                className="w-full"
-                context="hero"
-                priority
-                aspectRatio="3/4"
-              />
-            </div>
+            {/* PHASE 11.3 — the arch itself carries the spa media */}
+            <HeroMediaFrame
+              themeId="beauty_skin_spa"
+              plan={plan}
+              alt={H.mediaAlt}
+              mode={mode}
+              aspectRatio="3/4"
+              className="relative mx-auto w-[86%] rounded-t-full rounded-b-[3rem] shadow-xl"
+              placeholderColor={t.card}
+            />
             {/* Overlapping ritual card */}
             <div
               className="absolute -left-1 bottom-2 md:bottom-6 rounded-[1.6rem] px-4 py-3 shadow-lg border max-w-[62%]"
@@ -95,7 +96,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
               {media.support.map((visual) => (
                 <div key={visual.url} className="w-14 h-14 rounded-full overflow-hidden border-4 shadow-md" style={{ borderColor: t.card }}>
                   <SiteImage
-                    src={visual.url}
+                    src={heroImageSrc(visual.url, mode)}
                     alt={H[visual.altKey]}
                     className="w-full h-full rounded-full"
                     context="hero"
@@ -221,19 +222,58 @@ export default function BeautySpaHero({ data, mode }: Props) {
               <span data-testid="hero-status">
                 <SiteSalonStatus themeId="beauty_skin_spa" data={data} placement="announcement" compact />
               </span>
-              {video && (
+              {plan.externalVideo && (
                 <a
                   data-testid="hero-video"
-                  href={video.url}
+                  href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
                   className="site-touch rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em] inline-flex items-center gap-1.5"
                   style={capsule}
                 >
-                  <PlayCircle className="w-3 h-3" style={{ color: t.emerald }} /> {video.title}
+                  <PlayCircle className="w-3 h-3" style={{ color: t.emerald }} /> {plan.externalVideo.title || H.videoCta}
                 </a>
               )}
             </div>
+
+            {/* PHASE 11.3 — optional actions as soft rounded pills */}
+            {(cta.call || cta.whatsApp || cta.gallery) && (
+              <div data-testid="hero-cta-secondary-row" className={`flex flex-wrap gap-2 mt-6 ${compact ? 'justify-center' : ''}`}>
+                {cta.call && (
+                  <a
+                    data-testid="hero-call-cta"
+                    href={cta.call.href}
+                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    style={{ backgroundColor: t.card, color: t.emerald }}
+                  >
+                    <Phone className="w-3 h-3" /> {H.callCta}
+                  </a>
+                )}
+                {cta.whatsApp && (
+                  <a
+                    data-testid="hero-whatsapp-cta"
+                    href={cta.whatsApp.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    style={{ backgroundColor: t.card, color: t.emerald }}
+                  >
+                    <MessageCircle className="w-3 h-3" /> {H.whatsAppCta}
+                  </a>
+                )}
+                {cta.gallery && (
+                  <button
+                    type="button"
+                    data-testid="hero-gallery-cta"
+                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
+                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    style={{ backgroundColor: t.card, color: t.emerald }}
+                  >
+                    <Images className="w-3 h-3" /> {H.galleryCta}
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className={`flex flex-wrap gap-x-6 gap-y-2 mt-6 text-[10px] ${compact ? 'justify-center' : ''}`} style={{ color: t.muted }}>
               <span>{H.chip1}</span>

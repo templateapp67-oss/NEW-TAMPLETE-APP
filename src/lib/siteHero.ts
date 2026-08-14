@@ -18,6 +18,7 @@ import type { SiteHeaderThemeId } from './siteNavigation';
 import { resolveSalonStatus, salonNow } from './salonStatus';
 import type { SalonLiveStatus } from './salonStatus';
 import { publicReviews, ratingSummary, reviewBusinessId } from './siteReviews';
+import { canCall, canWhatsApp, salonTelHref, salonWhatsAppHref } from './siteBooking';
 
 export interface HeroVisual {
   url: string;
@@ -236,3 +237,31 @@ export const HERO_TEST_IDS = {
   location: 'hero-location',
   status: 'hero-status',
 } as const;
+
+/* ------------------------------------------------------------------ */
+/* PHASE 11.3 — hero CTA availability.                                 */
+/* ------------------------------------------------------------------ */
+
+export interface HeroCtaOptions {
+  /** Optional Call action — only when the owner enabled it and set a phone. */
+  call: { href: string } | null;
+  /** Optional WhatsApp action — same rule, via the existing contact options. */
+  whatsApp: { href: string } | null;
+  /** Optional View Gallery action — only when the gallery section has content. */
+  gallery: { targetId: string } | null;
+}
+
+/**
+ * Resolves the OPTIONAL hero CTAs from the existing contact/booking system
+ * (`siteBooking.ts`) and the existing gallery data. The primary Book
+ * Appointment and secondary Explore Services actions are always present and
+ * are wired directly in each theme's hero.
+ */
+export function heroCtaOptions(data: SalonData): HeroCtaOptions {
+  const hasGallery = (data.gallery || []).some((item) => item && typeof item.url === 'string' && item.url.trim());
+  return {
+    call: canCall(data) ? { href: salonTelHref(data) } : null,
+    whatsApp: canWhatsApp(data) ? { href: salonWhatsAppHref(data) } : null,
+    gallery: hasGallery ? { targetId: 'section-gallery' } : null,
+  };
+}

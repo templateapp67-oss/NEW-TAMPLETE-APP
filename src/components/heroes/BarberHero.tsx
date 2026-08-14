@@ -16,16 +16,18 @@
 import type { CSSProperties } from 'react';
 import type { SalonData } from '../../types';
 import SiteImage from '../SiteImage';
+import HeroMediaFrame from './HeroMediaFrame';
 import SiteSalonStatus from '../SiteSalonStatus';
 import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BARBER_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion, withHeroPoster } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
-import { Star, MapPin, Scissors, PlayCircle } from 'lucide-react';
+import { Star, MapPin, Scissors, PlayCircle, Phone, MessageCircle, Images } from 'lucide-react';
 
 interface Props {
   data: SalonData;
@@ -41,7 +43,12 @@ export default function BarberHero({ data, mode }: Props) {
   const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('barber_mens_grooming', data);
   const meta = heroMeta('barber_mens_grooming', data);
-  const video = heroVideo('barber_mens_grooming', data);
+  const reducedMotion = useReducedMotion();
+  const basePlan = heroMediaPlan('barber_mens_grooming', data, reducedMotion);
+  // The full-bleed backdrop already shows the primary visual, so the motion
+  // cell in the film strip uses its own frame — never the same picture twice.
+  const plan = withHeroPoster(basePlan, media.support[0]?.url || basePlan.posterUrl);
+  const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
 
   const goldBtn: CSSProperties = { backgroundColor: t.gold, color: '#141414' };
@@ -59,7 +66,7 @@ export default function BarberHero({ data, mode }: Props) {
     >
       {/* Cinematic backdrop — the barber floor shot, darkened. */}
       <SiteImage
-        src={media.primary.url}
+        src={heroImageSrc(basePlan.posterUrl, mode)}
         alt={H[media.primary.altKey]}
         className="absolute inset-0 w-full h-full"
         style={{ position: 'absolute', opacity: appearance === 'dark' ? 0.28 : 0.16 }}
@@ -181,45 +188,101 @@ export default function BarberHero({ data, mode }: Props) {
               </button>
             </div>
 
+            {/* PHASE 11.3 — optional actions, barber slab treatment */}
+            {(cta.call || cta.whatsApp || cta.gallery) && (
+              <div data-testid="hero-cta-secondary-row" className="flex flex-wrap gap-2 mt-6">
+                {cta.call && (
+                  <a
+                    data-testid="hero-call-cta"
+                    href={cta.call.href}
+                    className="site-touch flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
+                  >
+                    <Phone className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.callCta}
+                  </a>
+                )}
+                {cta.whatsApp && (
+                  <a
+                    data-testid="hero-whatsapp-cta"
+                    href={cta.whatsApp.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="site-touch flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.whatsAppCta}
+                  </a>
+                )}
+                {cta.gallery && (
+                  <button
+                    type="button"
+                    data-testid="hero-gallery-cta"
+                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
+                    className="site-touch flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
+                  >
+                    <Images className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.galleryCta}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-x-7 gap-y-2 mt-8 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: t.text }}>
               <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.chip1}</span>
               <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.chip2}</span>
             </div>
           </div>
 
-          {/* ---- Film-strip plate -------------------------------- */}
+          {/* ---- Film-strip plate: motion cell + still cells ------ */}
           <div data-testid="hero-media" className={`relative ${compact ? 'mt-2' : ''}`}>
             <div className="absolute -inset-2 border pointer-events-none" style={{ borderColor: t.gold, opacity: 0.55 }} />
             <div className="relative grid gap-2">
-              {media.support.map((visual, index) => (
+              {/* PHASE 11.3 — barber motion cell: sharp-cornered, gold-capped */}
+              <HeroMediaFrame
+                themeId="barber_mens_grooming"
+                plan={plan}
+                alt={H.mediaAlt}
+                mode={mode}
+                aspectRatio="4/3"
+                placeholderColor={t.charcoalSoft}
+              >
+                <span
+                  className="absolute left-0 bottom-0 px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em]"
+                  style={{ backgroundColor: t.gold, color: '#141414' }}
+                >
+                  {H.mediaEyebrow}
+                </span>
+              </HeroMediaFrame>
+              {media.support.slice(1, 2).map((visual) => (
                 <div key={visual.url} className="relative">
                   <SiteImage
-                    src={visual.url}
+                    src={heroImageSrc(visual.url, mode)}
                     alt={H[visual.altKey]}
                     className="w-full"
+                    sizes={heroImageSizes(mode)}
                     context="hero"
                     priority
-                    aspectRatio={index === 0 ? '4/3' : '16/9'}
+                    aspectRatio="16/9"
                   />
                   <span
                     className="absolute left-0 bottom-0 px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em]"
                     style={{ backgroundColor: t.gold, color: '#141414' }}
                   >
-                    {index === 0 ? H.mediaEyebrow : H.mediaTitle}
+                    {H.mediaTitle}
                   </span>
                 </div>
               ))}
             </div>
-            {video && (
+            {plan.externalVideo && (
               <a
                 data-testid="hero-video"
-                href={video.url}
+                href={plan.externalVideo.src}
                 target="_blank"
                 rel="noreferrer"
                 className="site-touch mt-2 flex items-center gap-2 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
                 style={{ borderColor: t.gold, color: t.accentText, backgroundColor: t.card }}
               >
-                <PlayCircle className="w-4 h-4" /> {video.title}
+                <PlayCircle className="w-4 h-4" /> {plan.externalVideo.title || H.videoCta}
               </a>
             )}
             <p className="mt-3 text-[10px] leading-relaxed" style={{ color: t.muted }}>{H.mediaBody}</p>

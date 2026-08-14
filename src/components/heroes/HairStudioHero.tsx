@@ -13,16 +13,18 @@
 import type { CSSProperties } from 'react';
 import type { SalonData } from '../../types';
 import SiteImage from '../SiteImage';
+import HeroMediaFrame from './HeroMediaFrame';
 import SiteSalonStatus from '../SiteSalonStatus';
 import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
-import { Star, MapPin, ArrowUpRight, Play } from 'lucide-react';
+import { Star, MapPin, ArrowUpRight, Play, Phone, MessageCircle, Images } from 'lucide-react';
 
 interface Props {
   data: SalonData;
@@ -39,7 +41,9 @@ export default function HairStudioHero({ data, mode }: Props) {
   const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('hair_studio_color_bar', data);
   const meta = heroMeta('hair_studio_color_bar', data);
-  const video = heroVideo('hair_studio_color_bar', data);
+  const reducedMotion = useReducedMotion();
+  const plan = heroMediaPlan('hair_studio_color_bar', data, reducedMotion);
+  const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
 
   const roseBtn: CSSProperties = { backgroundColor: t.rose, color: isDark ? '#241d1b' : '#ffffff' };
@@ -160,6 +164,45 @@ export default function HairStudioHero({ data, mode }: Props) {
               </button>
             </div>
 
+            {/* PHASE 11.3 — optional actions as editorial hairline links */}
+            {(cta.call || cta.whatsApp || cta.gallery) && (
+              <div data-testid="hero-cta-secondary-row" className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-7">
+                {cta.call && (
+                  <a
+                    data-testid="hero-call-cta"
+                    href={cta.call.href}
+                    className="site-touch inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    style={{ color: t.ink, borderColor: t.rose }}
+                  >
+                    <Phone className="w-3 h-3" style={{ color: t.rose }} /> {H.callCta}
+                  </a>
+                )}
+                {cta.whatsApp && (
+                  <a
+                    data-testid="hero-whatsapp-cta"
+                    href={cta.whatsApp.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="site-touch inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    style={{ color: t.ink, borderColor: t.rose }}
+                  >
+                    <MessageCircle className="w-3 h-3" style={{ color: t.rose }} /> {H.whatsAppCta}
+                  </a>
+                )}
+                {cta.gallery && (
+                  <button
+                    type="button"
+                    data-testid="hero-gallery-cta"
+                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
+                    className="site-touch inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    style={{ color: t.ink, borderColor: t.rose }}
+                  >
+                    <Images className="w-3 h-3" style={{ color: t.rose }} /> {H.galleryCta}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Colophon line: rating · location · status */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-9 text-[10px] tracking-[0.1em]" style={{ color: t.muted }}>
               <span className="uppercase" style={{ color: t.roseDeep }}>{H.statValue} — {H.statLabel}</span>
@@ -182,29 +225,32 @@ export default function HairStudioHero({ data, mode }: Props) {
 
           {/* ---- Contact-sheet gallery wall ------------------------ */}
           <div data-testid="hero-media" className={`grid gap-3 ${compact ? 'grid-cols-2' : 'grid-cols-[1.35fr_1fr]'}`}>
-            <figure className="relative">
-              <SiteImage
-                src={media.primary.url}
-                alt={H[media.primary.altKey]}
-                className="w-full"
-                context="hero"
-                priority
+            {/* PHASE 11.3 — editorial plate 01 carries the studio film */}
+            <figure className="relative m-0">
+              <HeroMediaFrame
+                themeId="hair_studio_color_bar"
+                plan={plan}
+                alt={H.mediaAlt}
+                mode={mode}
                 aspectRatio={compact ? '3/4' : '3/4.4'}
-              />
-              <figcaption
-                className="absolute left-0 bottom-0 px-2.5 py-1.5 text-[8px] uppercase tracking-[0.24em] font-semibold"
-                style={{ backgroundColor: t.card, color: t.roseDeep }}
+                placeholderColor={t.paper}
               >
-                01 · {H.mediaTitle}
-              </figcaption>
+                <figcaption
+                  className="absolute left-0 bottom-0 px-2.5 py-1.5 text-[8px] uppercase tracking-[0.24em] font-semibold"
+                  style={{ backgroundColor: t.card, color: t.roseDeep }}
+                >
+                  01 · {H.mediaTitle}
+                </figcaption>
+              </HeroMediaFrame>
             </figure>
             <div className="grid gap-3 content-start">
               {media.support.map((visual, index) => (
                 <figure key={visual.url} className="relative">
                   <SiteImage
-                    src={visual.url}
+                    src={heroImageSrc(visual.url, mode)}
                     alt={H[visual.altKey]}
                     className="w-full"
+                    sizes={heroImageSizes(mode)}
                     context="hero"
                     priority
                     aspectRatio="1/1"
@@ -217,16 +263,16 @@ export default function HairStudioHero({ data, mode }: Props) {
                   </figcaption>
                 </figure>
               ))}
-              {video ? (
+              {plan.externalVideo ? (
                 <a
                   data-testid="hero-video"
-                  href={video.url}
+                  href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
                   className="site-touch flex items-center gap-2 px-3 py-2.5 text-[9px] uppercase tracking-[0.2em] font-semibold border"
                   style={{ borderColor: t.line, color: t.roseDeep, backgroundColor: t.card }}
                 >
-                  <Play className="w-3.5 h-3.5" /> {video.title}
+                  <Play className="w-3.5 h-3.5" /> {plan.externalVideo.title || H.videoCta}
                 </a>
               ) : (
                 <p className="text-[9px] leading-relaxed uppercase tracking-[0.18em]" style={{ color: t.muted }}>
