@@ -70,6 +70,23 @@
     regression); lint 0 errors; build + 25-screen verification green.
     Details: `docs/phase-14.3-gallery-viewer.md`.
 
+- **PHASE 14.4 — GALLERY FINAL VALIDATION: COMPLETE for all five themes (22 tests).**
+  - Final acceptance matrix over 14.1 + 14.3: theme-specific content, category
+    filters, before/after, lightbox open/close, next/prev, mobile swipe,
+    broken-image fallback, skeleton, empty state, lazy loading, single
+    full-size mount, no layout shift / horizontal overflow, alt/accessibility.
+  - Theme switch cycle (Barber → Hair Studio → Spa → Family → Nail/Lash →
+    Barber): after every switch the filter resets, the viewer closes, previous
+    media is removed and only the active theme's media loads.
+  - Matrix: desktop/tablet/mobile, EN/HI, light/dark, normal/slow network,
+    valid/broken image, available/empty gallery.
+  - Root-cause fix: test assertions that compared a rendered DOM node against
+    `null` now use `Boolean(node)` — the old pattern walked the React fiber
+    tree on failure and OOM-killed the runner.
+  - Validation: `test:phase-14` **114/114** (55 + 37 + 22); lint 0; build +
+    25-screen verification green. Details:
+    `docs/phase-14.4-gallery-final-validation.md`.
+
 - **PHASE 12.7 — SERVICE IMAGES & VISUALS: COMPLETE for all five themes (60 tests).**
   - Service cards (directory) + the Service Detail modal now render a visual
     from configured media only: Service Image (image → banner → icon),
