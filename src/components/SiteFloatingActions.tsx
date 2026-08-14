@@ -109,7 +109,6 @@ export default function SiteFloatingActions({
   const mobile = mode === 'mobile';
   const showCall = canCall(data);
   const showWa = canWhatsApp(data);
-  const showBook = canBookOnline(data);
 
   useEffect(() => {
     const on = () => setBookingOpen(true);
@@ -127,54 +126,27 @@ export default function SiteFloatingActions({
   const callHref = salonTelHref(data);
   const waHref = salonWhatsAppHref(data);
 
+  // PHASE 10.9: mobile bottom bar is now SiteMobileActionBar.
+  // Floating actions on mobile only shows Back to Top, so the two bars don't duplicate.
+  // Desktop: Call, WhatsApp, Back to Top remain usable.
   if (mobile) {
-    const cols = [showCall, showWa, showBook].filter(Boolean).length || 1;
     return (
       <div
         data-testid="site-floating-actions"
         data-theme={themeId}
         data-mode={mode}
-        className="absolute inset-x-0 bottom-0 z-50"
+        className="absolute inset-x-0 bottom-0 z-40 pointer-events-none"
       >
         <button
           type="button"
           data-testid="site-back-to-top"
           aria-label={C['chrome.backToTop']}
           onClick={scrollSiteToTop}
-          className={`${skin.btn} absolute right-3 -top-14 shadow-md`}
+          className={`${skin.btn} absolute right-3 -top-14 shadow-md pointer-events-auto`}
           style={skin.btnStyle}
         >
           <ArrowUp className="w-4 h-4" />
         </button>
-        <nav
-          data-testid="site-mobile-dock"
-          className={skin.dock}
-          style={{ ...skin.dockStyle, gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-          aria-label="Quick actions"
-        >
-          {showCall && (
-            <a data-testid="site-dock-call" href={callHref} className={skin.dockBtn} style={skin.dockGhost}>
-              <Phone className="w-4 h-4" /> {C['chrome.call']}
-            </a>
-          )}
-          {showWa && (
-            <a data-testid="site-dock-whatsapp" href={waHref} target="_blank" rel="noreferrer" className={skin.dockBtn} style={skin.dockGhost}>
-              <MessageCircle className="w-4 h-4" /> {C['chrome.whatsapp']}
-            </a>
-          )}
-          {showBook && (
-            <button
-              type="button"
-              data-testid="site-dock-book"
-              data-open-booking="true"
-              onClick={openSiteBooking}
-              className={skin.dockBtn}
-              style={skin.dockBook}
-            >
-              <CalendarCheck className="w-4 h-4" /> {C['chrome.book']}
-            </button>
-          )}
-        </nav>
       </div>
     );
   }

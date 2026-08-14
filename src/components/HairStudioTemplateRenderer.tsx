@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
@@ -6,7 +7,11 @@ import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
+import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteSeo from './SiteSeo';
+import SiteImage from './SiteImage';
+import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
@@ -78,6 +83,12 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
   const X = structureCopyFrom(S);
   const palette = { accent: rose, text: ink, muted, card, line, invert: isDark ? '#241d1b' : '#ffffff' };
   const headerMode = headerModeOf(mode);
+  // PHASE 10.12 — performance optimization: clear stale data, marks, memoize
+  useEffect(() => {
+    setActiveTheme('hair_studio_color_bar');
+    markPerformance('hair_studio_color_bar-render-start');
+    return () => { markPerformance('hair_studio_color_bar-render-end'); };
+  }, []);
   const services = activeCatalogItems(data.services);
   const packages = activeCatalogItems(data.packages);
   const featured = featuredServices(data.services);
@@ -117,6 +128,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
 
       {/* Scrollable Website Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll pb-20" style={{ backgroundColor: paper, color: ink }}>
+        <SiteSeo themeId="hair_studio_color_bar" data={data} mode={mode} />
         <SiteAnnouncementBar themeId="hair_studio_color_bar" data={data} />
         <SiteHeader themeId="hair_studio_color_bar" data={data} mode={headerMode} />
 
@@ -466,9 +478,15 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
 
         <FinalBookingCta themeId="hair_studio_color_bar" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} sharp />
         <SiteFooter themeId="hair_studio_color_bar" data={data} />
-        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
+        {mode === 'mobile' && (
+          <>
+            <div className="site-mobile-action-bar-spacer" aria-hidden />
+            <div className="site-mobile-dock-spacer" aria-hidden />
+          </>
+        )}
       </div>
       <SiteFloatingActions themeId="hair_studio_color_bar" data={data} mode={mode} />
+      <SiteMobileActionBar themeId="hair_studio_color_bar" data={data} mode={mode} />
       <SiteBookingHost themeId="hair_studio_color_bar" data={data} />
     </div>
   );

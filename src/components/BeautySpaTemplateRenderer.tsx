@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
@@ -6,7 +7,11 @@ import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
+import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteSeo from './SiteSeo';
+import SiteImage from './SiteImage';
+import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
@@ -64,6 +69,12 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   const X = structureCopyFrom(S);
   const palette = { accent: emerald, text, muted, card, line, invert: '#ffffff' };
   const headerMode = headerModeOf(mode);
+  // PHASE 10.12 — performance optimization: clear stale data, marks, memoize
+  useEffect(() => {
+    setActiveTheme('beauty_skin_spa');
+    markPerformance('beauty_skin_spa-render-start');
+    return () => { markPerformance('beauty_skin_spa-render-end'); };
+  }, []);
   const services = activeCatalogItems(data.services);
   const packages = activeCatalogItems(data.packages);
   const featured = featuredServices(data.services);
@@ -123,6 +134,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
 
       {/* Scrollable Website Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll pb-20" style={{ backgroundColor: cream, color: text }}>
+        <SiteSeo themeId="beauty_skin_spa" data={data} mode={mode} />
         <SiteAnnouncementBar themeId="beauty_skin_spa" data={data} />
         <SiteHeader themeId="beauty_skin_spa" data={data} mode={headerMode} />
 
@@ -507,9 +519,15 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
 
         <FinalBookingCta themeId="beauty_skin_spa" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
         <SiteFooter themeId="beauty_skin_spa" data={data} />
-        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
+        {mode === 'mobile' && (
+          <>
+            <div className="site-mobile-action-bar-spacer" aria-hidden />
+            <div className="site-mobile-dock-spacer" aria-hidden />
+          </>
+        )}
       </div>
       <SiteFloatingActions themeId="beauty_skin_spa" data={data} mode={mode} />
+      <SiteMobileActionBar themeId="beauty_skin_spa" data={data} mode={mode} />
       <SiteBookingHost themeId="beauty_skin_spa" data={data} />
     </div>
   );

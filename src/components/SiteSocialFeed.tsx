@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ExternalLink, Play, Video } from 'lucide-react';
 import type { SalonData } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
@@ -20,6 +20,7 @@ import { socialText } from '../lib/siteSocialI18n';
 import { socialVisuals } from '../lib/siteSocialTheme';
 import { SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import SiteSkeleton from './SiteSkeleton';
 
 interface Props {
   themeId: SiteHeaderThemeId;
@@ -30,6 +31,50 @@ interface Props {
 function openExternal(url: string): void {
   if (typeof window === 'undefined' || !url) return;
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+// PHASE 10.12: Lazy video thumbnail with skeleton and intersection observer
+function LazyThumb({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [inView, setInView] = useState(false);
+  const [ref, setRef] = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!ref) return;
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      setInView(true);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) { setInView(true); obs.disconnect(); break; }
+      },
+      { rootMargin: '300px 0px', threshold: 0.01 }
+    );
+    obs.observe(ref);
+    return () => obs.disconnect();
+  }, [ref]);
+
+  return (
+    <div ref={setRef} className="absolute inset-0">
+      {!loaded && inView && <div data-testid="site-social-thumb-skeleton" className="absolute inset-0 bg-gray-100 animate-pulse" aria-hidden />}
+      {inView && src ? (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          data-testid="site-social-thumb"
+          className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setLoaded(true)}
+          sizes="(max-width: 640px) 50vw, 33vw"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gray-100" />
+      )}
+    </div>
+  );
 }
 
 export default function SiteSocialFeed({ themeId, data, mode }: Props) {
@@ -100,17 +145,9 @@ export default function SiteSocialFeed({ themeId, data, mode }: Props) {
                 data-platform={item.platform}
                 data-embed-kind={item.embedKind || ''}
                 className={`relative aspect-[9/16] overflow-hidden group min-w-0 border ${visual.radius}`}
-                style={{ borderColor: visual.cardLine }}
+                style={{ borderColor: visual.cardLine, aspectRatio: '9/16' }}
               >
-                {item.thumbnailUrl ? (
-                  <img
-                    src={item.thumbnailUrl}
-                    alt={item.title}
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="absolute inset-0" style={{ backgroundColor: visual.chipBg }} />
-                )}
+                <LazyThumb src={item.thumbnailUrl} alt={item.title} />
                 <div className="absolute inset-0" style={{ background: visual.overlay }} />
                 <div className="absolute bottom-3 left-3 right-3 text-white space-y-2">
                   <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-80">{C.platforms[item.platform]}</p>
@@ -141,6 +178,8 @@ export default function SiteSocialFeed({ themeId, data, mode }: Props) {
               </article>
             ))}
           </div>
+        ) : state === 'loading' ? (
+          <SiteSkeleton type="videos" mode={mode} />
         ) : (
           <SectionStatePanel
             status={state}
@@ -148,6 +187,8 @@ export default function SiteSocialFeed({ themeId, data, mode }: Props) {
             palette={palette}
             emptyTitle={C.emptyTitle}
             emptyBody={S.videosEmpty || C.emptyBody}
+            section="videos"
+            mode={mode}
           />
         )}
 
@@ -160,6 +201,7 @@ export default function SiteSocialFeed({ themeId, data, mode }: Props) {
             <div
               className={`w-full max-w-lg aspect-video overflow-hidden bg-black ${visual.radius}`}
               onClick={(event) => event.stopPropagation()}
+              style={{ aspectRatio: '16/9' }}
             >
               <iframe
                 title={playing.title}
@@ -167,6 +209,7 @@ export default function SiteSocialFeed({ themeId, data, mode }: Props) {
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
+                loading="lazy"
               />
             </div>
           </div>

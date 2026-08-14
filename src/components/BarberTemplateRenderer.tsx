@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
@@ -6,11 +6,16 @@ import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
+import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
+import SiteSeo from './SiteSeo';
+import SiteImage from './SiteImage';
+import SiteSkeleton from './SiteSkeleton';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
+import { setActiveTheme, markPerformance, paginateList } from '../lib/sitePerformance';
 import { openSiteBooking } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { BARBER_SURFACES, surfacesOf } from '../lib/themeSurfaces';
@@ -62,17 +67,32 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
   const X = structureCopyFrom(S);
   const palette = { accent: gold, text: textStrong, muted, card, line, invert: '#141414' };
   const headerMode = headerModeOf(mode);
-  const services = activeCatalogItems(data.services);
-  const packages = activeCatalogItems(data.packages);
-  const featured = featuredServices(data.services);
+  // PHASE 10.12 — performance: memoize heavy lists, clear stale theme data, marks
+  useEffect(() => {
+    setActiveTheme('barber_mens_grooming');
+    markPerformance('barber-render-start');
+    return () => {
+      markPerformance('barber-render-end');
+    };
+  }, []);
+  const services = useMemo(() => activeCatalogItems(data.services), [data.services]);
+  const packages = useMemo(() => activeCatalogItems(data.packages), [data.packages]);
+  const featured = useMemo(() => featuredServices(data.services), [data.services]);
+  const galleryItems = useMemo(() => data.gallery || [], [data.gallery]);
+  const teamItems = useMemo(() => data.team || [], [data.team]);
   const servicesState = resolveSectionState('services', services);
   const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
-  const galleryState = resolveSectionState('gallery', data.gallery);
-  const teamState = resolveSectionState('team', data.team);
+  const galleryState = resolveSectionState('gallery', galleryItems);
+  const teamState = resolveSectionState('team', teamItems);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
   const locationState = resolveSectionState('location', data.address?.fullAddress ? [data.address.fullAddress] : ['fallback']);
+  // Large list optimization: paginate gallery/services for fast mobile on slow networks
+  const [visibleGallery, setVisibleGallery] = useState(12);
+  const [visibleServices, setVisibleServices] = useState(12);
+  const displayedGallery = useMemo(() => galleryItems.slice(0, visibleGallery), [galleryItems, visibleGallery]);
+  const displayedServices = useMemo(() => services.slice(0, visibleServices), [services, visibleServices]);
 
   const btnGold: CSSProperties = {
     backgroundColor: gold,
@@ -101,16 +121,20 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
 
       {/* Scrollable Website Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll pb-20" style={{ backgroundColor: t.page, color: text }}>
+        <SiteSeo themeId="barber_mens_grooming" data={data} mode={mode} />
         <SiteAnnouncementBar themeId="barber_mens_grooming" data={data} />
         <SiteHeader themeId="barber_mens_grooming" data={data} mode={headerMode} />
 
-        {/* Hero */}
+        {/* Hero — above-the-fold, eager with priority, skeleton prevented via opacity */}
         <div id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative overflow-hidden px-6 py-16 md:py-20 text-center" style={{ backgroundColor: charcoal }}>
           {data.heroImageUrl && (
-            <img
+            <SiteImage
               src={data.heroImageUrl}
               alt="Hero Banner"
               className="absolute inset-0 w-full h-full object-cover opacity-20"
+              context="hero"
+              priority
+              aspectRatio="16/9"
             />
           )}
           {/* Subtle barbershop stripe texture */}
@@ -206,12 +230,12 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
               {services.map((s, i) => {
                 const shown = displayService(s, locale);
                 return (
-                <div key={s.id} className="group border hover:border-[#c9a227]/70 transition-colors p-4 min-w-0" style={{ backgroundColor: card, borderColor: line }}>
-                  {shown.bannerUrl && <img src={shown.bannerUrl} alt="" className="w-full h-16 object-cover mb-3" />}
+                <div key={s.id} className="group border hover:border-[#c9a227]/70 transition-colors p-4 min-w-0" style={{ backgroundColor: card, borderColor: line, contain: 'content' }}>
+                  {shown.bannerUrl && <SiteImage src={shown.bannerUrl} alt="" className="w-full h-16 object-cover mb-3" context="service" aspectRatio="16/9" />}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
                       {shown.iconUrl ? (
-                        <img src={shown.iconUrl} alt="" className="w-8 h-8 object-cover shrink-0" />
+                        <SiteImage src={shown.iconUrl} alt="" className="w-8 h-8 object-cover shrink-0" context="service" aspectRatio="1/1" />
                       ) : (
                       <span className="text-[11px] font-black" style={{ color: gold }}>
                         {String(i + 1).padStart(2, '0')}
@@ -292,20 +316,35 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
               <h3 className="text-2xl md:text-3xl font-black uppercase tracking-[0.05em] mt-2" style={{ color: textStrong }}>{S.galleryTitle}</h3>
             </div>
             {galleryState === 'ready' ? (
-              <div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
-                {(data.gallery || []).map((item) => (
-                  <div key={item.id} className="relative aspect-square overflow-hidden border group" style={{ borderColor: line }}>
-                    <img src={item.url} alt={item.alt || S['common.defaultPhotoAlt']} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    <div className="absolute inset-0 flex items-end p-2.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5" style={{ backgroundColor: gold, color: '#141414' }}>
-                        {translateCategory(item.category || 'General', locale)}
-                      </span>
+              <>
+                <div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
+                  {displayedGallery.map((item) => (
+                    <div key={item.id} className="relative aspect-square overflow-hidden border group" style={{ borderColor: line, aspectRatio: '1/1', contain: 'content' }}>
+                      <SiteImage src={item.url} alt={item.alt || S['common.defaultPhotoAlt']} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" context="gallery" aspectRatio="1/1" />
+                      <div className="absolute inset-0 flex items-end p-2.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5" style={{ backgroundColor: gold, color: '#141414' }}>
+                          {translateCategory(item.category || 'General', locale)}
+                        </span>
+                      </div>
                     </div>
+                  ))}
+                </div>
+                {galleryItems.length > visibleGallery && (
+                  <div className="text-center mt-6">
+                    <button
+                      type="button"
+                      data-testid="site-gallery-load-more"
+                      onClick={() => setVisibleGallery((v) => v + 12)}
+                      className="px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] border"
+                      style={{ borderColor: gold, color: gold }}
+                    >
+                      Load More ({galleryItems.length - visibleGallery} remaining)
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
-              <SectionStatePanel status={galleryState} copy={X} palette={palette} emptyTitle={S.galleryEmpty} />
+              <SectionStatePanel status={galleryState} copy={X} palette={palette} emptyTitle={S.galleryEmpty} section="gallery" mode={mode} />
             )}
           </div>
         </div>
@@ -349,12 +388,12 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
             </div>
             {teamState === 'ready' ? (
               <div className={`grid gap-5 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-                {data.team.map((member) => {
+                {teamItems.map((member) => {
                   const pub = getPublicStaffData(member);
                   return (
-                    <div key={pub.id} className="border hover:border-[#c9a227]/70 transition-colors p-5 flex flex-col gap-4 min-w-0" style={{ backgroundColor: card, borderColor: line }}>
+                    <div key={pub.id} className="border hover:border-[#c9a227]/70 transition-colors p-5 flex flex-col gap-4 min-w-0" style={{ backgroundColor: card, borderColor: line, contain: 'content' }}>
                       <div className="flex items-start gap-4">
-                        <img src={pub.imageUrl} alt={pub.name} className="w-16 h-16 object-cover border-2 shrink-0" style={{ borderColor: gold }} />
+                        <SiteImage src={pub.imageUrl} alt={pub.name} className="w-16 h-16 object-cover border-2 shrink-0" style={{ borderColor: gold }} context="team" aspectRatio="1/1" />
                         <div className="flex-1 min-w-0">
                           <h4 className="font-black text-base uppercase tracking-wider break-words" style={{ color: textStrong }}>{pub.name}</h4>
                           <p className="text-[10px] font-bold uppercase tracking-[0.2em] mt-1" style={{ color: accentText }}>{pub.role}</p>
@@ -471,9 +510,15 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
 
         <FinalBookingCta themeId="barber_mens_grooming" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={{ ...palette, accent: gold }} sharp />
         <SiteFooter themeId="barber_mens_grooming" data={data} />
-        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
+        {mode === 'mobile' && (
+          <>
+            <div className="site-mobile-action-bar-spacer" aria-hidden />
+            <div className="site-mobile-dock-spacer" aria-hidden />
+          </>
+        )}
       </div>
       <SiteFloatingActions themeId="barber_mens_grooming" data={data} mode={mode} />
+      <SiteMobileActionBar themeId="barber_mens_grooming" data={data} mode={mode} />
       <SiteBookingHost themeId="barber_mens_grooming" data={data} />
     </div>
   );

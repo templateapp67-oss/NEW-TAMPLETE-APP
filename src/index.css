@@ -50,3 +50,20 @@
 .site-has-mobile-dock .site-scroll {
   padding-bottom: 0;
 }
+
+/* PHASE 10.9 — mobile quick-action bar: 4 actions, safe-area, not covering content */
+.site-mobile-action-bar {
+  padding-bottom: max(0.65rem, env(safe-area-inset-bottom, 0px));
+  /* Ensure bar itself respects left/right insets on notched devices */
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+}
+.site-mobile-action-bar-spacer {
+  height: calc(6.25rem + env(safe-area-inset-bottom, 0px));
+  flex-shrink: 0;
+}
+.site-mobile-dock-spacer {
+  /* Keep legacy spacer in sync with new bar height for back-compat */
+  height: calc(6.25rem + env(safe-area-inset-bottom, 0px));
+}
+

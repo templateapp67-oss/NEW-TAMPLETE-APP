@@ -3,7 +3,7 @@ import { AlertCircle, CalendarCheck, MessageCircle, Phone, RefreshCw } from 'luc
 import type { SalonData } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { SITE_HEADER_LABELS } from '../lib/siteNavigation';
-import type { SectionStatus, SiteSectionKey } from '../lib/siteStructure';
+import type { SectionStatus, SiteSectionKey, ViewportMode } from '../lib/siteStructure';
 import { SITE_SECTION_IDS, sectionProps } from '../lib/siteStructure';
 import { chromeText } from '../lib/siteChromeI18n';
 import {
@@ -14,6 +14,7 @@ import {
   salonWhatsAppHref,
 } from '../lib/siteBooking';
 import { useSiteLocale } from './SiteHeader';
+import SiteSkeleton from './SiteSkeleton';
 
 export interface StructurePalette {
   accent: string;
@@ -34,6 +35,30 @@ interface StateCopy {
   retry: string;
 }
 
+function skeletonTypeForSection(section: SiteSectionKey): 'services' | 'offers' | 'gallery' | 'videos' | 'reviews' | 'staff' | 'owner' | 'location' | 'generic' {
+  switch (section) {
+    case 'services':
+    case 'featured':
+      return 'services';
+    case 'offers':
+      return 'offers';
+    case 'gallery':
+      return 'gallery';
+    case 'videos':
+      return 'videos';
+    case 'reviews':
+      return 'reviews';
+    case 'team':
+      return 'staff';
+    case 'owner':
+      return 'owner';
+    case 'location':
+      return 'location';
+    default:
+      return 'generic';
+  }
+}
+
 export function SectionStatePanel({
   status,
   copy,
@@ -41,6 +66,8 @@ export function SectionStatePanel({
   onRetry,
   emptyTitle,
   emptyBody,
+  section = 'services' as SiteSectionKey,
+  mode = 'desktop' as ViewportMode,
 }: {
   status: SectionStatus;
   copy: StateCopy;
@@ -48,17 +75,19 @@ export function SectionStatePanel({
   onRetry?: () => void;
   emptyTitle?: string;
   emptyBody?: string;
+  section?: SiteSectionKey;
+  mode?: ViewportMode;
 }) {
   if (status === 'ready') return null;
   if (status === 'loading') {
+    const skType = skeletonTypeForSection(section);
     return (
-      <div
-        data-testid="section-state-loading"
-        className="flex items-center justify-center gap-3 rounded-2xl border px-4 py-8 min-h-[88px]"
-        style={{ borderColor: palette.line, backgroundColor: palette.card, color: palette.muted }}
-      >
-        <span className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
-        <span className="text-xs font-semibold">{copy.loading}</span>
+      <div data-testid="section-state-loading" data-section={section} className="min-w-0">
+        <SiteSkeleton type={skType} mode={mode} />
+        <div className="flex items-center justify-center gap-2 mt-3 text-[10px]" style={{ color: palette.muted }}>
+          <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+          <span className="font-semibold">{copy.loading}</span>
+        </div>
       </div>
     );
   }
@@ -66,6 +95,7 @@ export function SectionStatePanel({
     return (
       <div
         data-testid="section-state-error"
+        data-section={section}
         className="flex flex-col items-center justify-center gap-3 rounded-2xl border px-4 py-8 text-center min-h-[88px]"
         style={{ borderColor: palette.line, backgroundColor: palette.card }}
       >
@@ -87,6 +117,7 @@ export function SectionStatePanel({
   return (
     <div
       data-testid="section-state-empty"
+      data-section={section}
       className="rounded-2xl border border-dashed px-4 py-8 text-center min-h-[88px]"
       style={{ borderColor: palette.line, backgroundColor: palette.card }}
     >
@@ -107,6 +138,7 @@ export function StructuredSection({
   palette,
   emptyTitle,
   emptyBody,
+  mode,
 }: {
   section: SiteSectionKey;
   status: SectionStatus;
@@ -118,12 +150,13 @@ export function StructuredSection({
   palette: StructurePalette;
   emptyTitle?: string;
   emptyBody?: string;
+  mode?: ViewportMode;
 }) {
   return (
     <section {...sectionProps(section, status, id)} className={`site-section min-w-0 ${className || ''}`} style={style}>
       {status === 'ready' ? children : (
         <div className="max-w-3xl mx-auto px-5 md:px-8 py-10">
-          <SectionStatePanel status={status} copy={copy} palette={palette} emptyTitle={emptyTitle} emptyBody={emptyBody} />
+          <SectionStatePanel status={status} copy={copy} palette={palette} emptyTitle={emptyTitle} emptyBody={emptyBody} section={section} mode={mode} />
         </div>
       )}
     </section>

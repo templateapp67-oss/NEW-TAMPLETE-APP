@@ -301,6 +301,8 @@ export default function SiteReviews({ themeId, data, mode }: Props) {
             palette={palette}
             emptyTitle={R.emptyTitle}
             emptyBody={R.emptyBody}
+            section="reviews"
+            mode={mode}
           />
         )}
       </div>
