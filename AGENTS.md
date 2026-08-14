@@ -74,7 +74,8 @@ npm run test:phase-11.3     # hero media & CTA across all five themes
 npm run test:phase-11.4     # hero desktop + tablet + mobile QA
 npm run test:phase-11.5     # hero final polish across all five themes
 npm run test:phase-11.6     # hero interaction & conversion
-npm run test:phase-11       # every Phase 11 suite (1642 tests)
+npm run test:phase-11.7     # hero data validation
+npm run test:phase-11       # every Phase 11 suite (1948 tests)
 npm run test:phase-11       # both Phase 11 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
@@ -174,6 +175,10 @@ loads). All `.env*` files are gitignored except `.env.example`.
   href="#section-...">` (focusable, visible target, open-in-new-tab); only
   real actions are `<button type="button">`. Resolve section ids through
   `siteSectionDomId()` / `heroTargetId()`, never hardcoded strings.
+- **Validate owner-supplied media URLs.** Salon media is untrusted input:
+  pass it through `isSafeMediaUrl()` / `safeMediaUrl()` before it reaches a
+  `src`/`href`, and fall back to theme media when it fails. Never rely on
+  React's `javascript:` guard as the only defence.
 - **Never invent business facts.** Customer-facing surfaces must not hardcode
   counts, ratings, years or volumes a salon did not supply. Derive them from
   real data (see `heroStat()`) and render nothing when there is no data.

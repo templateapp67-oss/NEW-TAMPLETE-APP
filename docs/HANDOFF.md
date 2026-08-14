@@ -6,6 +6,36 @@
 
 ## Current repository state
 
+- **Phase 11.7 — HERO DATA VALIDATION: COMPLETE for all five themes
+  (1948 Phase 11 tests green).**
+  - Data/fallback fixes only; no hero redesign, no DB/service/booking or
+    Phase 10 change. Two real defects fixed:
+    1. **Unvalidated owner media reached the DOM.** `heroImageUrl`, gallery
+       entries and reel URLs were used after only a `.trim()`, so
+       `javascript:alert(1)` became a literal `<img src>` and free text became
+       a broken image instead of falling back. (React blocked the `href` case
+       at render, so it was not exploitable today — but the hero was leaning on
+       a framework guardrail instead of validating its own data.) New
+       `isSafeMediaUrl()` / `safeMediaUrl()` in `src/lib/siteHero.ts` allow
+       only http(s), protocol-relative, root/relative, `data:image`/`data:video`
+       and `blob:` sources; everything else falls back to the theme's own safe
+       media. Applied to `heroMedia()`, `heroVideoSource()` and
+       `setThemeHeroVideo()`.
+    2. **Fake initials from placeholder copy.** An unnamed salon produced a
+       "Y"/"N" monogram out of the generic "Your Salon" fallback. Initials now
+       come from the real `salonName` only; new `heroLogoMark()` renders a
+       neutral per-theme glyph when the salon is unnamed.
+  - Verified: per-theme headline/description/CTA/media uniqueness in EN+HI,
+    owner data winning over theme copy, 8 sparse-data profiles rendering
+    without crashing, hostile URLs rejected pre-render, broken URLs hitting the
+    existing error state with no layout shift, clean theme switching (no stale
+    copy/media/cache, language + light/dark preserved), no duplicate media
+    requests and lazy-loading untouched.
+  - Validation: `npm run test:phase-11.7` = 306/306; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369, 11.5 294, 11.6 377; `test:phase-10` 1259/1259; lint,
+    build and 25-screen verification green.
+    Details: `docs/phase-11.7-hero-data-validation.md`.
+
 - **Phase 11.6 — HERO INTERACTION & CONVERSION: COMPLETE for all five themes
   (1642 Phase 11 tests green).**
   - New `src/lib/siteHeroNav.ts` wraps the EXISTING Phase 10 navigation — no
@@ -730,7 +760,8 @@ npm run test:phase-11.3    # hero media & CTA across all five themes (249 tests)
 npm run test:phase-11.4    # hero desktop+tablet+mobile QA (369 tests)
 npm run test:phase-11.5    # hero final polish (294 tests)
 npm run test:phase-11.6    # hero interaction & conversion (377 tests)
-npm run test:phase-11      # every Phase 11 suite (1642 tests)
+npm run test:phase-11.7    # hero data validation (306 tests)
+npm run test:phase-11      # every Phase 11 suite (1948 tests)
 npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
@@ -750,7 +781,8 @@ Expected output:
 - `test:phase-11.4`: 369/369 passed (hero desktop + tablet + mobile QA)
 - `test:phase-11.5`: 294/294 passed (hero final polish)
 - `test:phase-11.6`: 377/377 passed (hero interaction & conversion)
-- `test:phase-11`: 1642 tests, all green
+- `test:phase-11.7`: 306/306 passed (hero data validation)
+- `test:phase-11`: 1948 tests, all green
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

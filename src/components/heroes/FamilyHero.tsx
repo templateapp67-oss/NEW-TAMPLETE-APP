@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { FAMILY_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoMark, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
@@ -86,7 +86,7 @@ export default function FamilyHero({ data, mode }: Props) {
                   className="w-11 h-11 rounded-2xl flex items-center justify-center text-[12px] font-extrabold shadow-md"
                   style={{ backgroundColor: t.teal, color: '#ffffff' }}
                 >
-                  {heroLogoInitials(data)}
+                  {heroLogoMark(data, 'family_full_service')}
                 </span>
               )}
               <span

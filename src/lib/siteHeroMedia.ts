@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import type { SalonData } from '../types';
 import type { SiteHeaderThemeId } from './siteNavigation';
 import type { ViewportMode } from './siteStructure';
-import { heroMedia } from './siteHero';
+import { heroMedia, isSafeMediaUrl, safeMediaUrl } from './siteHero';
 
 /* ------------------------------------------------------------------ */
 /* Reduced motion                                                      */
@@ -153,7 +153,7 @@ const THEME_VIDEOS: Record<SiteHeaderThemeId, string> = {
 
 /** Registers a verified hero clip for ONE theme (deployment/config seam). */
 export function setThemeHeroVideo(themeId: SiteHeaderThemeId, src: string | null): void {
-  THEME_VIDEOS[themeId] = (src || '').trim();
+  THEME_VIDEOS[themeId] = safeMediaUrl(src);
 }
 
 /** Clears every registered theme clip — used by tests. */
@@ -186,21 +186,26 @@ export function heroVideoSource(
   options: { allowThemeVideo?: boolean } = {},
 ): HeroVideoSource | null {
   const visuals = heroMedia(themeId, data);
-  const ownerReels = (data.socialVideos || []).filter((video) => video && video.url);
+  // PHASE 11.7 — an owner reel must have a usable link. Inline clips are held
+  // to the media-URL rules; external reels must at least be a real http(s)
+  // page (never javascript:/data:), since they open in a new tab.
+  const ownerReels = (data.socialVideos || []).filter(
+    (video) => video && typeof video.url === 'string' && /^https?:\/\//i.test(video.url.trim()),
+  );
 
   // The poster is ALWAYS the theme's resolved primary visual, which already
   // prefers the owner's `heroImageUrl` then their gallery. A reel thumbnail
   // must never displace the hero image the owner explicitly chose.
   const poster = visuals.primary.url;
 
-  const playable = ownerReels.find((video) => isPlayableVideoFile(video.url));
+  const playable = ownerReels.find((video) => isSafeMediaUrl(video.url) && isPlayableVideoFile(video.url));
   if (playable) {
-    return { kind: 'file', src: playable.url, poster, title: playable.title || '', origin: 'owner' };
+    return { kind: 'file', src: safeMediaUrl(playable.url), poster, title: playable.title || '', origin: 'owner' };
   }
 
   const embed = ownerReels[0];
   if (embed) {
-    return { kind: 'embed', src: embed.url, poster, title: embed.title || '', origin: 'owner' };
+    return { kind: 'embed', src: embed.url.trim(), poster, title: embed.title || '', origin: 'owner' };
   }
 
   if (options.allowThemeVideo === false) return null;

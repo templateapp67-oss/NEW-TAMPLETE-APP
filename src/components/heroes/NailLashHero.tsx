@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoMark, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
@@ -93,7 +93,7 @@ export default function NailLashHero({ data, mode }: Props) {
                 className="w-11 h-11 rounded-full flex items-center justify-center text-[12px] font-extrabold border-2"
                 style={{ borderColor: t.pink, color: t.pinkDeep, backgroundColor: t.card }}
               >
-                {heroLogoInitials(data)}
+                {heroLogoMark(data, 'nail_lash_studio')}
               </span>
             )}
             <span

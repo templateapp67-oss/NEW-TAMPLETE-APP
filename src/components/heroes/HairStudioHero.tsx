@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoMark, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
@@ -94,7 +94,7 @@ export default function HairStudioHero({ data, mode }: Props) {
                 className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-semibold tracking-[0.06em]"
                 style={{ backgroundColor: t.roseSoft, color: t.roseDeep }}
               >
-                {heroLogoInitials(data)}
+                {heroLogoMark(data, 'hair_studio_color_bar')}
               </span>
             )}
             <span

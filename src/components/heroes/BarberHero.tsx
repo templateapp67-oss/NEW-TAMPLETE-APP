@@ -22,7 +22,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BARBER_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoMark, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion, withHeroPoster } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
@@ -112,7 +112,7 @@ export default function BarberHero({ data, mode }: Props) {
                   className="w-11 h-11 flex items-center justify-center text-[13px] font-black tracking-[0.08em] border"
                   style={{ borderColor: t.gold, color: t.gold, backgroundColor: '#141414' }}
                 >
-                  {heroLogoInitials(data)}
+                  {heroLogoMark(data, 'barber_mens_grooming')}
                 </span>
               )}
               <span

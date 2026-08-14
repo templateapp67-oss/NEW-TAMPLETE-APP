@@ -78,9 +78,43 @@ const SUPPORT_COUNT: Record<SiteHeaderThemeId, number> = {
 
 const ALT_KEYS: HeroVisual['altKey'][] = ['mediaAlt', 'mediaAltB', 'mediaAltC'];
 
+/**
+ * PHASE 11.7 — media URL safety.
+ *
+ * Owner-supplied media is untrusted input. Only schemes a browser can actually
+ * render as an image/video are allowed through:
+ *   - absolute http(s)
+ *   - protocol-relative (//cdn/...)
+ *   - root/relative paths and data:image / data:video uploads
+ *   - blob: previews created during the upload step
+ *
+ * Anything else (javascript:, vbscript:, file:, free text, non-strings) is
+ * rejected so the hero falls back to the theme's own safe media instead of
+ * emitting a broken — or hostile — `src`.
+ */
+const SAFE_MEDIA_SCHEME = /^(https?:\/\/|\/\/|\/|\.\/|\.\.\/|data:image\/|data:video\/|blob:)/i;
+const UNSAFE_MEDIA_SCHEME = /^\s*(javascript|vbscript|file|about|ftp)\s*:/i;
+
+export function isSafeMediaUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const url = value.trim();
+  if (url.length === 0) return false;
+  if (UNSAFE_MEDIA_SCHEME.test(url)) return false;
+  if (!SAFE_MEDIA_SCHEME.test(url)) return false;
+  // Reject control characters / whitespace smuggled into a scheme.
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001F\u007F]/.test(url)) return false;
+  return true;
+}
+
+/** Trims and validates one owner media URL, or returns '' when unusable. */
+export function safeMediaUrl(value: unknown): string {
+  return isSafeMediaUrl(value) ? value.trim() : '';
+}
+
 function galleryUrls(data: SalonData): string[] {
   return (data.gallery || [])
-    .map((item) => (item && typeof item.url === 'string' ? item.url.trim() : ''))
+    .map((item) => safeMediaUrl(item && (item as { url?: unknown }).url))
     .filter((url) => url.length > 0);
 }
 
@@ -91,7 +125,7 @@ function galleryUrls(data: SalonData): string[] {
  */
 export function heroMedia(themeId: SiteHeaderThemeId, data: SalonData): HeroMedia {
   const fallbacks = HERO_FALLBACKS[themeId] || HERO_FALLBACKS.barber_mens_grooming;
-  const owner = [(data.heroImageUrl || '').trim(), ...galleryUrls(data)].filter(Boolean);
+  const owner = [safeMediaUrl(data.heroImageUrl), ...galleryUrls(data)].filter(Boolean);
   const pool: string[] = [];
   for (const url of [...owner, ...fallbacks]) {
     if (!pool.includes(url)) pool.push(url);
@@ -221,8 +255,33 @@ export function heroSalonName(data: SalonData, fallback = 'Your Salon'): string 
 }
 
 /** Initials mark used when the owner has not uploaded a logo. */
+/**
+ * The mark shown inside the hero logo slot: real initials when the owner has
+ * named the salon, otherwise the theme's own neutral glyph (never a monogram
+ * invented from placeholder copy).
+ */
+export function heroLogoMark(data: SalonData, themeId: SiteHeaderThemeId): string {
+  const initials = heroLogoInitials(data);
+  if (initials) return initials;
+  return HERO_NEUTRAL_MARK[themeId] || '•';
+}
+
+/** Per-theme neutral brand glyph used before the salon is named. */
+const HERO_NEUTRAL_MARK: Record<SiteHeaderThemeId, string> = {
+  barber_mens_grooming: '✂',
+  hair_studio_color_bar: '◈',
+  beauty_skin_spa: '❋',
+  family_full_service: '☺',
+  nail_lash_studio: '✦',
+};
+
 export function heroLogoInitials(data: SalonData): string {
-  const name = heroSalonName(data, 'NX');
+  // PHASE 11.7 — initials come from the REAL salon name only. When the owner
+  // has not named the salon yet we must not mint initials out of the generic
+  // "Your Salon" placeholder (that produced a fake "Y"/"N" monogram); the
+  // caller renders the neutral brand mark instead.
+  const name = (data.salonName || '').trim();
+  if (!name) return '';
   const words = name.split(/\s+/).filter(Boolean);
   const letters = words.slice(0, 2).map((word) => word[0]).join('');
   return (letters || name.slice(0, 2)).toUpperCase();
