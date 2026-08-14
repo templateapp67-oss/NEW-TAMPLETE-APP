@@ -1,0 +1,254 @@
+/**
+ * PHASE 11.1 — HERO · FULL-SERVICE FAMILY SALON (family_full_service)
+ *
+ * Visual language (used by NO other theme):
+ *   - Bright sky/teal panel with a big rounded "action card" that carries the
+ *     CTAs — a quick-access booking block rather than loose buttons.
+ *   - A collage of three overlapping rounded photo tiles (parent, kid,
+ *     stylist) with a sunshine badge — friendly and energetic.
+ *   - Three "who's it for" pills (Men · Women · Kids) sit directly under the
+ *     headline so families can self-select immediately.
+ *   - Meta strip presented as a bright rounded ribbon under the action card.
+ */
+import type { CSSProperties } from 'react';
+import type { SalonData } from '../../types';
+import SiteImage from '../SiteImage';
+import SiteSalonStatus from '../SiteSalonStatus';
+import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
+import { getSalonNameStyle } from '../../lib/brandIdentity';
+import { FAMILY_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
+import { heroText } from '../../lib/siteHeroI18n';
+import { heroDescription, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { openSiteBooking } from '../../lib/siteBooking';
+import { scrollToSiteSection } from '../../lib/siteNavigation';
+import type { ViewportMode } from '../../lib/siteStructure';
+import { Star, MapPin, ArrowRight, Smile, Users, PlayCircle, CalendarCheck } from 'lucide-react';
+
+interface Props {
+  data: SalonData;
+  mode: ViewportMode;
+}
+
+export default function FamilyHero({ data, mode }: Props) {
+  const locale = useSiteLocale();
+  const appearance = useThemeAppearance('family_full_service');
+  const t = surfacesOf(FAMILY_SURFACES, appearance);
+  const H = heroText('family_full_service', locale);
+  const headline = heroHeadline(data, H);
+  const media = heroMedia('family_full_service', data);
+  const meta = heroMeta('family_full_service', data);
+  const video = heroVideo('family_full_service', data);
+  const compact = mode === 'mobile';
+
+  const tealBtn: CSSProperties = { backgroundColor: t.teal, color: '#ffffff' };
+  const audience = [H.eyebrow.split('·')[0], H.eyebrow.split('·')[1], H.eyebrow.split('·')[2]]
+    .map((part) => (part || '').trim())
+    .filter(Boolean);
+
+  return (
+    <section
+      id="section-hero"
+      data-site-section="hero"
+      data-section-state="ready"
+      data-testid="site-hero"
+      data-hero-theme="family_full_service"
+      data-hero-layout="action-card-collage"
+      className="site-section relative overflow-hidden"
+      style={{ backgroundColor: t.sky }}
+    >
+      <div className="absolute -right-24 -top-28 w-72 h-72 rounded-full" style={{ backgroundColor: t.skyDeep, opacity: 0.55 }} />
+      <div className="absolute left-[-60px] bottom-[-80px] w-56 h-56 rounded-full border-[20px]" style={{ borderColor: 'rgba(7,159,154,0.14)' }} />
+
+      <div className={`relative z-10 ${compact ? 'px-5 py-10' : 'px-8 md:px-10 py-12 md:py-16'}`}>
+        <div className={`grid gap-8 items-center ${compact ? 'grid-cols-1' : 'md:grid-cols-[1.05fr_0.95fr]'}`}>
+          {/* ---- Copy + quick-access action card ------------------- */}
+          <div>
+            <div data-testid="hero-brand" className="flex items-center gap-3">
+              {data.logoUrl ? (
+                <img
+                  data-testid="hero-logo"
+                  src={data.logoUrl}
+                  alt={`${heroSalonName(data)} logo`}
+                  className="w-11 h-11 rounded-2xl object-cover shadow-md"
+                />
+              ) : (
+                <span
+                  data-testid="hero-logo"
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center text-[12px] font-extrabold shadow-md"
+                  style={{ backgroundColor: t.teal, color: '#ffffff' }}
+                >
+                  {heroLogoInitials(data)}
+                </span>
+              )}
+              <span
+                data-testid="hero-salon-name"
+                className="text-sm md:text-base font-extrabold tracking-[-0.02em]"
+                style={{ color: t.heading, ...getSalonNameStyle(data) }}
+              >
+                {heroSalonName(data)}
+              </span>
+            </div>
+
+            <h1
+              data-testid="hero-headline"
+              className={`mt-6 font-extrabold leading-[0.98] tracking-[-0.05em] ${compact ? 'text-[2.5rem]' : 'text-4xl md:text-[3.3rem]'}`}
+              style={{ color: t.heading }}
+            >
+              {headline.main}
+              <br />
+              <span style={{ color: t.teal }}>{headline.accent}</span>
+            </h1>
+
+            {/* Who is it for — instant self-select */}
+            <div className="flex flex-wrap gap-2 mt-5">
+              {audience.map((label) => (
+                <span
+                  key={label}
+                  className="rounded-full px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.16em] border"
+                  style={{ borderColor: t.skyDeep, color: t.blue, backgroundColor: t.card }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+
+            <p
+              data-testid="hero-description"
+              className="mt-5 max-w-md text-sm leading-relaxed"
+              style={{ color: t.muted }}
+            >
+              {heroDescription(data, H.description)}
+            </p>
+
+            {/* Easy-access CTA block */}
+            <div
+              className="mt-7 rounded-3xl border p-4 md:p-5 shadow-lg"
+              style={{ backgroundColor: t.card, borderColor: t.line }}
+            >
+              <span className="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.18em]" style={{ color: t.blue }}>
+                <CalendarCheck className="w-3.5 h-3.5" style={{ color: t.teal }} /> {H.chip2}
+              </span>
+              <div className={`grid gap-2.5 mt-3 ${compact ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                <button
+                  type="button"
+                  data-testid="hero-book-cta"
+                  data-open-booking="true"
+                  onClick={openSiteBooking}
+                  className="site-touch rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center justify-center gap-2 shadow-md transition-transform hover:-translate-y-0.5"
+                  style={tealBtn}
+                >
+                  {H.primaryCta} <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  data-testid="hero-services-cta"
+                  onClick={() => scrollToSiteSection('section-services')}
+                  className="site-touch rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] border flex items-center justify-center gap-2 transition-colors"
+                  style={{ borderColor: t.skyDeep, color: t.blue, backgroundColor: t.well }}
+                >
+                  {H.secondaryCta} <Users className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Bright meta ribbon */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 pt-3 border-t text-[10px] font-bold" style={{ borderColor: t.line, color: t.heading }}>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-base font-extrabold" style={{ color: t.teal }}>{H.statValue}</span> {H.statLabel}
+                </span>
+                {meta.rating && (
+                  <span data-testid="hero-rating" className="flex items-center gap-1.5">
+                    <Star className="w-3.5 h-3.5" style={{ color: t.sun, fill: t.sun }} />
+                    {meta.rating.average.toFixed(1)} · {meta.rating.count} {H['hero.reviewsSuffix']}
+                  </span>
+                )}
+                {meta.location && (
+                  <span data-testid="hero-location" className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" style={{ color: t.teal }} /> {meta.location}
+                  </span>
+                )}
+                <span data-testid="hero-status">
+                  <SiteSalonStatus themeId="family_full_service" data={data} placement="announcement" compact />
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ---- Friendly photo collage ---------------------------- */}
+          <div data-testid="hero-media" className={`relative ${compact ? 'min-h-[290px] mt-2' : 'min-h-[360px]'}`}>
+            <div className="absolute inset-x-6 top-2 bottom-4 rounded-[2.2rem] rotate-3" style={{ backgroundColor: t.teal }} />
+            <div
+              className="absolute inset-x-0 top-0 h-[74%] rounded-[2.2rem] overflow-hidden border-4 shadow-2xl -rotate-2"
+              style={{ borderColor: t.card, backgroundColor: t.tealSoft }}
+            >
+              <SiteImage
+                src={media.primary.url}
+                alt={H[media.primary.altKey]}
+                className="w-full h-full"
+                style={{ position: 'absolute', inset: 0 }}
+                context="hero"
+                priority
+                aspectRatio="4/3"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#12385b]/70 via-transparent to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white">
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-white/75">{H.mediaEyebrow}</p>
+                  <p className="text-base font-extrabold mt-1">{H.mediaTitle}</p>
+                </div>
+                <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: t.sun, color: '#12385b' }}>
+                  <Smile className="w-5 h-5" />
+                </span>
+              </div>
+            </div>
+
+            {/* Two overlapping tiles */}
+            {media.support.map((visual, index) => (
+              <div
+                key={visual.url}
+                className={`absolute rounded-3xl overflow-hidden border-4 shadow-xl ${
+                  index === 0 ? 'left-0 bottom-0 w-[46%] rotate-3' : 'right-1 bottom-6 w-[38%] -rotate-6'
+                }`}
+                style={{ borderColor: t.card }}
+              >
+                <SiteImage
+                  src={visual.url}
+                  alt={H[visual.altKey]}
+                  className="w-full"
+                  context="hero"
+                  priority
+                  aspectRatio="1/1"
+                />
+              </div>
+            ))}
+
+            <div
+              className="absolute -left-2 top-8 rounded-2xl px-3 py-2 shadow-xl border flex items-center gap-2"
+              style={{ borderColor: t.line, backgroundColor: t.card }}
+            >
+              <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.sunSoft, color: t.coral }}>
+                <Smile className="w-4 h-4" />
+              </span>
+              <div>
+                <p className="text-[9px] font-extrabold" style={{ color: t.ink }}>{H.chip1}</p>
+                <p className="text-[8px]" style={{ color: t.muted }}>{H.mediaBody}</p>
+              </div>
+            </div>
+
+            {video && (
+              <a
+                data-testid="hero-video"
+                href={video.url}
+                target="_blank"
+                rel="noreferrer"
+                className="site-touch absolute right-0 top-0 rounded-full px-3 py-2 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-lg inline-flex items-center gap-1.5"
+                style={{ backgroundColor: t.sun, color: '#12385b' }}
+              >
+                <PlayCircle className="w-3.5 h-3.5" /> {video.title}
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

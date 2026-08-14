@@ -9,6 +9,7 @@ import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
+import BarberHero from './heroes/BarberHero';
 import SiteSeo from './SiteSeo';
 import SiteImage from './SiteImage';
 import SiteSkeleton from './SiteSkeleton';
@@ -125,49 +126,8 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
         <SiteAnnouncementBar themeId="barber_mens_grooming" data={data} />
         <SiteHeader themeId="barber_mens_grooming" data={data} mode={headerMode} />
 
-        {/* Hero — above-the-fold, eager with priority, skeleton prevented via opacity */}
-        <div id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative overflow-hidden px-6 py-16 md:py-20 text-center" style={{ backgroundColor: charcoal }}>
-          {data.heroImageUrl && (
-            <SiteImage
-              src={data.heroImageUrl}
-              alt="Hero Banner"
-              className="absolute inset-0 w-full h-full object-cover opacity-20"
-              context="hero"
-              priority
-              aspectRatio="16/9"
-            />
-          )}
-          {/* Subtle barbershop stripe texture */}
-          <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{ backgroundImage: `repeating-linear-gradient(135deg, ${gold} 0px, ${gold} 1px, transparent 1px, transparent 14px)` }}
-          ></div>
-          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 0%, ${charcoal} 78%)` }}></div>
-
-          <div className="relative z-10 max-w-2xl mx-auto">
-            <div className="inline-flex items-center gap-3 mb-5">
-              <span className="h-px w-10" style={{ backgroundColor: gold }}></span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.35em]" style={{ color: accentText }}>
-                {S.heroEyebrow}
-              </span>
-              <span className="h-px w-10" style={{ backgroundColor: gold }}></span>
-            </div>
-            <h1 className="text-3xl md:text-5xl font-black uppercase tracking-[0.06em] leading-tight" style={{ color: textStrong }}>
-              {data.tagline || S.heroFallbackTagline}
-            </h1>
-            <p className="text-xs md:text-sm mt-5 mb-8 max-w-lg mx-auto leading-relaxed" style={{ color: muted }}>
-              {data.about || S.heroFallbackAbout}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-8 py-3.5 text-xs font-black uppercase tracking-[0.2em] transition-all hover:brightness-110" style={btnGold}>
-                {S['common.bookAppointment']}
-              </button>
-              <button className="site-touch px-8 py-3.5 text-xs font-black uppercase tracking-[0.2em] border transition-all hover:bg-white/5" style={{ borderColor: gold, color: accentText }}>
-                {S['common.viewServices']}
-              </button>
-            </div>
-          </div>
-        </div>
+        {/* Hero — PHASE 11.1: dedicated barber hero (cinematic slab) */}
+        <BarberHero data={data} mode={mode} />
 
         {/* Trust / Stats */}
         <div {...sectionProps('trust', 'ready')} className="site-section px-6 py-10 border-y" style={{ backgroundColor: charcoal, borderColor: line }}>

@@ -42,7 +42,8 @@
     "test:phase-10.13": "tsx scripts/test-phase-10.13.mjs",
     "generate:theme-seed": "tsx scripts/generate-theme-seed.mts --write",
     "validate:migrations": "tsx scripts/generate-theme-seed.mts --check && tsx scripts/validate-migrations.mjs",
-    "test:phase-10.6": "tsx scripts/test-phase-10.6.mjs"
+    "test:phase-10.6": "tsx scripts/test-phase-10.6.mjs",
+    "test:phase-11.1": "tsx scripts/test-phase-11.1.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

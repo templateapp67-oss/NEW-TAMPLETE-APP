@@ -10,9 +10,9 @@ import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
 import SiteSeo from './SiteSeo';
-import SiteImage from './SiteImage';
 import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
+import HairStudioHero from './heroes/HairStudioHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
@@ -132,35 +132,8 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
         <SiteAnnouncementBar themeId="hair_studio_color_bar" data={data} />
         <SiteHeader themeId="hair_studio_color_bar" data={data} mode={headerMode} />
 
-        <div id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative px-5 md:px-8 py-16 md:py-20 text-center overflow-hidden" style={{ backgroundColor: paperDeep }}>
-          {/* subtle double hairline frame */}
-          <div className="absolute inset-4 border pointer-events-none" style={{ borderColor: line }}></div>
-          <div className="absolute inset-[18px] border pointer-events-none" style={{ borderColor: line }}></div>
-
-          <div className="relative z-10 max-w-2xl mx-auto">
-            <div className="inline-flex items-center gap-4 mb-6">
-              <span className="h-px w-12" style={{ backgroundColor: rose }}></span>
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>
-                {S.heroEyebrow}
-              </span>
-              <span className="h-px w-12" style={{ backgroundColor: rose }}></span>
-            </div>
-            <h1 className="text-3xl md:text-5xl font-serif leading-tight" style={{ color: ink }}>
-              {data.tagline || S.heroFallbackTagline}
-            </h1>
-            <p className="text-xs md:text-sm mt-6 mb-9 max-w-lg mx-auto leading-relaxed" style={{ color: muted }}>
-              {data.about || S.heroFallbackAbout}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <button data-open-booking="true" onClick={openSiteBooking} className="px-9 py-3.5 text-[11px] uppercase tracking-[0.25em] font-semibold transition-all hover:brightness-110" style={btnRose}>
-                {S.heroPrimaryCta}
-              </button>
-              <button className="px-9 py-3.5 text-[11px] uppercase tracking-[0.25em] font-semibold border transition-colors" style={{ borderColor: ink, color: ink, backgroundColor: 'transparent' }}>
-                {S.heroSecondaryCta}
-              </button>
-            </div>
-          </div>
-        </div>
+        {/* Hero — PHASE 11.1: editorial gallery hero */}
+        <HairStudioHero data={data} mode={mode} />
 
         <div {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10 border-y" style={{ backgroundColor: paper, borderColor: line }}>
           <div className="max-w-3xl mx-auto text-center">

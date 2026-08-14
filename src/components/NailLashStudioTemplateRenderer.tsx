@@ -12,9 +12,9 @@ import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
 import SiteSeo from './SiteSeo';
-import SiteImage from './SiteImage';
 import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
+import NailLashHero from './heroes/NailLashHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
@@ -38,11 +38,9 @@ import {
   Award,
   BadgeCheck,
   CalendarDays,
-  Camera,
   ChevronRight,
   Clock3,
   Eye,
-  Heart,
   Instagram,
   Mail,
   MapPin,
@@ -244,7 +242,6 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
   const publicTeam = (data.team || []).map(getPublicStaffData);
   const phone = data.phone || '';
   const whatsapp = (data.whatsappPhone || data.phone || '').replace(/\D/g, '');
-  const heroImage = NAIL_ART[0].image;
   const studioImage = data.heroImageUrl || 'https://images.unsplash.com/photo-1600948836101-f9ffda59d250?q=80&w=1200&auto=format&fit=crop';
   const hours = data.openingHours ? Object.entries(data.openingHours).slice(0, 5) : [['monday', { open: true, startTime: '10:00 AM', endTime: '08:00 PM' }], ['tuesday', { open: true, startTime: '10:00 AM', endTime: '08:00 PM' }], ['wednesday', { open: true, startTime: '10:00 AM', endTime: '08:00 PM' }], ['thursday', { open: true, startTime: '10:00 AM', endTime: '08:00 PM' }], ['friday', { open: true, startTime: '10:00 AM', endTime: '09:00 PM' }]];
 
@@ -262,13 +259,8 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
         <SiteAnnouncementBar themeId="nail_lash_studio" data={data} />
         <SiteHeader themeId="nail_lash_studio" data={data} mode={headerMode} />
 
-        <section id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative overflow-hidden px-5 md:px-8 py-8 md:py-12" style={{ backgroundColor: sand }}>
-          <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full" style={{ backgroundColor: pinkSoft }} /><div className="absolute left-1/3 bottom-[-100px] w-48 h-48 rounded-full border-[20px]" style={{ borderColor: `${pink}22` }} />
-          <div className="relative z-10 grid md:grid-cols-[0.92fr_1.08fr] gap-8 items-center">
-            <div><span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 border" style={{ backgroundColor: t.card, borderColor: sandDeep, color: pinkDeep }}><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: pink }} />{S.heroBadge}</span><h1 className="mt-5 text-4xl md:text-6xl font-extrabold leading-[0.88] tracking-[-0.075em]" style={{ color: ink }}>{S.heroTitle1}<br /><span style={{ color: pink }}>{S.heroTitle2}</span></h1><p className="mt-5 max-w-md text-sm leading-relaxed" style={{ color: muted }}>{data.tagline || S.heroFallbackTagline}</p><div className="flex flex-wrap gap-3 mt-7"><Button href="#section-contact" primary book t={t}>{S.heroPrimaryCta} <ArrowRight className="w-4 h-4" /></Button><Button href="#section-nail-art" t={t}>{S.heroSecondaryCta} <Camera className="w-4 h-4" /></Button></div><div className="flex flex-wrap gap-x-5 gap-y-2 mt-7 text-[9px] font-extrabold uppercase tracking-[0.12em]" style={{ color: ink }}><span className="flex items-center gap-1.5"><BadgeCheck className="w-3.5 h-3.5" style={{ color: pink }} /> {S.heroChip1}</span><span className="flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" style={{ color: pink }} /> {S.heroChip2}</span></div></div>
-            <div className="relative min-h-[285px] md:min-h-[350px]"><div className="absolute right-0 top-0 w-[78%] h-[86%] rounded-[2rem] overflow-hidden rotate-3" style={{ backgroundColor: pink }}><img src={heroImage} alt="Glamorous nail art detail" className="w-full h-full object-cover opacity-90" /></div><div className="absolute left-0 bottom-0 w-[58%] h-[65%] rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl -rotate-6" style={{ backgroundColor: nude }}><img src={LASH_BROW[0].image} alt="Lash beauty detail" className="w-full h-full object-cover" /></div><div className="absolute right-2 bottom-5 rounded-2xl px-3 py-2.5 shadow-xl border" style={{ borderColor: line, backgroundColor: t.card }}><p className="text-[8px] uppercase tracking-[0.16em] font-extrabold" style={{ color: pinkDeep }}>{S.heroCardEyebrow}</p><p className="text-xs font-extrabold mt-1" style={{ color: ink }}>{S.heroCardTitle}</p></div><div className="absolute left-[-5px] top-8 w-12 h-12 rounded-full flex items-center justify-center border-4 border-white" style={{ backgroundColor: pink, color: '#ffffff' }}><Sparkles className="w-5 h-5" /></div></div>
-          </div>
-        </section>
+        {/* Hero — PHASE 11.1: glam card-shelf hero */}
+        <NailLashHero data={data} mode={mode} />
 
         <section {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: sand }}>
           <div className="text-center max-w-xl mx-auto">

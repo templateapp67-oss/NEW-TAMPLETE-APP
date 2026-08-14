@@ -1,10 +1,32 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-14** (session `arena/019ffdeb-new-tamplete-app`).
+> Last updated: **2026-08-14** (session `arena/019ffe18-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **Phase 11.1 — UNIQUE HERO DESIGN: COMPLETE for all five themes.**
+  - Five genuinely separate hero components in `src/components/heroes/`
+    (`BarberHero`, `HairStudioHero`, `BeautySpaHero`, `FamilyHero`,
+    `NailLashHero`) — one file per theme, no shared layout:
+    barber `cinematic-slab`, hair `editorial-gallery`, spa `soft-arch`,
+    family `action-card-collage`, nail `glam-card-shelf`.
+  - Every hero carries: salon logo/name, theme headline, short description,
+    primary Book Appointment CTA (opens the existing 10.6 flow), secondary
+    Explore Services CTA (scrolls to `#section-services`), hero image and/or
+    owner reel, plus optional rating / location / live open-status.
+  - Owner data wins: tagline drives the single `<h1>`, About drives the
+    description, `logoUrl` / `heroImageUrl` / gallery drive the visuals; each
+    theme falls back to its own disjoint imagery set.
+  - New: `src/lib/siteHeroI18n.ts` (per-theme EN/HI hero copy) and
+    `src/lib/siteHero.ts` (media / meta / headline helpers). Renderers only
+    swapped their inline hero markup for one hero component call.
+  - Phase 10.1 header, 10.2 Language + Dark Mode and 10.3 canonical section
+    order are untouched; no database, migration, service or theme-data change.
+  - Validation: `npm run test:phase-11.1` = 215/215; `npm run test:phase-10`
+    = 1259/1259; lint, build and 25-screen verification green. Details:
+    `docs/phase-11.1-unique-hero-design.md`.
 
 - **Phase 10.13 — GLOBAL WEBSITE FINAL AUDIT: COMPLETE for all five themes.**
   - Exact 16-section flow passes in Desktop, Tablet and Mobile for Barber,
@@ -578,7 +600,8 @@ npm run test:phase-10.4    # final CTA, footer & floating actions
 npm run test:phase-10.5    # announcement bar & live salon status
 npm run test:phase-10.6    # Book Appointment entry flow (102 tests)
 npm run test:phase-10.7    # Advance payment & booking confirmation (66 tests)
-npm run test:phase-10      # every Phase 10 suite (557 tests)
+npm run test:phase-10      # every Phase 10 suite (1259 tests)
+npm run test:phase-11.1    # unique hero design across all five themes (215 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -591,6 +614,7 @@ Expected output:
 - `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
 - `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
+- `test:phase-11.1`: 215/215 passed (unique hero design, all five themes)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

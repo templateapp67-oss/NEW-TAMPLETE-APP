@@ -68,6 +68,7 @@ npm run test:phase-10.6     # Book Appointment entry flow (Service → Date → 
 npm run test:phase-10.7     # Advance payment & booking confirmation
 npm run test:phase-10.8     # Reviews, ratings & social / latest-work feed
 npm run test:phase-10       # all Phase 10 suites
+npm run test:phase-11.1     # unique hero design across all five themes
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
