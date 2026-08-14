@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, type CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
@@ -20,11 +20,12 @@ import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
 import SiteCombos from './SiteCombos';
+import SiteGallery from './SiteGallery';
 import SiteServiceDirectory from './SiteServiceDirectory';
-import { setActiveTheme, markPerformance, paginateList } from '../lib/sitePerformance';
+import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { BARBER_SURFACES, surfacesOf } from '../lib/themeSurfaces';
-import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
+import { dayLabel, siteText } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
   activeCatalogItems,
@@ -80,18 +81,12 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
     };
   }, []);
   const packages = useMemo(() => activeCatalogItems(data.packages), [data.packages]);
-  const galleryItems = useMemo(() => data.gallery || [], [data.gallery]);
   const teamItems = useMemo(() => data.team || [], [data.team]);
   const offersState = resolveSectionState('offers', packages);
-  const galleryState = resolveSectionState('gallery', galleryItems);
   const teamState = resolveSectionState('team', teamItems);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
   const locationState = resolveSectionState('location', data.address?.fullAddress ? [data.address.fullAddress] : ['fallback']);
-  // Large list optimization: paginate gallery for fast mobile on slow networks
-  const [visibleGallery, setVisibleGallery] = useState(12);
-  const displayedGallery = useMemo(() => galleryItems.slice(0, visibleGallery), [galleryItems, visibleGallery]);
-
   const btnGold: CSSProperties = {
     backgroundColor: gold,
     color: '#141414',
@@ -141,46 +136,8 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
         {/* Combos & Packages */}
         <SiteCombos themeId="barber_mens_grooming" data={data} mode={mode} />
 
-        {/* Gallery — The Work */}
-        <div {...sectionProps('gallery', galleryState)} className="site-section px-6 py-14 border-t" style={{ backgroundColor: charcoal, borderColor: line }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-10">
-              <span className="text-[10px] font-bold uppercase tracking-[0.35em]" style={{ color: accentText }}>{S.galleryEyebrow}</span>
-              <h3 className="text-2xl md:text-3xl font-black uppercase tracking-[0.05em] mt-2" style={{ color: textStrong }}>{S.galleryTitle}</h3>
-            </div>
-            {galleryState === 'ready' ? (
-              <>
-                <div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
-                  {displayedGallery.map((item) => (
-                    <div key={item.id} className="relative aspect-square overflow-hidden border group" style={{ borderColor: line, aspectRatio: '1/1', contain: 'content' }}>
-                      <SiteImage src={item.url} alt={item.alt || S['common.defaultPhotoAlt']} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" context="gallery" aspectRatio="1/1" />
-                      <div className="absolute inset-0 flex items-end p-2.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5" style={{ backgroundColor: gold, color: '#141414' }}>
-                          {translateCategory(item.category || 'General', locale)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {galleryItems.length > visibleGallery && (
-                  <div className="text-center mt-6">
-                    <button
-                      type="button"
-                      data-testid="site-gallery-load-more"
-                      onClick={() => setVisibleGallery((v) => v + 12)}
-                      className="px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] border"
-                      style={{ borderColor: gold, color: gold }}
-                    >
-                      Load More ({galleryItems.length - visibleGallery} remaining)
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <SectionStatePanel status={galleryState} copy={X} palette={palette} emptyTitle={S.galleryEmpty} section="gallery" mode={mode} />
-            )}
-          </div>
-        </div>
+        {/* Gallery — PHASE 14.1: theme-scoped portfolio (featured, filter, lightbox, before/after) */}
+        <SiteGallery themeId="barber_mens_grooming" data={data} mode={mode} />
 
         <SiteSocialFeed themeId="barber_mens_grooming" data={data} mode={mode} />
 

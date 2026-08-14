@@ -92,6 +92,10 @@ export interface ServiceOffer {
   savedServiceId: string | null;
   packageId: string | null;
   title: string;
+  /** Optional customer-facing offer description (Phase 13 curated offers). */
+  description?: string;
+  /** Optional explicit service id list an offer applies to (Phase 13). */
+  serviceIds?: string[];
   promotionalBadge: string;
   discountType: DiscountType;
   /** Percentage points for percentage offers; rupees for fixed offers. */
@@ -149,6 +153,22 @@ export interface GalleryImage {
   url: string;
   alt?: string;
   category?: 'Interior' | 'Details' | 'Hair' | 'Barber' | 'Beauty' | 'General' | string;
+  /**
+   * PHASE 14.1 — optional theme scoping. An item scoped to a different theme
+   * is never shown on the active theme's gallery (theme isolation).
+   */
+  themeId?: string | null;
+  /**
+   * PHASE 14.1 — before & after pair. When configured (and a safe image URL),
+   * `url` is the AFTER image and `beforeUrl` the BEFORE image; the gallery
+   * lightbox renders the pair with a drag slider.
+   */
+  beforeUrl?: string;
+  beforeAlt?: string;
+  /** Optional customer-facing caption under the lightbox preview. */
+  caption?: string;
+  /** Marks the image the gallery features as its spotlight/hero visual. */
+  featured?: boolean;
 }
 
 export interface SocialProfiles {

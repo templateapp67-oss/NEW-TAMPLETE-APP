@@ -27,6 +27,9 @@ interface Props {
   onError?: () => void;
   fallback?: string;
   rounded?: string; // tailwind rounded class
+  /** PHASE 14.1 — object-fit of the inner img ('cover' default; 'contain'
+   *  for lightbox previews so no content is cropped). */
+  fit?: 'cover' | 'contain';
 }
 
 export default function SiteImage({
@@ -42,6 +45,7 @@ export default function SiteImage({
   onError,
   fallback,
   rounded = '',
+  fit = 'cover',
 }: Props) {
   const [loaded, setLoaded] = useState(() => isImageCached(src));
   const [error, setError] = useState(false);
@@ -121,7 +125,7 @@ export default function SiteImage({
           alt={alt}
           loading={loadingAttr}
           decoding={decodingAttr}
-          className={`w-full h-full object-cover ${rounded}`}
+          className={`w-full h-full object-${fit} ${rounded}`}
           onLoad={handleLoad}
           onError={() => setError(true)}
         />
@@ -174,7 +178,7 @@ export default function SiteImage({
           decoding={decodingAttr}
           // @ts-ignore fetchPriority is valid
           fetchPriority={fetchPriority}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} ${rounded}`}
+          className={`w-full h-full object-${fit} transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} ${rounded}`}
           style={{ maxWidth: '100%' }}
           onLoad={handleLoad}
           onError={handleError}

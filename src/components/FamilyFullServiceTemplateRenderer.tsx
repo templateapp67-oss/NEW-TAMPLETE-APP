@@ -21,9 +21,11 @@ import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
 import SiteCombos from './SiteCombos';
+import SiteGallery from './SiteGallery';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
+import { galleryThemeMedia } from '../lib/siteGallery';
 import { FAMILY_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import type { FamilySurface } from '../lib/themeSurfaces';
 import { dayLabel, siteText } from '../lib/siteI18n';
@@ -41,11 +43,9 @@ import {
   Baby,
   BadgeCheck,
   CalendarDays,
-  Camera,
   CheckCircle2,
   Clock3,
   HeartHandshake,
-  Instagram,
   Mail,
   MapPin,
   MessageCircle,
@@ -78,24 +78,6 @@ interface Props {
   mode: ViewportMode;
 }
 
-const PREVIEW_GALLERY_BASE = [
-  {
-    url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1000&auto=format&fit=crop',
-    alt: 'Bright family salon interior',
-  },
-  {
-    url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=900&auto=format&fit=crop',
-    alt: 'Salon tools ready for a family appointment',
-  },
-  {
-    url: 'https://images.unsplash.com/photo-1562322140-8baeececf3df?q=80&w=900&auto=format&fit=crop',
-    alt: 'Fresh salon hairstyle',
-  },
-  {
-    url: 'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=900&auto=format&fit=crop',
-    alt: 'Stylist working in a modern salon',
-  },
-];
 
 type FocusItem = { label: string; icon: typeof Scissors };
 
@@ -245,35 +227,6 @@ function EmptyMenu({
   );
 }
 
-type GalleryImageTile = { url: string; alt: string; label: string };
-
-function GalleryTile({
-  image,
-  index,
-  mode,
-}: {
-  image: GalleryImageTile;
-  index: number;
-  mode: ViewportMode;
-  key?: string;
-}) {
-  const isWide = mode === 'desktop' && index === 0;
-  return (
-    <div className={`${isWide ? 'md:col-span-2' : ''} relative overflow-hidden rounded-[1.5rem] min-h-[150px] group`}>
-      <img
-        src={image.url}
-        alt={image.alt}
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#12385b]/80 via-transparent to-transparent" />
-      <div className="absolute left-4 right-4 bottom-4 flex items-end justify-between gap-3">
-        <span className="text-[10px] font-extrabold text-white uppercase tracking-[0.16em]">{image.label}</span>
-        <Camera className="w-4 h-4 text-white/80" />
-      </div>
-    </div>
-  );
-}
-
 function TeamCard({ member, t }: { member: ReturnType<typeof getPublicStaffData>; key?: string; t: FamilySurface }) {
   return (
     <div className="rounded-[1.5rem] border overflow-hidden" style={{ backgroundColor: t.card, borderColor: t.line }}>
@@ -362,25 +315,13 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   };
 
   const groups = getServiceGroups(data);
-  const FALLBACK_GALLERY: GalleryImageTile[] = PREVIEW_GALLERY_BASE.map((img, i) => ({
-    ...img,
-    label: [S.gallery1, S.gallery2, S.gallery3, S.gallery4][i] || S.gallery1,
-  }));
-  const gallery: GalleryImageTile[] = data.gallery && data.gallery.length > 0
-    ? data.gallery.slice(0, 6).map((image, index) => ({
-        url: image.url,
-        alt: image.alt || S.galleryDefaultAlt,
-        label: image.category || (index === 0 ? S.gallery1 : S.galleryDefaultLabel),
-      }))
-    : FALLBACK_GALLERY;
   const publicTeam = (data.team || []).map(getPublicStaffData);
   const offersState = resolveSectionState('offers', (data.packages || []));
-  const galleryState = resolveSectionState('gallery', data.gallery);
   const teamState = resolveSectionState('team', publicTeam);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', [data.about || '1']);
   const locationState = resolveSectionState('location', ['ready']);
-  const secondaryImage = gallery[1]?.url || PREVIEW_GALLERY_BASE[1].url;
+  const secondaryImage = data.gallery?.[1]?.url || galleryThemeMedia('family_full_service')[1]?.src || '';
   const contactPhone = data.phone || '';
   const whatsappPhone = (data.whatsappPhone || data.phone || '').replace(/\D/g, '');
   const hours = data.openingHours
@@ -497,11 +438,8 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
         {/* Combos & Packages */}
         <SiteCombos themeId="family_full_service" data={data} mode={mode} />
 
-        {/* Gallery */}
-        <section {...sectionProps('gallery', galleryState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: sky }}>
-          <div className="flex items-end justify-between gap-4 mb-7"><SectionIntro eyebrow={S.galleryEyebrow} title={S.galleryTitle} body={S.galleryBody} t={t} /><a href={data.socialProfiles?.instagram || '#section-gallery'} className="hidden md:inline-flex items-center gap-1 text-[10px] font-extrabold" style={{ color: blue }}>Instagram <Instagram className="w-3.5 h-3.5" /></a></div>
-          <div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 2 })}`}>{gallery.map((image, index) => <GalleryTile key={`${image.url}-${index}`} image={image} index={index} mode={mode} />)}</div>
-        </section>
+        {/* Gallery — PHASE 14.1: theme-scoped portfolio (featured, filter, lightbox, before/after) */}
+        <SiteGallery themeId="family_full_service" data={data} mode={mode} />
 
         <SiteSocialFeed themeId="family_full_service" data={data} mode={mode} />
 
