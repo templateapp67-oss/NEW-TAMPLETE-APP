@@ -35,6 +35,33 @@
   min-width: 44px;
 }
 
+/* PHASE 11.5 — hero CTA interaction states.
+   Scoped to the hero only (`.site-hero-cta`) so Phase 10 controls are
+   untouched. Uses the theme's own accent via `currentColor`, so each hero
+   keeps its own look while gaining visible keyboard focus. */
+.site-hero-cta {
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+.site-hero-cta:hover {
+  filter: brightness(1.06);
+}
+.site-hero-cta:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.site-hero-cta:active {
+  transform: translateY(1px) scale(0.985);
+  filter: brightness(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-hero-cta {
+    transition: none;
+  }
+  .site-hero-cta:active {
+    transform: none;
+  }
+}
+
 /* PHASE 10.4 — floating actions + mobile dock must not cover content */
 .site-fab {
   min-height: 44px;

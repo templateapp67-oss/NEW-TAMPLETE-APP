@@ -83,9 +83,13 @@ export interface HeroCopy {
   /** Alt text for the supporting hero visuals. */
   mediaAltB: string;
   mediaAltC: string;
-  /** Theme-specific micro-stat shown in the hero meta strip. */
-  statValue: string;
-  statLabel: string;
+  /**
+   * PHASE 11.5 — labels for the hero micro-stat. The VALUE is always derived
+   * from real salon data (`heroStat()`); these are only the theme's wording.
+   * No fabricated business metrics.
+   */
+  statServicesLabel: string;
+  statTeamLabel: string;
 }
 
 type Table = Record<SiteHeaderThemeId, Record<AppLocale, HeroCopy>>;
@@ -119,8 +123,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'Barber finishing a sharp skin fade',
       mediaAltB: 'Straight-razor hot towel shave',
       mediaAltC: 'Beard sculpting with vintage barber tools',
-      statValue: '12k+',
-      statLabel: 'Cuts delivered',
+      statServicesLabel: 'Services on the board',
+      statTeamLabel: 'Barbers on the floor',
     },
     hi: {
       eyebrow: 'स्थापित 2016 · मेन्स ग्रूमिंग रूम',
@@ -145,8 +149,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'बार्बर परफ़ेक्ट स्किन फेड पूरा करते हुए',
       mediaAltB: 'स्ट्रेट-रेज़र हॉट टॉवल शेव',
       mediaAltC: 'विंटेज टूल्स से बियर्ड शेपिंग',
-      statValue: '12k+',
-      statLabel: 'कट पूरे किए',
+      statServicesLabel: 'बोर्ड पर सेवाएँ',
+      statTeamLabel: 'फ़्लोर पर बार्बर',
     },
   },
 
@@ -178,8 +182,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'Editorial portrait of a fresh balayage finish',
       mediaAltB: 'Colour bar toning session in progress',
       mediaAltC: 'Precision cutting detail in the studio',
-      statValue: '9',
-      statLabel: 'Colour formulas on the bar',
+      statServicesLabel: 'Services on the menu',
+      statTeamLabel: 'Stylists in the studio',
     },
     hi: {
       eyebrow: 'कलर बार · प्रिसिज़न स्टूडियो',
@@ -204,8 +208,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'ताज़ा बलायाज फ़िनिश का एडिटोरियल पोर्ट्रेट',
       mediaAltB: 'कलर बार पर टोनिंग सेशन',
       mediaAltC: 'स्टूडियो में प्रिसिज़न कटिंग डिटेल',
-      statValue: '9',
-      statLabel: 'कलर फ़ॉर्मूले बार पर',
+      statServicesLabel: 'मेनू में सेवाएँ',
+      statTeamLabel: 'स्टूडियो में स्टाइलिस्ट',
     },
   },
 
@@ -237,8 +241,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'Calm facial treatment in a softly lit spa room',
       mediaAltB: 'Warm oil massage therapy detail',
       mediaAltC: 'Spa botanicals and folded towels',
-      statValue: '75 min',
-      statLabel: 'Average ritual',
+      statServicesLabel: 'Treatments available',
+      statTeamLabel: 'Therapists on call',
     },
     hi: {
       eyebrow: 'स्किन · स्पा · वेलनेस सैंक्चुअरी',
@@ -263,8 +267,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'हल्की रोशनी वाले स्पा रूम में शांत फेशियल',
       mediaAltB: 'गर्म तेल मसाज थेरेपी',
       mediaAltC: 'स्पा की जड़ी-बूटियाँ और तौलिए',
-      statValue: '75 मिनट',
-      statLabel: 'औसत रिचुअल',
+      statServicesLabel: 'उपलब्ध ट्रीटमेंट',
+      statTeamLabel: 'उपलब्ध थेरेपिस्ट',
     },
   },
 
@@ -296,8 +300,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'Family enjoying a bright, friendly salon visit',
       mediaAltB: 'Child getting a gentle first haircut',
       mediaAltC: 'Stylist finishing a haircare blow-dry',
-      statValue: '3',
-      statLabel: 'Chairs bookable together',
+      statServicesLabel: 'Family services',
+      statTeamLabel: 'Team members ready',
     },
     hi: {
       eyebrow: 'पुरुष · महिलाएँ · बच्चे',
@@ -322,8 +326,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'परिवार रोशन और दोस्ताना सैलून विज़िट का आनंद लेते हुए',
       mediaAltB: 'बच्चे का पहला सौम्य हेयरकट',
       mediaAltC: 'स्टाइलिस्ट हेयरकेयर ब्लो-ड्राई पूरी करते हुए',
-      statValue: '3',
-      statLabel: 'चेयर एक साथ बुक करें',
+      statServicesLabel: 'फ़ैमिली सेवाएँ',
+      statTeamLabel: 'तैयार टीम सदस्य',
     },
   },
 
@@ -355,8 +359,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'Glossy chrome gel nail art set close up',
       mediaAltB: 'Russian volume lash detail',
       mediaAltC: 'Brow lamination finish',
-      statValue: '3 wks+',
-      statLabel: 'Average gel set wear',
+      statServicesLabel: 'Studio services',
+      statTeamLabel: 'Nail & lash artists',
     },
     hi: {
       eyebrow: 'नेल आर्ट · लैश · ब्रो स्टूडियो',
@@ -381,8 +385,8 @@ const HERO_TEXT: Table = {
       mediaAlt: 'चमकदार क्रोम जेल नेल आर्ट सेट का क्लोज़-अप',
       mediaAltB: 'रशियन वॉल्यूम लैश डिटेल',
       mediaAltC: 'ब्रो लैमिनेशन फ़िनिश',
-      statValue: '3 हफ़्ते+',
-      statLabel: 'औसतन जेल सेट टिकता है',
+      statServicesLabel: 'स्टूडियो सेवाएँ',
+      statTeamLabel: 'नेल और लैश आर्टिस्ट',
     },
   },
 };

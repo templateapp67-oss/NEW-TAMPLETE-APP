@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { FAMILY_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -43,6 +43,7 @@ export default function FamilyHero({ data, mode }: Props) {
   const reducedMotion = useReducedMotion();
   const plan = heroMediaPlan('family_full_service', data, reducedMotion);
   const cta = heroCtaOptions(data);
+  const stat = heroStat(data, H);
   const compact = mode === 'mobile';
   // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
   const pad = heroModeValue(mode, { desktop: 'px-10 py-16', tablet: 'px-8 py-12', mobile: 'px-5 py-10' });
@@ -144,7 +145,7 @@ export default function FamilyHero({ data, mode }: Props) {
               style={{ backgroundColor: t.card, borderColor: t.line }}
             >
               <span className="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.18em]" style={{ color: t.blue }}>
-                <CalendarCheck className="w-3.5 h-3.5" style={{ color: t.teal }} /> {H.chip2}
+                <CalendarCheck className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.chip2}
               </span>
               <div className={`grid gap-2.5 mt-3 ${compact ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 <button
@@ -152,19 +153,19 @@ export default function FamilyHero({ data, mode }: Props) {
                   data-testid="hero-book-cta"
                   data-open-booking="true"
                   onClick={openSiteBooking}
-                  className="site-touch rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center justify-center gap-2 shadow-md transition-transform hover:-translate-y-0.5"
+                  className="site-touch site-hero-cta rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center justify-center gap-2 shadow-md transition-transform hover:-translate-y-0.5"
                   style={tealBtn}
                 >
-                  {H.primaryCta} <ArrowRight className="w-4 h-4" />
+                  {H.primaryCta} <ArrowRight className="w-4 h-4" aria-hidden />
                 </button>
                 <button
                   type="button"
                   data-testid="hero-services-cta"
                   onClick={() => scrollToSiteSection('section-services')}
-                  className="site-touch rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] border flex items-center justify-center gap-2 transition-colors"
+                  className="site-touch site-hero-cta rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] border flex items-center justify-center gap-2 transition-colors"
                   style={{ borderColor: t.skyDeep, color: t.blue, backgroundColor: t.well }}
                 >
-                  {H.secondaryCta} <Users className="w-4 h-4" />
+                  {H.secondaryCta} <Users className="w-4 h-4" aria-hidden />
                 </button>
               </div>
 
@@ -175,10 +176,10 @@ export default function FamilyHero({ data, mode }: Props) {
                     <a
                       data-testid="hero-call-cta"
                       href={cta.call.href}
-                      className="site-touch rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
+                      className="site-touch site-hero-cta rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
-                      <Phone className="w-3.5 h-3.5" style={{ color: t.teal }} /> {H.callCta}
+                      <Phone className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.callCta}
                     </a>
                   )}
                   {cta.whatsApp && (
@@ -187,10 +188,10 @@ export default function FamilyHero({ data, mode }: Props) {
                       href={cta.whatsApp.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="site-touch rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
+                      className="site-touch site-hero-cta rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
-                      <MessageCircle className="w-3.5 h-3.5" style={{ color: t.teal }} /> {H.whatsAppCta}
+                      <MessageCircle className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.whatsAppCta}
                     </a>
                   )}
                   {cta.gallery && (
@@ -198,10 +199,10 @@ export default function FamilyHero({ data, mode }: Props) {
                       type="button"
                       data-testid="hero-gallery-cta"
                       onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                      className="site-touch rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
+                      className="site-touch site-hero-cta rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
-                      <Images className="w-3.5 h-3.5" style={{ color: t.teal }} /> {H.galleryCta}
+                      <Images className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.galleryCta}
                     </button>
                   )}
                 </div>
@@ -209,18 +210,20 @@ export default function FamilyHero({ data, mode }: Props) {
 
               {/* Bright meta ribbon */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 pt-3 border-t text-[10px] font-bold" style={{ borderColor: t.line, color: t.heading }}>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-base font-extrabold" style={{ color: t.teal }}>{H.statValue}</span> {H.statLabel}
-                </span>
+                {stat && (
+                  <span data-testid="hero-stat" className="flex items-center gap-1.5">
+                    <span className="text-base font-extrabold" style={{ color: t.teal }}>{stat.value}</span> {stat.label}
+                  </span>
+                )}
                 {meta.rating && (
                   <span data-testid="hero-rating" className="flex items-center gap-1.5">
-                    <Star className="w-3.5 h-3.5" style={{ color: t.sun, fill: t.sun }} />
+                    <Star className="w-3.5 h-3.5" style={{ color: t.sun, fill: t.sun }} aria-hidden />
                     {meta.rating.average.toFixed(1)} · {meta.rating.count} {H['hero.reviewsSuffix']}
                   </span>
                 )}
                 {meta.location && (
                   <span data-testid="hero-location" className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5" style={{ color: t.teal }} /> {meta.location}
+                    <MapPin className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {meta.location}
                   </span>
                 )}
                 <span data-testid="hero-status">
@@ -251,7 +254,7 @@ export default function FamilyHero({ data, mode }: Props) {
                   <p className="text-base font-extrabold mt-1">{H.mediaTitle}</p>
                 </div>
                 <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: t.sun, color: '#12385b' }}>
-                  <Smile className="w-5 h-5" />
+                  <Smile className="w-5 h-5" aria-hidden />
                 </span>
               </div>
             </HeroMediaFrame>
@@ -282,7 +285,7 @@ export default function FamilyHero({ data, mode }: Props) {
               style={{ borderColor: t.line, backgroundColor: t.card }}
             >
               <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.sunSoft, color: t.coral }}>
-                <Smile className="w-4 h-4" />
+                <Smile className="w-4 h-4" aria-hidden />
               </span>
               <div>
                 <p className="text-[9px] font-extrabold" style={{ color: t.ink }}>{H.chip1}</p>
@@ -296,10 +299,10 @@ export default function FamilyHero({ data, mode }: Props) {
                 href={plan.externalVideo.src}
                 target="_blank"
                 rel="noreferrer"
-                className="site-touch absolute right-0 top-0 rounded-full px-3 py-2 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-lg inline-flex items-center gap-1.5"
+                className="site-touch site-hero-cta absolute right-0 top-0 rounded-full px-3 py-2 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-lg inline-flex items-center gap-1.5"
                 style={{ backgroundColor: t.sun, color: '#12385b' }}
               >
-                <PlayCircle className="w-3.5 h-3.5" /> {plan.externalVideo.title || H.videoCta}
+                <PlayCircle className="w-3.5 h-3.5" aria-hidden /> {plan.externalVideo.title || H.videoCta}
               </a>
             )}
           </div>

@@ -96,7 +96,12 @@ export default function HeroMediaFrame({
           loop
           playsInline
           preload="metadata"
+          // Ambience only: the hero headline already conveys the meaning, so
+          // the clip is exposed as an unlabelled decorative image to AT rather
+          // than an interactive media element.
+          role="img"
           aria-label={alt}
+          tabIndex={-1}
           onError={() => setVideoFailed(true)}
         />
       ) : (

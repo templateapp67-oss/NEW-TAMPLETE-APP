@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -43,6 +43,7 @@ export default function NailLashHero({ data, mode }: Props) {
   const reducedMotion = useReducedMotion();
   const plan = heroMediaPlan('nail_lash_studio', data, reducedMotion);
   const cta = heroCtaOptions(data);
+  const stat = heroStat(data, H);
   const compact = mode === 'mobile';
   // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
   const pad = heroModeValue(mode, { desktop: 'px-10 py-16', tablet: 'px-8 py-12', mobile: 'px-5 py-10' });
@@ -109,7 +110,7 @@ export default function NailLashHero({ data, mode }: Props) {
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.2em] shrink-0"
             style={{ backgroundColor: t.card, color: t.pinkDeep }}
           >
-            <Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} /> {H.eyebrow}
+            <Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} aria-hidden /> {H.eyebrow}
           </span>
           )}
         </div>
@@ -168,25 +169,25 @@ export default function NailLashHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] inline-flex items-center gap-2 transition-transform hover:-translate-y-0.5"
+                className="site-touch site-hero-cta rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] inline-flex items-center gap-2 transition-transform hover:-translate-y-0.5"
                 style={neonBtn}
               >
-                {H.primaryCta} <ArrowRight className="w-4 h-4" />
+                {H.primaryCta} <ArrowRight className="w-4 h-4" aria-hidden />
               </button>
               <button
                 type="button"
                 data-testid="hero-services-cta"
                 onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] border inline-flex items-center gap-2"
+                className="site-touch site-hero-cta rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] border inline-flex items-center gap-2"
                 style={{ borderColor: t.sandDeep, color: t.ink, backgroundColor: t.card }}
               >
-                {H.secondaryCta} <Camera className="w-4 h-4" />
+                {H.secondaryCta} <Camera className="w-4 h-4" aria-hidden />
               </button>
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: t.ink }}>
-              <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} /> {H.chip1}</span>
-              <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} /> {H.chip2}</span>
+              <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} aria-hidden /> {H.chip1}</span>
+              <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} aria-hidden /> {H.chip2}</span>
             </div>
 
             {/* PHASE 11.3 — optional actions as glossy neon tags */}
@@ -196,10 +197,10 @@ export default function NailLashHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
-                    <Phone className="w-3.5 h-3.5" /> {H.callCta}
+                    <Phone className="w-3.5 h-3.5" aria-hidden /> {H.callCta}
                   </a>
                 )}
                 {cta.whatsApp && (
@@ -208,10 +209,10 @@ export default function NailLashHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
-                    <MessageCircle className="w-3.5 h-3.5" /> {H.whatsAppCta}
+                    <MessageCircle className="w-3.5 h-3.5" aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
@@ -219,10 +220,10 @@ export default function NailLashHero({ data, mode }: Props) {
                     type="button"
                     data-testid="hero-gallery-cta"
                     onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
-                    <Images className="w-3.5 h-3.5" /> {H.galleryCta}
+                    <Images className="w-3.5 h-3.5" aria-hidden /> {H.galleryCta}
                   </button>
                 )}
               </div>
@@ -280,10 +281,10 @@ export default function NailLashHero({ data, mode }: Props) {
                   href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
-                  className="site-touch rounded-full px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-1.5"
+                  className="site-touch site-hero-cta rounded-full px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-1.5"
                   style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                 >
-                  <PlayCircle className="w-3.5 h-3.5" /> {plan.externalVideo.title || H.videoCta}
+                  <PlayCircle className="w-3.5 h-3.5" aria-hidden /> {plan.externalVideo.title || H.videoCta}
                 </a>
               )}
             </div>
@@ -295,19 +296,21 @@ export default function NailLashHero({ data, mode }: Props) {
           className="mt-9 rounded-[1.4rem] px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 border"
           style={{ backgroundColor: t.card, borderColor: t.line }}
         >
-          <span className="flex items-baseline gap-1.5">
-            <span className="text-lg font-extrabold" style={{ color: t.pinkDeep }}>{H.statValue}</span>
-            <span className="text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: t.muted }}>{H.statLabel}</span>
-          </span>
+          {stat && (
+            <span data-testid="hero-stat" className="flex items-baseline gap-1.5">
+              <span className="text-lg font-extrabold" style={{ color: t.pinkDeep }}>{stat.value}</span>
+              <span className="text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: t.muted }}>{stat.label}</span>
+            </span>
+          )}
           {meta.rating && (
             <span data-testid="hero-rating" className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: t.ink }}>
-              <Star className="w-3.5 h-3.5" style={{ color: t.pink, fill: t.pink }} />
+              <Star className="w-3.5 h-3.5" style={{ color: t.pink, fill: t.pink }} aria-hidden />
               {meta.rating.average.toFixed(1)} · {meta.rating.count} {H['hero.reviewsSuffix']}
             </span>
           )}
           {meta.location && (
             <span data-testid="hero-location" className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: t.ink }}>
-              <MapPin className="w-3.5 h-3.5" style={{ color: t.pink }} /> {meta.location}
+              <MapPin className="w-3.5 h-3.5" style={{ color: t.pink }} aria-hidden /> {meta.location}
             </span>
           )}
           <span data-testid="hero-status">

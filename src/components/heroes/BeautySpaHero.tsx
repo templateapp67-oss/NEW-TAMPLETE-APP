@@ -18,7 +18,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BEAUTY_SPA_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -42,6 +42,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
   const reducedMotion = useReducedMotion();
   const plan = heroMediaPlan('beauty_skin_spa', data, reducedMotion);
   const cta = heroCtaOptions(data);
+  const stat = heroStat(data, H);
   const compact = mode === 'mobile';
   // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
   const pad = heroModeValue(mode, { desktop: 'px-12 py-20', tablet: 'px-8 py-16', mobile: 'px-6 py-12' });
@@ -83,8 +84,10 @@ export default function BeautySpaHero({ data, mode }: Props) {
               plan={plan}
               alt={H.mediaAlt}
               mode={mode}
-              aspectRatio="3/4"
-              className="relative mx-auto w-[86%] rounded-t-full rounded-b-[3rem] shadow-xl"
+              // PHASE 11.5 — the tall arch is softened on a phone so the hero
+              // does not become excessively tall before the CTAs.
+              aspectRatio={heroModeValue(mode, { desktop: '3/4', tablet: '3/4', mobile: '4/4.2' })}
+              className={`relative mx-auto ${heroModeValue(mode, { desktop: 'w-[86%]', tablet: 'w-[86%]', mobile: 'w-[74%]' })} rounded-t-full rounded-b-[3rem] shadow-xl`}
               placeholderColor={t.card}
             />
             {/* Overlapping ritual card */}
@@ -93,7 +96,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
               style={{ backgroundColor: t.card, borderColor: t.line }}
             >
               <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold" style={{ color: t.emerald }}>
-                <Flower2 className="w-3.5 h-3.5" /> {H.mediaEyebrow}
+                <Flower2 className="w-3.5 h-3.5" aria-hidden /> {H.mediaEyebrow}
               </span>
               <p className="text-sm font-serif mt-1" style={{ color: t.textStrong }}>{H.mediaTitle}</p>
               <p className="text-[10px] leading-relaxed mt-1" style={{ color: t.muted }}>{H.mediaBody}</p>
@@ -147,7 +150,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
               className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 mt-6 text-[10px] uppercase tracking-[0.3em] font-semibold ${compact ? 'mx-auto' : ''}`}
               style={{ backgroundColor: t.card, color: t.emerald }}
             >
-              <Leaf className="w-3.5 h-3.5" /> {H.eyebrow}
+              <Leaf className="w-3.5 h-3.5" aria-hidden /> {H.eyebrow}
             </span>
 
             <h1
@@ -194,7 +197,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold shadow-md transition-all hover:brightness-105"
+                className="site-touch site-hero-cta rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold shadow-md transition-all hover:brightness-105"
                 style={emeraldBtn}
               >
                 {H.primaryCta}
@@ -203,7 +206,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
                 type="button"
                 data-testid="hero-services-cta"
                 onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold border transition-colors"
+                className="site-touch site-hero-cta rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold border transition-colors"
                 style={{ borderColor: t.emerald, color: t.emerald, backgroundColor: 'transparent' }}
               >
                 {H.secondaryCta}
@@ -212,18 +215,20 @@ export default function BeautySpaHero({ data, mode }: Props) {
 
             {/* Soft capsules */}
             <div className={`flex flex-wrap gap-2 mt-8 ${compact ? 'justify-center' : ''}`}>
-              <span className="rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em]" style={capsule}>
-                {H.statValue} · {H.statLabel}
-              </span>
+              {stat && (
+                <span data-testid="hero-stat" className="rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em]" style={capsule}>
+                  {stat.value} · {stat.label}
+                </span>
+              )}
               {meta.rating && (
                 <span data-testid="hero-rating" className="rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em] inline-flex items-center gap-1.5" style={capsule}>
-                  <Star className="w-3 h-3" style={{ color: t.emerald, fill: t.emerald }} />
+                  <Star className="w-3 h-3" style={{ color: t.emerald, fill: t.emerald }} aria-hidden />
                   {meta.rating.average.toFixed(1)} · {meta.rating.count} {H['hero.reviewsSuffix']}
                 </span>
               )}
               {meta.location && (
                 <span data-testid="hero-location" className="rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em] inline-flex items-center gap-1.5" style={capsule}>
-                  <MapPin className="w-3 h-3" style={{ color: t.emerald }} /> {meta.location}
+                  <MapPin className="w-3 h-3" style={{ color: t.emerald }} aria-hidden /> {meta.location}
                 </span>
               )}
               <span data-testid="hero-status">
@@ -235,10 +240,10 @@ export default function BeautySpaHero({ data, mode }: Props) {
                   href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
-                  className="site-touch rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em] inline-flex items-center gap-1.5"
+                  className="site-touch site-hero-cta rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em] inline-flex items-center gap-1.5"
                   style={capsule}
                 >
-                  <PlayCircle className="w-3 h-3" style={{ color: t.emerald }} /> {plan.externalVideo.title || H.videoCta}
+                  <PlayCircle className="w-3 h-3" style={{ color: t.emerald }} aria-hidden /> {plan.externalVideo.title || H.videoCta}
                 </a>
               )}
             </div>
@@ -250,10 +255,10 @@ export default function BeautySpaHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
                     style={{ backgroundColor: t.card, color: t.emerald }}
                   >
-                    <Phone className="w-3 h-3" /> {H.callCta}
+                    <Phone className="w-3 h-3" aria-hidden /> {H.callCta}
                   </a>
                 )}
                 {cta.whatsApp && (
@@ -262,10 +267,10 @@ export default function BeautySpaHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
                     style={{ backgroundColor: t.card, color: t.emerald }}
                   >
-                    <MessageCircle className="w-3 h-3" /> {H.whatsAppCta}
+                    <MessageCircle className="w-3 h-3" aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
@@ -273,10 +278,10 @@ export default function BeautySpaHero({ data, mode }: Props) {
                     type="button"
                     data-testid="hero-gallery-cta"
                     onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
                     style={{ backgroundColor: t.card, color: t.emerald }}
                   >
-                    <Images className="w-3 h-3" /> {H.galleryCta}
+                    <Images className="w-3 h-3" aria-hidden /> {H.galleryCta}
                   </button>
                 )}
               </div>

@@ -22,7 +22,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BARBER_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion, withHeroPoster } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -49,6 +49,7 @@ export default function BarberHero({ data, mode }: Props) {
   // cell in the film strip uses its own frame — never the same picture twice.
   const plan = withHeroPoster(basePlan, media.support[0]?.url || basePlan.posterUrl);
   const cta = heroCtaOptions(data);
+  const stat = heroStat(data, H);
   const compact = mode === 'mobile';
   // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
   const pad = heroModeValue(mode, { desktop: 'px-12 py-24', tablet: 'px-8 py-16', mobile: 'px-5 py-12' });
@@ -178,7 +179,7 @@ export default function BarberHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] transition-all hover:brightness-110"
+                className="site-touch site-hero-cta px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] transition-all hover:brightness-110"
                 style={goldBtn}
               >
                 {H.primaryCta}
@@ -187,7 +188,7 @@ export default function BarberHero({ data, mode }: Props) {
                 type="button"
                 data-testid="hero-services-cta"
                 onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] border transition-all hover:bg-white/5"
+                className="site-touch site-hero-cta px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] border transition-all hover:bg-white/5"
                 style={{ borderColor: t.gold, color: t.accentText }}
               >
                 {H.secondaryCta}
@@ -201,10 +202,10 @@ export default function BarberHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    className="site-touch site-hero-cta flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
                     style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
                   >
-                    <Phone className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.callCta}
+                    <Phone className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.callCta}
                   </a>
                 )}
                 {cta.whatsApp && (
@@ -213,10 +214,10 @@ export default function BarberHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    className="site-touch site-hero-cta flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
                     style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
                   >
-                    <MessageCircle className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.whatsAppCta}
+                    <MessageCircle className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
@@ -224,18 +225,18 @@ export default function BarberHero({ data, mode }: Props) {
                     type="button"
                     data-testid="hero-gallery-cta"
                     onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    className="site-touch site-hero-cta flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
                     style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
                   >
-                    <Images className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.galleryCta}
+                    <Images className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.galleryCta}
                   </button>
                 )}
               </div>
             )}
 
             <div className="flex flex-wrap gap-x-7 gap-y-2 mt-8 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: t.text }}>
-              <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.chip1}</span>
-              <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5" style={{ color: t.gold }} /> {H.chip2}</span>
+              <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.chip1}</span>
+              <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.chip2}</span>
             </div>
           </div>
 
@@ -249,7 +250,7 @@ export default function BarberHero({ data, mode }: Props) {
                 plan={plan}
                 alt={H.mediaAlt}
                 mode={mode}
-                aspectRatio="4/3"
+                aspectRatio={heroModeValue(mode, { desktop: '4/3', tablet: '4/3', mobile: '16/10' })}
                 placeholderColor={t.charcoalSoft}
               >
                 <span
@@ -259,7 +260,10 @@ export default function BarberHero({ data, mode }: Props) {
                   {H.mediaEyebrow}
                 </span>
               </HeroMediaFrame>
-              {media.support.slice(1, 2).map((visual) => (
+              {/* PHASE 11.5 — the second still cell is desktop/tablet only:
+                  on a 390px phone two stacked cells pushed the CTAs far below
+                  the fold. */}
+              {(compact ? [] : media.support.slice(1, 2)).map((visual) => (
                 <div key={visual.url} className="relative">
                   <SiteImage
                     src={heroImageSrc(visual.url, mode)}
@@ -285,10 +289,10 @@ export default function BarberHero({ data, mode }: Props) {
                 href={plan.externalVideo.src}
                 target="_blank"
                 rel="noreferrer"
-                className="site-touch mt-2 flex items-center gap-2 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                className="site-touch site-hero-cta mt-2 flex items-center gap-2 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
                 style={{ borderColor: t.gold, color: t.accentText, backgroundColor: t.card }}
               >
-                <PlayCircle className="w-4 h-4" /> {plan.externalVideo.title || H.videoCta}
+                <PlayCircle className="w-4 h-4" aria-hidden /> {plan.externalVideo.title || H.videoCta}
               </a>
             )}
             <p className="mt-3 text-[10px] leading-relaxed" style={{ color: t.muted }}>{H.mediaBody}</p>
@@ -300,19 +304,21 @@ export default function BarberHero({ data, mode }: Props) {
           className={`mt-12 border-t pt-5 flex flex-wrap items-center gap-x-8 gap-y-3 ${compact ? 'justify-start' : ''}`}
           style={{ borderColor: t.line }}
         >
-          <span className="flex items-baseline gap-2">
-            <span className="text-2xl font-black" style={{ color: t.gold }}>{H.statValue}</span>
-            <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: t.muted }}>{H.statLabel}</span>
-          </span>
+          {stat && (
+            <span data-testid="hero-stat" className="flex items-baseline gap-2">
+              <span className="text-2xl font-black" style={{ color: t.gold }}>{stat.value}</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: t.muted }}>{stat.label}</span>
+            </span>
+          )}
           {meta.rating && (
             <span data-testid="hero-rating" className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: t.text }}>
-              <Star className="w-3.5 h-3.5" style={{ color: t.gold, fill: t.gold }} />
+              <Star className="w-3.5 h-3.5" style={{ color: t.gold, fill: t.gold }} aria-hidden />
               {meta.rating.average.toFixed(1)} · {meta.rating.count} {H['hero.reviewsSuffix']}
             </span>
           )}
           {meta.location && (
             <span data-testid="hero-location" className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: t.text }}>
-              <MapPin className="w-3.5 h-3.5" style={{ color: t.gold }} /> {meta.location}
+              <MapPin className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {meta.location}
             </span>
           )}
           <span data-testid="hero-status">

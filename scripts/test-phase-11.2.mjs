@@ -342,7 +342,10 @@ section('Hero copy table completeness');
 const CONTENT_KEYS = [
   'eyebrow', 'headline', 'headlineAccent', 'description', 'primaryCta', 'secondaryCta',
   'chip1', 'chip2', 'focusLabel', 'audience', 'mediaEyebrow', 'mediaTitle', 'mediaBody',
-  'mediaAlt', 'mediaAltB', 'mediaAltC', 'statValue', 'statLabel',
+  'mediaAlt', 'mediaAltB', 'mediaAltC',
+  // PHASE 11.5 — the hero stat VALUE is derived from real salon data via
+  // heroStat(); only the wording lives in the copy table.
+  'statServicesLabel', 'statTeamLabel',
 ];
 
 for (const config of CASES) {

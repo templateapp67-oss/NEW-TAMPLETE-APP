@@ -72,7 +72,8 @@ npm run test:phase-11.1     # unique hero design across all five themes
 npm run test:phase-11.2     # hero headline & content (EN + HI) across all five themes
 npm run test:phase-11.3     # hero media & CTA across all five themes
 npm run test:phase-11.4     # hero desktop + tablet + mobile QA
-npm run test:phase-11       # every Phase 11 suite (971 tests)
+npm run test:phase-11.5     # hero final polish across all five themes
+npm run test:phase-11       # every Phase 11 suite (1265 tests)
 npm run test:phase-11       # both Phase 11 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
@@ -168,6 +169,9 @@ loads). All `.env*` files are gitignored except `.env.example`.
 - **Style**: Tailwind utility classes inline; follow the existing look of the
   screens; use `TopBar` for standardized headers; `motion` for transitions;
   `lucide-react` for icons. The `@` alias points at the repo root.
+- **Never invent business facts.** Customer-facing surfaces must not hardcode
+  counts, ratings, years or volumes a salon did not supply. Derive them from
+  real data (see `heroStat()`) and render nothing when there is no data.
 - **Gemini features must keep their offline fallbacks** — the app must work
   without an API key.
 - **Server-side secrets stay server-side** — `GEMINI_API_KEY` etc. must never

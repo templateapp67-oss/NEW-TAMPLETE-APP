@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -44,6 +44,7 @@ export default function HairStudioHero({ data, mode }: Props) {
   const reducedMotion = useReducedMotion();
   const plan = heroMediaPlan('hair_studio_color_bar', data, reducedMotion);
   const cta = heroCtaOptions(data);
+  const stat = heroStat(data, H);
   const compact = mode === 'mobile';
   // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
   const frameInset = heroModeValue(mode, { desktop: 'inset-5', tablet: 'inset-4', mobile: 'inset-3' });
@@ -157,7 +158,7 @@ export default function HairStudioHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch px-9 py-3.5 text-[10px] uppercase tracking-[0.3em] font-semibold transition-all hover:brightness-110"
+                className="site-touch site-hero-cta px-9 py-3.5 text-[10px] uppercase tracking-[0.3em] font-semibold transition-all hover:brightness-110"
                 style={roseBtn}
               >
                 {H.primaryCta}
@@ -166,10 +167,10 @@ export default function HairStudioHero({ data, mode }: Props) {
                 type="button"
                 data-testid="hero-services-cta"
                 onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.28em] font-semibold pb-1 border-b"
+                className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.28em] font-semibold pb-1 border-b"
                 style={{ color: t.ink, borderColor: t.ink }}
               >
-                {H.secondaryCta} <ArrowUpRight className="w-3.5 h-3.5" />
+                {H.secondaryCta} <ArrowUpRight className="w-3.5 h-3.5" aria-hidden />
               </button>
             </div>
 
@@ -180,10 +181,10 @@ export default function HairStudioHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
-                    <Phone className="w-3 h-3" style={{ color: t.rose }} /> {H.callCta}
+                    <Phone className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.callCta}
                   </a>
                 )}
                 {cta.whatsApp && (
@@ -192,10 +193,10 @@ export default function HairStudioHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
-                    <MessageCircle className="w-3 h-3" style={{ color: t.rose }} /> {H.whatsAppCta}
+                    <MessageCircle className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
@@ -203,10 +204,10 @@ export default function HairStudioHero({ data, mode }: Props) {
                     type="button"
                     data-testid="hero-gallery-cta"
                     onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
-                    <Images className="w-3 h-3" style={{ color: t.rose }} /> {H.galleryCta}
+                    <Images className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.galleryCta}
                   </button>
                 )}
               </div>
@@ -214,16 +215,18 @@ export default function HairStudioHero({ data, mode }: Props) {
 
             {/* Colophon line: rating · location · status */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-9 text-[10px] tracking-[0.1em]" style={{ color: t.muted }}>
-              <span className="uppercase" style={{ color: t.roseDeep }}>{H.statValue} — {H.statLabel}</span>
+              {stat && (
+                <span data-testid="hero-stat" className="uppercase" style={{ color: t.roseDeep }}>{stat.value} — {stat.label}</span>
+              )}
               {meta.rating && (
                 <span data-testid="hero-rating" className="flex items-center gap-1.5">
-                  <Star className="w-3.5 h-3.5" style={{ color: t.rose, fill: t.rose }} />
+                  <Star className="w-3.5 h-3.5" style={{ color: t.rose, fill: t.rose }} aria-hidden />
                   {meta.rating.average.toFixed(1)} / 5 · {meta.rating.count} {H['hero.reviewsSuffix']}
                 </span>
               )}
               {meta.location && (
                 <span data-testid="hero-location" className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5" style={{ color: t.rose }} /> {meta.location}
+                  <MapPin className="w-3.5 h-3.5" style={{ color: t.rose }} aria-hidden /> {meta.location}
                 </span>
               )}
               <span data-testid="hero-status">
@@ -278,10 +281,10 @@ export default function HairStudioHero({ data, mode }: Props) {
                   href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
-                  className="site-touch flex items-center gap-2 px-3 py-2.5 text-[9px] uppercase tracking-[0.2em] font-semibold border"
+                  className="site-touch site-hero-cta flex items-center gap-2 px-3 py-2.5 text-[9px] uppercase tracking-[0.2em] font-semibold border"
                   style={{ borderColor: t.line, color: t.roseDeep, backgroundColor: t.card }}
                 >
-                  <Play className="w-3.5 h-3.5" /> {plan.externalVideo.title || H.videoCta}
+                  <Play className="w-3.5 h-3.5" aria-hidden /> {plan.externalVideo.title || H.videoCta}
                 </a>
               ) : (
                 <p className="text-[9px] leading-relaxed uppercase tracking-[0.18em]" style={{ color: t.muted }}>

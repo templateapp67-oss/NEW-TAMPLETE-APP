@@ -6,6 +6,31 @@
 
 ## Current repository state
 
+- **PHASE 11 CLOSED — Phase 11.5 hero final polish passed for all five themes
+  (1265 Phase 11 tests green).**
+  - Polish/QA only; no hero layout redesigned. Four real defects fixed:
+    1. **Fabricated business metrics removed.** Heroes hardcoded claims like
+       "12k+ cuts delivered" and "9 colour formulas" that no salon supplied.
+       New `heroStat()` in `src/lib/siteHero.ts` derives the value from real
+       data (active services → team → nothing); the copy table keeps only
+       per-theme wording (`statServicesLabel` / `statTeamLabel`, EN + HI).
+    2. **No keyboard focus on any CTA.** New scoped `.site-hero-cta` class in
+       `src/index.css` adds hover / focus-visible / active states (with a
+       reduced-motion guard) to all 30 hero CTAs. Phase 10 controls untouched.
+    3. **Accessibility gaps.** 45 decorative icons now `aria-hidden`; the
+       ambience video is `role="img"` + `tabIndex={-1}`.
+    4. **Mobile hero too tall.** Barber dropped its second stacked media cell
+       on phones (459px → 219px) and the spa arch narrowed (392px → 265px);
+       all themes now under a 300px mobile media budget, test-enforced.
+  - Verified per theme: real salon name/logo, theme-correct headline/
+    description/CTA/media, readable text over media, frame-accurate spacing and
+    typography, a11y labels, Hindi-safe layout, dark mode never dropping a WCAG
+    tier, and full theme isolation across Barber → Hair → Spa → Family → Nail
+    on desktop/tablet/mobile with no previous-theme content surviving.
+  - Validation: `npm run test:phase-11.5` = 294/294; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369; `test:phase-10` 1259/1259; lint, build and 25-screen
+    verification green. Details: `docs/phase-11.5-hero-final-polish.md`.
+
 - **PHASE 11 COMPLETE — Phase 11.4 hero Desktop + Tablet + Mobile QA passed
   for all five themes (971 Phase 11 tests green).**
   - QA-only phase; the hero was not redesigned. Two REAL defects were found
@@ -677,7 +702,8 @@ npm run test:phase-11.1    # unique hero design across all five themes (215 test
 npm run test:phase-11.2    # hero headline & content, EN + HI (138 tests)
 npm run test:phase-11.3    # hero media & CTA across all five themes (249 tests)
 npm run test:phase-11.4    # hero desktop+tablet+mobile QA (369 tests)
-npm run test:phase-11      # every Phase 11 suite (971 tests)
+npm run test:phase-11.5    # hero final polish (294 tests)
+npm run test:phase-11      # every Phase 11 suite (1265 tests)
 npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
@@ -695,7 +721,8 @@ Expected output:
 - `test:phase-11.2`: 138/138 passed (hero headline & content, EN + HI)
 - `test:phase-11.3`: 249/249 passed (hero media & CTA, all five themes)
 - `test:phase-11.4`: 369/369 passed (hero desktop + tablet + mobile QA)
-- `test:phase-11`: 971 tests, all green
+- `test:phase-11.5`: 294/294 passed (hero final polish)
+- `test:phase-11`: 1265 tests, all green
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

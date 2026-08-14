@@ -273,6 +273,40 @@ export function heroCtaOptions(data: SalonData): HeroCtaOptions {
 }
 
 /* ------------------------------------------------------------------ */
+/* PHASE 11.5 — hero micro-stat derived from REAL salon data.          */
+/* ------------------------------------------------------------------ */
+
+export interface HeroStat {
+  value: string;
+  label: string;
+}
+
+/**
+ * The hero micro-stat, computed from the owner's ACTUAL catalog/team.
+ *
+ * Phase 11.1–11.3 shipped hardcoded marketing numbers here ("12k+ cuts
+ * delivered", "9 colour formulas"). Those are fabricated business claims that
+ * no salon supplied, so they are gone. We now show a count we can prove from
+ * existing data, and nothing at all when there is no data to count.
+ */
+export function heroStat(
+  data: SalonData,
+  copy: { statServicesLabel: string; statTeamLabel: string },
+): HeroStat | null {
+  const services = (data.services || []).filter(
+    (service) => service.status !== 'inactive' && service.status !== 'archived',
+  );
+  if (services.length > 0) {
+    return { value: String(services.length), label: copy.statServicesLabel };
+  }
+  const team = (data.team || []).filter((member) => member && (member.name || '').trim());
+  if (team.length > 0) {
+    return { value: String(team.length), label: copy.statTeamLabel };
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
 /* PHASE 11.4 — frame-accurate responsive values.                      */
 /* ------------------------------------------------------------------ */
 
