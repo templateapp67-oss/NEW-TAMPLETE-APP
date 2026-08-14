@@ -16,7 +16,7 @@ import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
 import { setActiveTheme, markPerformance, paginateList } from '../lib/sitePerformance';
-import { openSiteBooking } from '../lib/siteBooking';
+import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { BARBER_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
@@ -449,9 +449,16 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
                 <p className="text-xs leading-relaxed" style={{ color: muted }}>
                   {data.address?.fullAddress || 'Shop 14, Linking Road, Bandra West, Mumbai, Maharashtra 400050'}
                 </p>
-                <button className="site-touch w-full py-2.5 text-xs font-black uppercase tracking-[0.2em] border transition-all hover:brightness-110 flex items-center justify-center gap-2" style={btnGold}>
+                <a
+                  data-testid="theme-contact-directions"
+                  href={salonMapsHref(data)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="site-touch w-full py-2.5 text-xs font-black uppercase tracking-[0.2em] border transition-all hover:brightness-110 flex items-center justify-center gap-2"
+                  style={btnGold}
+                >
                   <Navigation className="w-3.5 h-3.5" /> {S['common.getDirections']}
-                </button>
+                </a>
               </div>
 
               <div className="p-6 border space-y-3" style={{ backgroundColor: card, borderColor: line }}>

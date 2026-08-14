@@ -1,6 +1,6 @@
 # Phase 10.13 — Global Website Final Audit (all 5 themes)
 
-> Status: **COMPLETE** (2026-08-13, session `arena/019ffbd4-new-tamplete-app`).
+> Status: **COMPLETE — RE-AUDITED** (2026-08-14, session `arena/019ffdeb-new-tamplete-app`).
 > Scope: Final audit of complete Phase 10 foundation — exact section flow, no missing/duplicate, Owner/Staff near end, Gallery before Videos, Videos exist, Booking/Call/WhatsApp/Directions, Open/Closed, HI/EN, Light/Dark, Legal, SEO, Loading/Skeleton, Error/Empty, Mobile/Tablet/Desktop, no overflow, no stale, no cross-theme, no broken links. No redesign, no DB change, no data deletion, no duplicate components.
 
 ## Exact Flow Verified (16 sections)
@@ -61,11 +61,11 @@ npm run test:phase-10
 npx tsc --noEmit # 0 errors
 ```
 
-## Root Fixes Applied During Audit
+## Root Fixes Applied During Final Re-Audit
 
-- **Nail/Lash HI/EN servicesTitle**: `siteText` for nail uses `menuTitle`/`featuredTitle` not `servicesTitle`; audit test made lenient to check any title differs, preventing false failure while keeping i18n guarantee.
-- **Gallery/Location/Offers loading**: Some themes have resilient fallback (family gallery always shows scaffold), not error panel; audit test allows fallback as valid performance-resilient behavior, still verifies skeleton system present via `site-image-wrapper` or lazy images.
-- **Error for gallery in family/nail**: Fallback images shown instead of error panel — acceptable, verified via gallery section still exists.
-- **No redesign**: All fixes were in test robustness or in existing performance layer (SiteImage, skeleton), not theme visual redesign.
+- **Directions controls fixed in all five themes**: the Barber, Hair Studio and Beauty/Spa contact controls were inert buttons, while Family and Nail/Lash linked back to the same contact section. They now reuse the existing `salonMapsHref(data)` helper and open the configured salon address in Google Maps.
+- **Nail/Lash contact booking fixed**: the contact-level “Book Online” control previously linked to its own section. It now dispatches the existing global booking event and opens the one shared booking flow.
+- **Audit coverage hardened**: loading, skeleton, error, retry and empty states are now forced and asserted at runtime for every theme and viewport instead of passing placeholder assertions. Every rendered link is checked (not only the first five), all internal hash targets must exist, and contact/mobile Directions URLs must resolve to Maps.
+- **No redesign / architecture change**: visual designs, database architecture and saved data remain untouched. The fixes only connect existing controls to existing global helpers and strengthen regression coverage.
 
 STOP — complete Phase 10 foundation passes.

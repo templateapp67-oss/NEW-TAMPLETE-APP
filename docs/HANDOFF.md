@@ -1,10 +1,28 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-13** (session `arena/019ffba4-new-tamplete-app`).
+> Last updated: **2026-08-14** (session `arena/019ffdeb-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **Phase 10.13 — GLOBAL WEBSITE FINAL AUDIT: COMPLETE for all five themes.**
+  - Exact 16-section flow passes in Desktop, Tablet and Mobile for Barber,
+    Hair Studio, Beauty/Spa, Family and Nail/Lash; Existing legacy rendering
+    also remains intact.
+  - EN/HI, Light/Dark, booking, Call/WhatsApp/Directions, live status, legal,
+    SEO, responsive containment, stale/cross-theme isolation and every rendered
+    link pass the final audit.
+  - Root fixes from the 2026-08-14 re-audit: all five in-section Directions
+    controls now open the configured address through the existing
+    `salonMapsHref`; Nail/Lash contact “Book Online” now opens the existing
+    shared booking flow instead of linking back to itself.
+  - Runtime tests now force and assert loading/skeleton/error/retry/empty states
+    for every theme and viewport. No redesign, DB change, data deletion or
+    duplicate system was introduced.
+  - Validation: `npm run test:phase-10.13` = 339/339; complete
+    `npm run test:phase-10`, lint, build and 25-screen verification are green.
+    Details: `docs/phase-10.13-final-audit.md`.
 
 - **Phase 10.8 — REVIEWS, RATINGS & SOCIAL CONTENT: COMPLETE for all five themes.**
   - Real customer reviews (no invented quotes). Write a Review form is
