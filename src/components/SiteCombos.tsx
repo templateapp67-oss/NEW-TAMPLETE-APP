@@ -7,7 +7,7 @@ import { openSiteBookingForService } from '../lib/siteBooking';
 import { comboToBookableService, getThemeCombos } from '../lib/siteCombos';
 import { siteCombosText } from '../lib/siteCombosI18n';
 import { BARBER_SURFACES, BEAUTY_SPA_SURFACES, FAMILY_SURFACES, HAIR_STUDIO_SURFACES, NAIL_LASH_SURFACES, surfacesOf } from '../lib/themeSurfaces';
-import { resolveSectionState, sectionProps, siteGrid, siteSectionDomId } from '../lib/siteStructure';
+import { resolveSectionState, siteGrid, siteSectionDomId } from '../lib/siteStructure';
 import { SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteSkeleton from './SiteSkeleton';
 import { bestBundleOffer, discountedPrice } from '../lib/pricing';
@@ -170,7 +170,8 @@ export default function SiteCombos({ themeId, data, mode }: Props) {
 
   return (
     <div
-      {...sectionProps('offers', combosState, `${sectionDomId}-packages`)}
+      id={`${sectionDomId}-packages`}
+      data-combos-block="true"
       className="site-section px-5 md:px-8 py-14 border-t transition-colors duration-300"
       style={{ backgroundColor: style.bg, borderColor: style.borderColor }}
     >

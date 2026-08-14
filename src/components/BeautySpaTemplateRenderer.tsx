@@ -20,6 +20,7 @@ import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
 import SiteCombos from './SiteCombos';
+import SiteGallery from './SiteGallery';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
@@ -81,7 +82,6 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
   }, []);
   const packages = activeCatalogItems(data.packages);
   const offersState = resolveSectionState('offers', packages);
-  const galleryState = resolveSectionState('gallery', data.gallery);
   const teamState = resolveSectionState('team', data.team);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
@@ -253,23 +253,8 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
           </div>
         </div>
 
-        <div {...sectionProps('gallery', galleryState)} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: cream }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.galleryEyebrow}</span>
-              <h3 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.galleryTitle}</h3>
-            </div>
-            {galleryState === 'ready' ? (
-              <div className={`grid gap-4 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 2 })}`}>
-                {(data.gallery || []).map((item) => (
-                  <div key={item.id} className="relative aspect-square rounded-[1.75rem] overflow-hidden border group" style={{ borderColor: line }}>
-                    <img src={item.url} alt={item.alt || S['common.defaultPhotoAlt']} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                  </div>
-                ))}
-              </div>
-            ) : <SectionStatePanel status={galleryState} copy={X} palette={palette} emptyTitle={S.galleryEmpty} />}
-          </div>
-        </div>
+        {/* Gallery — PHASE 14.1: theme-scoped portfolio (featured, filter, lightbox, before/after) */}
+        <SiteGallery themeId="beauty_skin_spa" data={data} mode={mode} />
 
         <SiteSocialFeed themeId="beauty_skin_spa" data={data} mode={mode} />
 

@@ -228,8 +228,15 @@ for (const config of CASES) {
     reset();
     const utils = render(React.createElement(config.Component, { data: salonData(config.id, visualServices(config.id, config.cats)), mode: 'desktop' }));
     await settle();
-    const srcs = Array.from(utils.container.querySelectorAll('[data-testid="site-image"]')).map((el) => el.getAttribute('src'));
-    assert.equal(new Set(srcs).size, srcs.length, `duplicate images rendered: ${srcs.join(' | ')}`);
+    // PHASE 14.1: the Gallery section intentionally reuses the ACTIVE theme's
+    // service photos (cross-section reuse is by design; the shared IMAGE_CACHE
+    // still prevents duplicate network loading). Duplicates are therefore
+    // checked WITHIN a single section, never across sections.
+    const sections = utils.container.querySelectorAll('[data-site-section]');
+    for (const sectionEl of Array.from(sections)) {
+      const srcs = Array.from(sectionEl.querySelectorAll('[data-testid="site-image"]')).map((el) => el.getAttribute('src'));
+      assert.equal(new Set(srcs).size, srcs.length, `duplicate images rendered inside ${sectionEl.getAttribute('data-site-section')}: ${srcs.join(' | ')}`);
+    }
   });
 }
 

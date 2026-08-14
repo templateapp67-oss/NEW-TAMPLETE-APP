@@ -1,10 +1,53 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-14** (session `arena/019ffe18-new-tamplete-app`).
+> Last updated: **2026-08-14** (session `arena/019ffff5-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 14.1 — GALLERY & VISUAL PORTFOLIO: COMPLETE for all five themes (55 tests).**
+  - ONE shared gallery architecture (`src/components/SiteGallery.tsx` +
+    `src/lib/siteGallery.ts` + `src/lib/siteGalleryI18n.ts`) replaces the five
+    per-theme inline gallery blocks — no duplicate architecture, no copied
+    content between themes.
+  - Content (configured media ONLY, never invented): owner `data.gallery`
+    (salon photos, work, before/after via new `beforeUrl`/`beforeAlt`,
+    captions, `featured`, optional `themeId` scoping) → active-theme service
+    photos via the existing theme relationship → pre-existing family/nail
+    registered showcase media (fallback only). Unsafe URLs rejected by the
+    existing `isSafeMediaUrl` gate.
+  - Theme isolation via `GALLERY_THEME_CONFIG`: barber → shop/haircut/beard/
+    grooming; hair studio → cuts/color/treatments; spa → facial/spa/makeup;
+    family → men/women/kids; nail/lash → nail art/manicure/lash. Foreign
+    `themeId` items, foreign service media and other themes' registered media
+    can never render.
+  - UI: featured image banner (per-viewport ratios), responsive mode-based
+    grid (3/3/2 · 3/3/2 · 3/3/2 · 3/2/2 · 5/3/2), category filter chips
+    (+ Before & After), full-screen lightbox (counter, caption, prev/next
+    wrap-around, Escape/arrows, focus management) and a draggable
+    before/after comparison slider.
+  - Media safety: everything renders through the existing `SiteImage` system
+    (lazy, srcSet + sizes, fixed aspect ratios, skeleton, error fallback,
+    IMAGE_CACHE dedup); `SiteImage` gains an additive `fit` prop
+    (`contain` for lightbox, no cropping). Accessible alt text EN/HI.
+  - Each theme keeps its own gallery design via `galleryStyle(themeId,
+    appearance)` (surfaces, tile/chip shapes, badges, lightbox chrome).
+  - Base-branch repairs carried out alongside (see the phase doc): duplicate
+    `offers` structural stamp removed from `SiteCombos` (10.3/10.4/10.13
+    restored to 86/118/339); Phase 13 type syncs (`ServiceOffer.description`
+    + `serviceIds`, `FamilySurface`/`NailLashSurface.textStrong`,
+    `AppLocale` import) so lint is 0 errors; 12.7 duplicate-image assertion
+    scoped per section (gallery intentionally reuses active-theme service
+    photos cross-section; IMAGE_CACHE still prevents duplicate loading).
+  - Validation: `test:phase-14.1` **55/55**; Phases 10–13 all green
+    (10.1–10.13, 11.1–11.8 2398, 12.1–12.7 582, 13.1–13.6 220);
+    `validate:migrations` 24/24 ×2 + 20/20; lint 0 errors; build +
+    25-screen verification green.
+    Details: `docs/phase-14.1-gallery-visual-portfolio.md`.
+  - Known pre-existing (unchanged, same at base): `test:auth` 13/14 and
+    `test:service-saving` assert a stale migration count (24 vs the 26
+    M01–M26 files).
 
 - **PHASE 12.7 — SERVICE IMAGES & VISUALS: COMPLETE for all five themes (60 tests).**
   - Service cards (directory) + the Service Detail modal now render a visual
@@ -952,6 +995,7 @@ npm run test:phase-12.4    # complete service directory across all five themes (
 npm run test:phase-12.5    # service discovery (search/filter/sort) across all five themes (83 tests)
 npm run test:phase-12.6    # service detail experience across all five themes (59 tests)
 npm run test:phase-12.7    # service images & visuals across all five themes (60 tests)
+npm run test:phase-14.1    # gallery & visual portfolio across all five themes (55 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -980,6 +1024,7 @@ Expected output:
 - `test:phase-12.5`: 83/83 passed (service discovery — search/filter/sort)
 - `test:phase-12.6`: 59/59 passed (service detail experience)
 - `test:phase-12.7`: 60/60 passed (service images & visuals)
+- `test:phase-14.1`: 55/55 passed (gallery & visual portfolio, all five themes)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

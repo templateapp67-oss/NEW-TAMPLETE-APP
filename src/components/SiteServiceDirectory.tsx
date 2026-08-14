@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { SalonData, Service } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
+import type { AppLocale } from '../lib/locale';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import { siteText } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
@@ -349,6 +350,7 @@ function ServiceDirectoryCard({
   look: DirectoryLook;
   S: Record<string, string>;
   onOpenDetail: (s: Service) => void;
+  key?: string;
 }) {
   const variants = getServiceVariants(service, themeId);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(

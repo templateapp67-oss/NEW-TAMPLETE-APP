@@ -22,6 +22,7 @@ import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
 import SiteCombos from './SiteCombos';
+import SiteGallery from './SiteGallery';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../lib/themeSurfaces';
@@ -44,7 +45,6 @@ import {
   ChevronRight,
   Clock3,
   Eye,
-  Instagram,
   Mail,
   MapPin,
   MessageCircle,
@@ -116,14 +116,6 @@ const LASH_BROW = [
   { name: 'Lash Lift', detail: 'Wide-awake curl, no extensions', image: 'https://images.unsplash.com/photo-1583001931096-959e9a1a6223?q=80&w=900&auto=format&fit=crop' },
   { name: 'Soft Volume', detail: 'Lightweight, seamless definition', image: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?q=80&w=900&auto=format&fit=crop' },
   { name: 'Brow Shape', detail: 'Clean arch, brushed-up finish', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=900&auto=format&fit=crop' },
-];
-
-const GALLERY_IMAGES = [
-  { image: 'https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1000&auto=format&fit=crop', alt: 'Pink and chrome nail art' },
-  { image: 'https://images.unsplash.com/photo-1610992015732-2449b76344bc?q=80&w=1000&auto=format&fit=crop', alt: 'Nude nail art detail' },
-  { image: 'https://images.unsplash.com/photo-1583001931096-959e9a1a6223?q=80&w=1000&auto=format&fit=crop', alt: 'Lash beauty closeup' },
-  { image: 'https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=1000&auto=format&fit=crop', alt: 'Glossy custom nail design' },
-  { image: 'https://images.unsplash.com/photo-1519014816548-bf5fe059798b?q=80&w=1000&auto=format&fit=crop', alt: 'Dark glamorous nail set' },
 ];
 
 function SectionTitle({
@@ -223,7 +215,6 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
     return () => { markPerformance('nail_lash_studio-render-end'); };
   }, []);
   const offersState = resolveSectionState('offers', data.packages);
-  const galleryState = resolveSectionState('gallery', [1]);
   const teamState = resolveSectionState('team', data.team);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', [1]);
@@ -280,7 +271,8 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
         <section id="section-lash-brow" className="px-5 md:px-8 py-12" style={{ backgroundColor: pinkSoft }}><div className="grid md:grid-cols-[1fr_1.2fr] gap-8 items-center"><div><SectionTitle eyebrow={S.lashEyebrow} title={S.lashTitle} body={S.lashBody} t={t} /><div className="mt-6 rounded-2xl p-4 border" style={{ borderColor: line, backgroundColor: t.card }}><div className="flex items-center gap-3"><span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.artBand, color: pink }}><Eye className="w-4 h-4" /></span><div><p className="text-xs font-extrabold" style={{ color: ink }}>{S.lashNoteTitle}</p><p className="text-[9px] mt-1" style={{ color: muted }}>{S.lashNoteBody}</p></div></div></div></div><div className="grid gap-2 grid-cols-2 md:grid-cols-3">{LASH_BROW.map((item, index) => <ImageShowcaseCard key={item.name} item={item} index={index} compact />)}</div></div></section>
 
         {/* Gallery */}
-        <section {...sectionProps('gallery', galleryState)} className="px-5 md:px-8 py-12" style={{ backgroundColor: white }}><div className="flex items-end justify-between gap-4 mb-7"><SectionTitle eyebrow={S.galleryEyebrow} title={S.galleryTitle} body={S.galleryBody} t={t} /><a href={data.socialProfiles?.instagram || '#section-gallery'} className="hidden md:inline-flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.18em]" style={{ color: pinkDeep }}>{S.followTheEdit} <Instagram className="w-4 h-4" /></a></div><div className={`grid gap-3 ${siteGrid(mode, { desktop: 5, tablet: 3, mobile: 2 })}`}>{GALLERY_IMAGES.map((item, index) => { const label = [S.gallery1, S.gallery2, S.gallery3, S.gallery4, S.gallery5][index] || S.gallery1; return <div key={item.alt} className={`${mode === 'desktop' && index === 0 ? 'md:row-span-2 min-h-[300px]' : 'min-h-[145px]'} relative rounded-[1.25rem] overflow-hidden group`}><img src={item.image} alt={item.alt} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /><div className="absolute inset-0 bg-gradient-to-t from-[#211b24]/75 to-transparent" /><span className="absolute left-3 bottom-3 text-[9px] font-extrabold uppercase tracking-[0.14em] text-white">{label}</span></div>; })}</div></section>
+        {/* Gallery — PHASE 14.1: theme-scoped portfolio (featured, filter, lightbox, before/after) */}
+        <SiteGallery themeId="nail_lash_studio" data={data} mode={mode} />
 
 
         <SiteSocialFeed themeId="nail_lash_studio" data={data} mode={mode} />

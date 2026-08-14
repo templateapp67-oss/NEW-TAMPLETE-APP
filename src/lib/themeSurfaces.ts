@@ -63,7 +63,7 @@ export interface FamilySurface {
   navy: string; blue: string; blueBright: string; sky: string; skyDeep: string;
   teal: string; tealDeep: string; tealSoft: string; sun: string; sunSoft: string;
   coral: string; ink: string; muted: string; line: string; white: string;
-  page: string; heading: string; card: string; well: string; chipLine: string;
+  page: string; heading: string; textStrong: string; card: string; well: string; chipLine: string;
   footerBg: string; stripBg: string; bandBg: string; menBand: string; contactBand: string;
 }
 
@@ -71,7 +71,7 @@ export interface NailLashSurface {
   ink: string; inkSoft: string; pink: string; pinkDeep: string; pinkGlow: string;
   pinkSoft: string; sand: string; sandDeep: string; nude: string; nudeSoft: string;
   cream: string; muted: string; line: string; white: string;
-  page: string; text: string; card: string; well: string; chipLine: string;
+  page: string; text: string; textStrong: string; card: string; well: string; chipLine: string;
   bandBg: string; stripBg: string; footerBg: string; overlay: string; artBand: string;
 }
 
@@ -202,6 +202,7 @@ export const FAMILY_SURFACES: Record<'light' | 'dark', FamilySurface> = {
     ...FAMILY_FULL_SERVICE_THEME,
     page: '#ffffff',
     heading: FAMILY_FULL_SERVICE_THEME.navy,
+    textStrong: FAMILY_FULL_SERVICE_THEME.navy,
     card: '#ffffff',
     well: '#f8fcff',
     chipLine: FAMILY_FULL_SERVICE_THEME.skyDeep,
@@ -229,6 +230,7 @@ export const FAMILY_SURFACES: Record<'light' | 'dark', FamilySurface> = {
     white: '#0a2438',
     page: '#071b2e',
     heading: '#ddf0ff',
+    textStrong: '#e8f4ff',
     card: '#0e2c42',
     well: '#0b263b',
     chipLine: '#29506b',
@@ -249,6 +251,7 @@ export const NAIL_LASH_SURFACES: Record<'light' | 'dark', NailLashSurface> = {
     ...NAIL_LASH_STUDIO_THEME,
     page: NAIL_LASH_STUDIO_THEME.cream,
     text: NAIL_LASH_STUDIO_THEME.ink,
+    textStrong: NAIL_LASH_STUDIO_THEME.ink,
     card: '#ffffff',
     well: NAIL_LASH_STUDIO_THEME.sand,
     chipLine: NAIL_LASH_STUDIO_THEME.line,
@@ -275,6 +278,7 @@ export const NAIL_LASH_SURFACES: Record<'light' | 'dark', NailLashSurface> = {
     white: '#241c2b',
     page: '#120e17',
     text: '#e4d8e4',
+    textStrong: '#f6eef4',
     card: '#221a29',
     well: '#1d1624',
     chipLine: '#4b3853',
