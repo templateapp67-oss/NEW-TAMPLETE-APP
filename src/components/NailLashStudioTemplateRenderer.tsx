@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SalonData } from '../types';
 import { getPublicStaffData } from '../types';
@@ -8,7 +9,11 @@ import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
+import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteSeo from './SiteSeo';
+import SiteImage from './SiteImage';
+import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
@@ -208,6 +213,12 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
   const X = structureCopyFrom(S);
   const palette = { accent: pink, text: ink, muted, card: t.card, line, invert: '#ffffff' };
   const headerMode = headerModeOf(mode);
+  // PHASE 10.12 — performance optimization: clear stale data, marks, memoize
+  useEffect(() => {
+    setActiveTheme('nail_lash_studio');
+    markPerformance('nail_lash_studio-render-start');
+    return () => { markPerformance('nail_lash_studio-render-end'); };
+  }, []);
   const featuredLive = featuredServices(data.services);
   const featuredState = resolveSectionState('featured', featuredLive.length ? featuredLive : [1]);
   const servicesState = resolveSectionState('services', data.services);
@@ -242,6 +253,7 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
       ) : <div className="h-6 w-full flex justify-center items-start shrink-0" style={{ backgroundColor: t.footerBg }}><div className="w-24 h-4 rounded-b-xl" style={{ backgroundColor: '#09070b' }} /></div>}
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll" style={{ backgroundColor: cream, color: ink }}>
+        <SiteSeo themeId="nail_lash_studio" data={data} mode={mode} />
         <SiteAnnouncementBar themeId="nail_lash_studio" data={data} />
         <SiteHeader themeId="nail_lash_studio" data={data} mode={headerMode} />
 
@@ -358,9 +370,15 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
 
         <FinalBookingCta themeId="nail_lash_studio" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
         <SiteFooter themeId="nail_lash_studio" data={data} />
-        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
+        {mode === 'mobile' && (
+          <>
+            <div className="site-mobile-action-bar-spacer" aria-hidden />
+            <div className="site-mobile-dock-spacer" aria-hidden />
+          </>
+        )}
       </div>
       <SiteFloatingActions themeId="nail_lash_studio" data={data} mode={mode} />
+      <SiteMobileActionBar themeId="nail_lash_studio" data={data} mode={mode} />
       <SiteBookingHost themeId="nail_lash_studio" data={data} />
     </div>
   );

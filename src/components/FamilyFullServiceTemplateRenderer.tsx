@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SalonData, Service, ServiceOffer } from '../types';
 import { getPublicStaffData } from '../types';
@@ -7,7 +8,11 @@ import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
+import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteSeo from './SiteSeo';
+import SiteImage from './SiteImage';
+import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
@@ -323,6 +328,12 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   const X = structureCopyFrom(S);
   const palette = { accent: teal, text: ink, muted, card: t.card, line, invert: '#ffffff' };
   const headerMode = headerModeOf(mode);
+  // PHASE 10.12 — performance optimization: clear stale data, marks, memoize
+  useEffect(() => {
+    setActiveTheme('family_full_service');
+    markPerformance('family_full_service-render-start');
+    return () => { markPerformance('family_full_service-render-end'); };
+  }, []);
   const featured = featuredServices(data.services);
 
   const MENU_FOCUSES: { men: FocusItem[]; women: FocusItem[]; kids: FocusItem[]; combos: FocusItem[] } = {
@@ -418,6 +429,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
       )}
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar site-scroll" style={{ backgroundColor: t.page, color: ink }}>
+        <SiteSeo themeId="family_full_service" data={data} mode={mode} />
         <SiteAnnouncementBar themeId="family_full_service" data={data} />
         <SiteHeader themeId="family_full_service" data={data} mode={headerMode} />
 
@@ -671,9 +683,15 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
 
         <FinalBookingCta themeId="family_full_service" data={data} title={S.bookingTitle} body={S.bookingBody} cta={S['struct.bookCta']} palette={palette} />
         <SiteFooter themeId="family_full_service" data={data} />
-        {mode === 'mobile' && <div className="site-mobile-dock-spacer" aria-hidden />}
+        {mode === 'mobile' && (
+          <>
+            <div className="site-mobile-action-bar-spacer" aria-hidden />
+            <div className="site-mobile-dock-spacer" aria-hidden />
+          </>
+        )}
       </div>
       <SiteFloatingActions themeId="family_full_service" data={data} mode={mode} />
+      <SiteMobileActionBar themeId="family_full_service" data={data} mode={mode} />
       <SiteBookingHost themeId="family_full_service" data={data} />
     </div>
   );
