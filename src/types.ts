@@ -169,6 +169,15 @@ export interface GalleryImage {
   caption?: string;
   /** Marks the image the gallery features as its spotlight/hero visual. */
   featured?: boolean;
+  /**
+   * PHASE 14.6 — owner gallery management fields (additive; never required by
+   * the customer gallery so existing saved galleries keep working unchanged).
+   */
+  title?: string;
+  description?: string;
+  serviceId?: string | null;
+  displayOrder?: number;
+  status?: 'active' | 'inactive';
 }
 
 export interface SocialProfiles {
