@@ -18,6 +18,8 @@ import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteOffers from './SiteOffers';
+import SiteCombos from './SiteCombos';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { setActiveTheme, markPerformance, paginateList } from '../lib/sitePerformance';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
@@ -133,43 +135,11 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
         {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
         <SiteServiceDirectory themeId="barber_mens_grooming" data={data} mode={mode} />
 
-        {/* Offers & Combos */}
-        <div {...sectionProps('offers', offersState)} className="site-section px-6 py-14" style={{ backgroundColor: charcoal }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-8">
-              <span className="text-[10px] font-bold uppercase tracking-[0.35em]" style={{ color: accentText }}>{S.packagesEyebrow}</span>
-              <h3 className="text-xl font-black uppercase tracking-[0.05em] mt-2" style={{ color: textStrong }}>{S.packagesTitle}</h3>
-            </div>
-            {offersState === 'ready' ? (
-              <div className="grid gap-4 grid-cols-1">
-                {packages.map((p) => (
-                  <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 border transition-colors min-w-0" style={{ backgroundColor: card, borderColor: gold }}>
-                    <div className="space-y-1 max-w-xl min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-black text-sm uppercase tracking-wider break-words" style={{ color: textStrong }}>{p.name}</h4>
-                        <span className="text-[9px] font-black uppercase px-2 py-0.5" style={{ backgroundColor: gold, color: '#141414' }}>{S['common.bestValue']}</span>
-                      </div>
-                      <p className="text-xs leading-relaxed break-words" style={{ color: muted }}>{p.description}</p>
-                      <div className="text-[10px] font-bold uppercase tracking-wider flex flex-wrap items-center gap-2 pt-1" style={{ color: muted }}>
-                        <span>⏱ {p.duration} {S['common.mins']}</span>
-                        <span>•</span>
-                        <span>{S['common.completeBundle']}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                      <BundlePrice bundle={p} offers={data.offers} style={{ color: accentText }} dark={appearance === 'dark'} />
-                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all hover:brightness-110" style={btnGold}>
-                        {S['common.bookBundle']}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <SectionStatePanel status={offersState} copy={X} palette={palette} emptyTitle={S.offersEmpty} />
-            )}
-          </div>
-        </div>
+        {/* Offers & Discounts */}
+        <SiteOffers themeId="barber_mens_grooming" data={data} mode={mode} />
+
+        {/* Combos & Packages */}
+        <SiteCombos themeId="barber_mens_grooming" data={data} mode={mode} />
 
         {/* Gallery — The Work */}
         <div {...sectionProps('gallery', galleryState)} className="site-section px-6 py-14 border-t" style={{ backgroundColor: charcoal, borderColor: line }}>

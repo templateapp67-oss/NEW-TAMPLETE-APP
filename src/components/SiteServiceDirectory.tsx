@@ -36,8 +36,9 @@ import type { ServiceSort } from '../lib/serviceSearch';
 import { displayService } from '../lib/displayService';
 import { translateCategory } from '../lib/siteI18n';
 import { openSiteBookingForService } from '../lib/siteBooking';
-import { serviceDisplayPrice, formatCurrency } from '../lib/pricing';
-import { featuredDiscountLabel } from '../lib/siteFeaturedServices';
+import { serviceDisplayPrice, formatCurrency, featuredDiscountLabel } from '../lib/pricing';
+import { getServiceVariants, serviceWithSelectedVariant } from '../lib/siteVariants';
+import { siteVariantsText } from '../lib/siteVariantsI18n';
 import { surfacesOf, BARBER_SURFACES, HAIR_STUDIO_SURFACES, BEAUTY_SPA_SURFACES, FAMILY_SURFACES, NAIL_LASH_SURFACES } from '../lib/themeSurfaces';
 import { serviceVisuals, categoryIcon } from '../lib/siteServiceVisuals';
 import ServiceVisual from './ServiceVisual';
@@ -332,6 +333,168 @@ function buildLook(themeId: SiteHeaderThemeId, appearance: 'light' | 'dark'): Di
     };
   }
 
+function ServiceDirectoryCard({
+  service,
+  themeId,
+  data,
+  locale,
+  look,
+  S,
+  onOpenDetail,
+}: {
+  service: Service;
+  themeId: SiteHeaderThemeId;
+  data: SalonData;
+  locale: AppLocale;
+  look: DirectoryLook;
+  S: Record<string, string>;
+  onOpenDetail: (s: Service) => void;
+}) {
+  const variants = getServiceVariants(service, themeId);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    service.selectedVariantId || null,
+  );
+
+  const selectedVariant = variants.find((v) => v.id === selectedVariantId);
+  const pricing = serviceDisplayPrice(service, data.offers, selectedVariantId);
+  const offer = pricing.offer;
+  const shown = displayService(service, locale);
+  const visual = serviceVisuals(service, locale);
+  const Glyph = categoryIcon(service.category);
+  const activeDuration = selectedVariant?.duration || service.duration;
+
+  const handleBook = () => {
+    const bookable = serviceWithSelectedVariant(service, selectedVariantId, themeId);
+    openSiteBookingForService(bookable, themeId);
+  };
+
+  return (
+    <div
+      key={service.id}
+      data-testid="site-directory-card"
+      data-theme={themeId}
+      data-service-name={service.name}
+      data-category={service.category}
+      className={look.cardClass}
+      style={look.cardStyle}
+    >
+      <ServiceVisual
+        src={visual.url || undefined}
+        alt={visual.alt}
+        aspectRatio="16/9"
+        rounded={look.mediaRounded}
+        className="w-full"
+        glyph={Glyph}
+        glyphColor={look.accent}
+        glyphBg={look.card}
+        glyphBorder={look.line}
+      />
+
+      <div className="flex items-start justify-between gap-2 min-w-0 mt-3">
+        <button
+          type="button"
+          data-testid="site-directory-open-detail"
+          data-service-name={service.name}
+          onClick={() => onOpenDetail(serviceWithSelectedVariant(service, selectedVariantId, themeId))}
+          className="min-w-0 text-left flex-1 cursor-pointer"
+        >
+          <h3 className={look.nameClass} style={look.nameStyle}>{shown.name}</h3>
+          <p className="text-[10px] uppercase tracking-[0.16em] mt-0.5 font-semibold" style={look.categoryStyle}>
+            {translateCategory(shown.category, locale)}
+          </p>
+        </button>
+
+        {offer && (
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span data-testid="site-directory-offer-badge" className={look.badgeClass} style={look.badgeStyle}>
+              {offer.promotionalBadge || 'Offer'}
+            </span>
+            <span data-testid="service-offer-applied" className="text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+              🏷️ {locale === 'hi' ? 'ऑफ़र लागू' : 'Offer Applied'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <p className="text-[11px] mt-2 leading-relaxed line-clamp-2 break-words" style={look.descStyle}>
+        {shown.description}
+      </p>
+
+      {/* Variant Selector */}
+      {variants.length > 0 && (
+        <div data-testid="variant-selector" className="mt-3 space-y-1">
+          <span className="text-[9px] font-extrabold uppercase tracking-wider block" style={{ color: look.accent }}>
+            {siteVariantsText(themeId, locale).selectVariantLabel}
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {variants.map((variant) => {
+              const isSelected = variant.id === selectedVariantId;
+              return (
+                <button
+                  key={variant.id}
+                  type="button"
+                  data-testid="variant-option"
+                  data-variant-id={variant.id}
+                  data-variant-selected={isSelected ? 'true' : 'false'}
+                  onClick={() => setSelectedVariantId(variant.id)}
+                  className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    isSelected ? 'ring-1 shadow-xs' : 'opacity-70 hover:opacity-100'
+                  }`}
+                  style={{
+                    backgroundColor: isSelected ? look.accent : 'transparent',
+                    color: isSelected ? '#ffffff' : look.text,
+                    borderColor: isSelected ? look.accent : look.line,
+                  }}
+                >
+                  {variant.name} {isSelected && <span data-testid="variant-selected">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t" style={{ borderColor: look.line }}>
+        <span className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {offer ? (
+            <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+              <span className="text-[10px] line-through opacity-55" style={look.priceStyle}>{formatCurrency(pricing.basePrice)}</span>
+              <span data-testid="site-directory-price" className="text-sm font-extrabold" style={look.priceStyle}>
+                <span data-testid="variant-price">{formatCurrency(pricing.finalPrice)}</span>
+              </span>
+            </span>
+          ) : (
+            <span data-testid="site-directory-price" className="text-sm font-extrabold" style={look.priceStyle}>
+              <span data-testid="variant-price">{formatCurrency(pricing.finalPrice)}</span>
+            </span>
+          )}
+          {offer && (
+            <span data-testid="site-directory-discount" className="text-[9px] font-bold whitespace-nowrap" style={look.discountStyle}>
+              {featuredDiscountLabel(offer)}
+            </span>
+          )}
+        </span>
+
+        <span data-testid="site-directory-duration" className="inline-flex items-center gap-1 text-[10px] font-semibold whitespace-nowrap" style={look.durationStyle}>
+          <Clock className="w-3 h-3" style={{ color: look.accent }} />
+          <span data-testid="variant-duration">{activeDuration} {S['common.mins']}</span>
+        </span>
+      </div>
+
+      <button
+        type="button"
+        data-testid="site-directory-book"
+        data-service-name={service.name}
+        onClick={handleBook}
+        className={look.ctaClass}
+        style={look.ctaStyle}
+      >
+        {S[look.ctaKey]}
+      </button>
+    </div>
+  );
+}
+
 export default function SiteServiceDirectory({ themeId, data, mode }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
@@ -398,103 +561,18 @@ export default function SiteServiceDirectory({ themeId, data, mode }: Props) {
 
   const gridClass = `grid gap-3 mt-6 ${siteGrid(mode, look.grid)}`;
 
-  const renderCard = (service: (typeof services)[number]) => {
-    const shown = displayService(service, locale);
-    const pricing = serviceDisplayPrice(service, data.offers);
-    const offer = pricing.offer;
-    const variants = (service.pricingVariants ?? []).filter((variant) => variant.status === 'active');
-    const minPrice = Math.min(service.price, ...variants.map((variant) => variant.price));
-    const hasVariants = variants.length > 1;
-    const visual = serviceVisuals(service, locale);
-    const Glyph = categoryIcon(service.category);
-
-    return (
-      <div
-        key={service.id}
-        data-testid="site-directory-card"
-        data-theme={themeId}
-        data-service-name={service.name}
-        data-category={service.category}
-        className={look.cardClass}
-        style={look.cardStyle}
-      >
-        {/* PHASE 12.7 — service visual: configured image/icon/banner via the
-            existing SiteImage performance pipeline; themed glyph fallback. */}
-        <ServiceVisual
-          src={visual.url || undefined}
-          alt={visual.alt}
-          aspectRatio="16/9"
-          rounded={look.mediaRounded}
-          className="w-full"
-          glyph={Glyph}
-          glyphColor={look.accent}
-          glyphBg={look.card}
-          glyphBorder={look.line}
-        />
-
-        <div className="flex items-start justify-between gap-2 min-w-0 mt-3">
-          <button
-            type="button"
-            data-testid="site-directory-open-detail"
-            data-service-name={service.name}
-            onClick={() => setDetailService(service)}
-            className="min-w-0 text-left flex-1 cursor-pointer"
-          >
-            <h3 className={look.nameClass} style={look.nameStyle}>{shown.name}</h3>
-            <p className="text-[10px] uppercase tracking-[0.16em] mt-0.5 font-semibold" style={look.categoryStyle}>
-              {translateCategory(shown.category, locale)}
-            </p>
-          </button>
-          {offer && (
-            <span data-testid="site-directory-offer-badge" className={`${look.badgeClass} shrink-0`} style={look.badgeStyle}>
-              {offer.promotionalBadge || 'Offer'}
-            </span>
-          )}
-        </div>
-
-        <p className="text-[11px] mt-2 leading-relaxed line-clamp-2 break-words" style={look.descStyle}>
-          {shown.description}
-        </p>
-
-        <div className="flex items-center justify-between gap-2 mt-3">
-          <span className="flex items-center gap-1.5 flex-wrap min-w-0">
-            {offer ? (
-              <span className="flex items-baseline gap-1.5 whitespace-nowrap">
-                <span className="text-[10px] line-through opacity-55" style={look.priceStyle}>{formatCurrency(pricing.basePrice)}</span>
-                <span data-testid="site-directory-price" className="text-sm font-extrabold" style={look.priceStyle}>{formatCurrency(pricing.finalPrice)}</span>
-              </span>
-            ) : hasVariants ? (
-              <span data-testid="site-directory-price" className="text-sm font-extrabold" style={look.priceStyle}>
-                {locale === 'hi' ? `${formatCurrency(minPrice)} से` : `From ${formatCurrency(minPrice)}`}
-              </span>
-            ) : (
-              <span data-testid="site-directory-price" className="text-sm font-extrabold" style={look.priceStyle}>{formatCurrency(pricing.finalPrice)}</span>
-            )}
-            {offer && (
-              <span data-testid="site-directory-discount" className="text-[9px] font-bold whitespace-nowrap" style={look.discountStyle}>
-                {featuredDiscountLabel(offer)}
-              </span>
-            )}
-          </span>
-          <span data-testid="site-directory-duration" className="inline-flex items-center gap-1 text-[10px] font-semibold whitespace-nowrap" style={look.durationStyle}>
-            <Clock className="w-3 h-3" style={{ color: look.accent }} />
-            {service.duration} {S['common.mins']}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          data-testid="site-directory-book"
-          data-service-name={service.name}
-          onClick={() => openSiteBookingForService(service, themeId)}
-          className={look.ctaClass}
-          style={look.ctaStyle}
-        >
-          {S[look.ctaKey]}
-        </button>
-      </div>
-    );
-  };
+  const renderCard = (service: (typeof services)[number]) => (
+    <ServiceDirectoryCard
+      key={service.id}
+      service={service}
+      themeId={themeId}
+      data={data}
+      locale={locale}
+      look={look}
+      S={S}
+      onOpenDetail={(s) => setDetailService(s)}
+    />
+  );
 
   return (
     <>

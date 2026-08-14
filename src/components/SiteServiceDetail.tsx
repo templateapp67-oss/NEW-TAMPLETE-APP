@@ -17,8 +17,8 @@
  * surfaces/typography/shape. The overlay is mobile-first (bottom sheet) and
  * centers on desktop.
  */
-import type { CSSProperties } from 'react';
-import type { SalonData, Service } from '../types';
+import { useState, type CSSProperties } from 'react';
+import type { SalonData, Service, ServiceOffer } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import { siteText } from '../lib/siteI18n';
@@ -26,7 +26,8 @@ import { displayService } from '../lib/displayService';
 import { translateCategory } from '../lib/siteI18n';
 import { openSiteBookingForService } from '../lib/siteBooking';
 import { serviceDisplayPrice, formatCurrency } from '../lib/pricing';
-import { featuredDiscountLabel } from '../lib/siteFeaturedServices';
+import { getServiceVariants, resolveServiceVariant, serviceWithSelectedVariant } from '../lib/siteVariants';
+import { siteVariantsText } from '../lib/siteVariantsI18n';
 import { serviceDetailText } from '../lib/siteServiceDetailI18n';
 import { staffForService } from '../lib/siteServiceDetail';
 import { serviceVisuals, categoryIcon } from '../lib/siteServiceVisuals';
@@ -291,28 +292,35 @@ export default function SiteServiceDetail({ themeId, data, service, mode, onClos
   const look = buildLook(themeId, appearance);
   const shown = displayService(service, locale);
 
-  const pricing = serviceDisplayPrice(service, data.offers);
+  const variants = getServiceVariants(service, themeId);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    service.selectedVariantId || null,
+  );
+
+  const activeVariant = resolveServiceVariant(service, selectedVariantId, themeId);
+  const pricing = serviceDisplayPrice(service, data.offers, selectedVariantId);
   const offer = pricing.offer;
-  const variants = (service.pricingVariants ?? []).filter((variant) => variant.status === 'active');
-  const minPrice = Math.min(service.price, ...variants.map((variant) => variant.price));
-  const hasVariants = variants.length > 1;
+  const activeDuration = activeVariant?.duration || service.duration;
+
   const staff = staffForService(data, service.id);
   const Icon = categoryIcon(service.category);
   const visual = serviceVisuals(service, locale);
 
+  const discountLabel = (off: ServiceOffer) =>
+    off.discountType === 'percentage'
+      ? `${Math.round(off.discountValue * 100) / 100}% off`
+      : `₹${off.discountValue.toLocaleString('en-IN')} off`;
+
   const handleBook = () => {
     onClose();
-    openSiteBookingForService(service, themeId);
+    const bookable = serviceWithSelectedVariant(service, selectedVariantId, themeId);
+    openSiteBookingForService(bookable, themeId);
   };
 
   const priceNode = offer ? (
     <span className="flex items-baseline gap-1.5">
       <span className="text-[11px] line-through opacity-55" style={look.priceStyle}>{formatCurrency(pricing.basePrice)}</span>
       <span data-testid="site-service-detail-price" className="text-lg font-extrabold" style={look.priceStyle}>{formatCurrency(pricing.finalPrice)}</span>
-    </span>
-  ) : hasVariants ? (
-    <span data-testid="site-service-detail-price" className="text-lg font-extrabold" style={look.priceStyle}>
-      {locale === 'hi' ? `${formatCurrency(minPrice)} से` : `From ${formatCurrency(minPrice)}`}
     </span>
   ) : (
     <span data-testid="site-service-detail-price" className="text-lg font-extrabold" style={look.priceStyle}>{formatCurrency(pricing.finalPrice)}</span>
@@ -417,6 +425,40 @@ export default function SiteServiceDetail({ themeId, data, service, mode, onClos
             />
           )}
 
+          {/* Variant Selector */}
+          {variants.length > 0 && (
+            <div data-testid="variant-selector" className="mt-4 p-3 border rounded-xl space-y-1.5" style={{ borderColor: look.line, backgroundColor: look.card }}>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: look.accent }}>
+                {siteVariantsText(themeId, locale).selectVariantLabel}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {variants.map((variant) => {
+                  const isSelected = variant.id === selectedVariantId;
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      data-testid="variant-option"
+                      data-variant-id={variant.id}
+                      data-variant-selected={isSelected ? 'true' : 'false'}
+                      onClick={() => setSelectedVariantId(variant.id)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                        isSelected ? 'ring-2 shadow-xs' : 'opacity-70 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: isSelected ? look.accent : 'transparent',
+                        color: isSelected ? '#ffffff' : look.text,
+                        borderColor: isSelected ? look.accent : look.line,
+                      }}
+                    >
+                      {variant.name} {isSelected && <span data-testid="variant-selected">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-3 mt-4">
             <span className="flex items-center gap-2 flex-wrap min-w-0">
               {priceNode}
@@ -428,14 +470,19 @@ export default function SiteServiceDetail({ themeId, data, service, mode, onClos
                 >
                   <span>{offer.promotionalBadge || 'Offer'}</span>
                   <span data-testid="site-service-detail-discount" style={look.discountStyle}>
-                    {featuredDiscountLabel(offer)}
+                    {discountLabel(offer)}
                   </span>
                 </span>
               )}
             </span>
-            <span data-testid="site-service-detail-duration" className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap" style={look.durationStyle}>
+            <span
+              data-testid="site-service-detail-duration"
+              data-testid-variant="variant-duration"
+              className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap"
+              style={look.durationStyle}
+            >
               <Clock className="w-3.5 h-3.5" style={{ color: look.accent }} />
-              {service.duration} {S['common.mins']}
+              {activeDuration} {S['common.mins']}
             </span>
           </div>
 
