@@ -25,7 +25,7 @@ import { displayService } from '../lib/displayService';
 import { serviceDisplayPrice, formatCurrency } from '../lib/pricing';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import SiteSalonStatus from './SiteSalonStatus';
-import { salonDisplayName } from '../lib/siteBooking';
+import { consumeBookingServicePrefill, salonDisplayName } from '../lib/siteBooking';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { useTickingNow } from '../lib/salonStatus';
 import { dayLabel, translateCategory } from '../lib/siteI18n';
@@ -222,13 +222,25 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   const s = bookingSurfaces(themeId, appearance);
   const D = FLOW_DESIGNS[themeId];
 
-  const services = useMemo(() => bookingServicesForTheme(data, themeId), [data, themeId]);
+  // PHASE 12.3 — optional prefill: a Featured-service "Book Now" may hand the
+  // flow a service to pre-select. Same single flow; the prefill is consumed
+  // once on mount and prepended to the theme's own list so it stays selectable.
+  const [initialPrefill] = useState<Service | null>(() => consumeBookingServicePrefill(themeId));
+  const services = useMemo(() => {
+    const base = bookingServicesForTheme(data, themeId);
+    if (initialPrefill && !base.some((item) => item.id === initialPrefill.id)) {
+      return [initialPrefill, ...base];
+    }
+    return base;
+  }, [data, themeId, initialPrefill]);
   const categories = useMemo(() => bookingServicesByCategory(services), [services]);
 
   /* ---------- wizard state (preserved while moving between steps) ---------- */
   const [step, setStep] = useState<BookingStepId>('service');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(services[0]?.id ?? null);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
+    initialPrefill?.id ?? services[0]?.id ?? null,
+  );
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [selectedSlotMinutes, setSelectedSlotMinutes] = useState<number | null>(null);
   const [holdKey, setHoldKey] = useState<string | null>(null);

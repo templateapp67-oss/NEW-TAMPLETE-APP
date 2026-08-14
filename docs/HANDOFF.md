@@ -6,6 +6,161 @@
 
 ## Current repository state
 
+- **PHASE 12.7 — SERVICE IMAGES & VISUALS: COMPLETE for all five themes (60 tests).**
+  - Service cards (directory) + the Service Detail modal now render a visual
+    from configured media only: Service Image (image → banner → icon),
+    Icon (`iconUrl`), and an optional Gallery Image (`bannerUrl`, detail only).
+  - `src/lib/siteServiceVisuals.ts` resolves visuals + a theme-scoped category →
+    glyph map; `src/components/ServiceVisual.tsx` wraps the existing `SiteImage`
+    performance system (lazy loading, responsive srcSet, fixed aspect ratio,
+    IMAGE_CACHE dedup) with a themed glyph fallback for missing/broken media.
+    Alt text = localized service name; decorative icon chip is alt="".
+  - No fake images, no invented URLs, no cross-theme artwork, no duplicate image
+    loading; theme switch drops previous-theme images. Files:
+    `src/lib/siteServiceVisuals.ts`, `src/components/ServiceVisual.tsx`,
+    `src/components/SiteServiceDirectory.tsx` (card visual),
+    `src/components/SiteServiceDetail.tsx` (hero + icon + gallery),
+    `scripts/test-phase-12.7.mjs`.
+  - Validation: `test:phase-12.7` 60/60; 12.6 59, 12.5 83, 12.4 105, 12.3 74,
+    12.2 117, 12.1 84, 11.8 450; Phase 10 all green (10.1–10.13); lint, build,
+    25-screen verification green.
+    Details: `docs/phase-12.7-service-images-visuals.md`.
+
+- **PHASE 12.6 — SERVICE DETAIL EXPERIENCE: COMPLETE for all five themes (59 tests).**
+  - Selecting a service in the Complete Services directory now opens a clean,
+    theme-specific Service Detail modal (`src/components/SiteServiceDetail.tsx`):
+    name, full description, category, price/starting price, duration, active
+    offer + discount amount, image/icon (real media else themed glyph), and
+    available staff (`staffForService` — real, available members only,
+    assignments respected, on-leave/inactive excluded, never invented).
+  - Book Now reuses `openSiteBookingForService` so the existing booking flow
+    receives theme + category + service with no re-selection; the modal closes
+    on book / close / backdrop. Theme switch closes any open modal (state reset
+    in the directory).
+  - Files: `src/lib/siteServiceDetail.ts`, `src/lib/siteServiceDetailI18n.ts`,
+    `src/components/SiteServiceDetail.tsx`,
+    `src/components/SiteServiceDirectory.tsx` (open-detail trigger + modal host),
+    `scripts/test-phase-12.6.mjs`.
+  - Validation: `test:phase-12.6` 59/59; 12.5 83, 12.4 105, 12.3 74, 12.2 117,
+    12.1 84, 11.8 450; Phase 10 all green (10.1–10.13); lint, build, 25-screen
+    verification green. Details: `docs/phase-12.6-service-detail-experience.md`.
+
+- **PHASE 12.5 — SERVICE DISCOVERY: COMPLETE for all five themes (83 tests).**
+  - Enhanced the Complete Services directory with discovery controls: search by
+    name (instant, EN/HI, active theme only), category tabs from the theme's own
+    services, sort (Recommended · Name A–Z · Price ↑/↓ · Duration short→long),
+    a **Clear Filters** button (inline + inside the empty state), a "No services
+    found" empty state, and automatic search/filter/sort reset on theme switch.
+  - Name sort added to the shared `serviceSearch` engine (`name_asc`); no
+    duplicate service/sort logic. `src/lib/siteServiceDirectoryI18n.ts` gained
+    `sortNameAsc` + `clearFilters`; `SiteServiceDirectory.tsx` gained the clear
+    button, empty-state clear, `useEffect([themeId])` reset, and mobile control
+    reflow. Theme-specific ghost/solid clear styling (five distinct shapes).
+  - Validation: `test:phase-12.5` 83/83; 12.4 105, 12.3 74, 12.2 117, 12.1 84,
+    11.8 450; Phase 10 all green (10.1–10.13); lint, build, 25-screen
+    verification green. Details: `docs/phase-12.5-service-discovery.md`.
+
+- **PHASE 12.4 — COMPLETE SERVICE DIRECTORY: COMPLETE for all five themes (105 tests).**
+  - New Complete Services directory (`src/components/SiteServiceDirectory.tsx`)
+    replaces the old per-theme services blocks in the canonical `services` slot
+    (directly after Featured Services). Active Theme → Category → Services:
+    category tabs, search, category filter, and price/duration sorting (existing
+    `serviceSearch` engine), plus cards with name, description, offer-aware
+    price, duration, offer badge + discount, and Book Now → existing booking flow
+    with the service preserved.
+  - Theme isolation via the existing theme relationship
+    (`directoryServicesForTheme`: `themeKey` wins over `themeId`; no-provenance
+    rows stay; foreign rows excluded). Categories derive from those same
+    theme-filtered services. No hardcoded cross-theme services, no invented
+    prices/durations, `predefinedServiceId`/`categoryId` provenance untouched.
+  - Section backgrounds match the Phase 10.2 surface tokens (barber
+    charcoalSoft, hair paper, spa cream, family white, nail cream) so the
+    light/dark toggle test stays green; hair's nested Packages block was moved
+    out to its own `offers` section (canonical flow unchanged).
+  - Files: `src/lib/siteServiceDirectory.ts`,
+    `src/lib/siteServiceDirectoryI18n.ts`,
+    `src/components/SiteServiceDirectory.tsx`, the five theme renderers
+    (services block → `<SiteServiceDirectory />`), `scripts/test-phase-12.4.mjs`.
+  - Validation: `test:phase-12.4` 105/105; 12.3 74, 12.2 117, 12.1 84,
+    11.8 450; Phase 10 all green (10.1–10.13, incl. 10.2 49, 10.6 102, 10.7 66,
+    10.13 339); lint, build and 25-screen verification green.
+    Details: `docs/phase-12.4-complete-service-directory.md`.
+
+- **PHASE 12.3 — SERVICE CARD ENHANCEMENT: COMPLETE for all five themes (74 tests).**
+  - Enhanced the Phase 12.2 Featured Service cards: image/icon (real media when
+    provided, else a themed category icon), Suggested badge (`isSuggested`) and
+    Popular badge (top-ranked `suggestedSortOrder`), offer badge PLUS the
+    computed discount amount ("20% off" / "₹100 off"), "From ₹X" starting price
+    when multiple active price options exist, and a Book Now CTA that opens the
+    existing booking flow **with the selected service preserved**.
+  - Offer rules hardened and verified: active offers only, start/end dates
+    respected, expired offers disappear automatically, no invented discounts.
+  - CTA mechanism: `openSiteBookingForService(service, themeId)` +
+    `consumeBookingServicePrefill(themeId)` in `src/lib/siteBooking.ts` hand the
+    SAME `nexora:open-booking` event a one-shot prefill; `SiteBookingFlow`
+    consumes it on mount, prepends the service to the theme's own list and
+    pre-selects it. Additive only — the single flow/host and its step order are
+    unchanged, and a plain Book Appointment never inherits a stale prefill.
+  - Files: `src/lib/siteFeaturedServices.ts` (+model fields + 3 helpers),
+    `src/lib/siteFeaturedI18n.ts`, `src/lib/siteBooking.ts` (+prefill channel),
+    `src/components/SiteBookingFlow.tsx` (+consume),
+    `src/components/SiteFeaturedServices.tsx` (card redesign),
+    `scripts/test-phase-12.3.mjs`.
+  - Validation: `test:phase-12.3` 74/74; 12.2 117/117; 12.1 84/84; 11.8 450/450;
+    booking regression 10.6 102/102 + 10.7 66/66; 10.2 49, 10.12 178, 10.13 339;
+    lint, build and 25-screen verification green.
+    Details: `docs/phase-12.3-service-card-enhancement.md`.
+
+- **PHASE 12.2 — FEATURED SERVICES: COMPLETE for all five themes (117 tests).**
+  - New Featured Services section sits directly below Trust/Stats and shows ONLY
+    the active theme's own suggested services, loaded from the EXISTING
+    theme-scoped catalog: the M19 RPC `get_theme_service_catalog(p_theme_id)`
+    (SQL `theme_id` filter, `is_suggested = true`) when Supabase is configured,
+    with the identical static `getSuggestedServices(themeId)` seed as the
+    offline fallback. Cross-theme responses are rejected; no theme ever copies
+    another theme's services.
+  - Each card shows name, short description, price (offer-aware: strikethrough +
+    discounted), duration, an offer badge when a theme/category/predefined offer
+    applies, and a Book Now action that opens the existing booking flow.
+  - Replaced the old per-theme "featured" blocks (which showed the owner's
+    generic saved services) and removed the nail theme's hardcoded showcase
+    cards. No new service architecture, no DB structure change, no invented
+    services/prices.
+  - Theme-specific card design (five distinct looks), responsive mode-based
+    grids (barber/hair/spa/family 2/2/1, nail 4/2/2), EN/HI via the catalog
+    locale seed, light/dark surfaces, and loading/empty/error states.
+  - Files: `src/lib/siteFeaturedServices.ts`,
+    `src/components/SiteFeaturedServices.tsx`, `src/lib/siteStructure.ts`
+    (+`injectedSectionStatus`), the five theme renderers (featured block →
+    `<SiteFeaturedServices />`), and `scripts/test-phase-12.2.mjs`.
+  - Validation: `test:phase-12.2` 117/117; 12.1 84/84; 11.8 450/450; Phase 10
+    suites all green (10.1 80, 10.2 49, 10.3 86, 10.4 118, 10.8 36, 10.9 77,
+    10.12 178, 10.13 339); lint, build and 25-screen verification green.
+    Details: `docs/phase-12.2-featured-services.md`.
+
+- **PHASE 12.1 — TRUST & SALON STATS: COMPLETE for all five themes (84 tests).**
+  - New Trust/Stats section sits directly below each theme's hero and shows
+    ONLY real, configured data: Customer Rating + Review Count (approved
+    reviews, Phase 10.8 engine), Years of Experience + Happy Customers
+    (new optional `SalonData.yearsOfExperience` / `happyCustomers`),
+    Services Available (active catalog count) and Salon Status / Opening Info
+    (Phase 10.5 live status engine).
+  - The hardcoded marketing numbers the Phase 10.3 trust strips shipped
+    ("15+", "10k", "4.9", "∞" …) are removed. A stat with no data is hidden —
+    never replaced with a fabricated value — and when nothing is configured the
+    section shows its empty state.
+  - Theme-specific card design (five distinct looks/colours/typography),
+    responsive desktop 3 / tablet 3 / mobile 1 grids (mode-based), English +
+    हिन्दी labels, light/dark surfaces, and loading/empty/error states via the
+    shared `setWebsiteSectionFlagsForTests({ trust: … })` seam.
+  - Files: `src/lib/siteTrust.ts`, `src/lib/siteTrustI18n.ts`,
+    `src/components/SiteTrust.tsx`, `src/types.ts` (+2 optional fields), the
+    five theme renderers (trust block → `<SiteTrust />`), and
+    `scripts/test-phase-12.1.mjs`.
+  - Validation: `test:phase-12.1` 84/84; `test:phase-10.13` 339/339;
+    `test:phase-11.8` 450/450; lint, build and 25-screen verification green.
+    Details: `docs/phase-12.1-trust-salon-stats.md`.
+
 - **PHASE 11 ACCEPTED — Phase 11.8 final hero acceptance passed for all five
   themes (2398 Phase 11 tests green).**
   - Acceptance-only phase: **no product source was changed**. The hero passed
@@ -790,6 +945,13 @@ npm run test:phase-11.7    # hero data validation (306 tests)
 npm run test:phase-11.8    # final hero acceptance gate (450 tests)
 npm run test:phase-11      # every Phase 11 suite (2398 tests)
 npm run test:phase-11      # both Phase 11 suites
+npm run test:phase-12.1    # trust & salon stats across all five themes (84 tests)
+npm run test:phase-12.2    # featured services across all five themes (117 tests)
+npm run test:phase-12.3    # featured service card enhancement (74 tests)
+npm run test:phase-12.4    # complete service directory across all five themes (105 tests)
+npm run test:phase-12.5    # service discovery (search/filter/sort) across all five themes (83 tests)
+npm run test:phase-12.6    # service detail experience across all five themes (59 tests)
+npm run test:phase-12.7    # service images & visuals across all five themes (60 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -811,6 +973,13 @@ Expected output:
 - `test:phase-11.7`: 306/306 passed (hero data validation)
 - `test:phase-11.8`: 450/450 passed (final hero acceptance)
 - `test:phase-11`: 2398 tests, all green — PHASE 11 ACCEPTED
+- `test:phase-12.1`: 84/84 passed (trust & salon stats, all five themes)
+- `test:phase-12.2`: 117/117 passed (featured services, all five themes)
+- `test:phase-12.3`: 74/74 passed (featured service card enhancement)
+- `test:phase-12.4`: 105/105 passed (complete service directory)
+- `test:phase-12.5`: 83/83 passed (service discovery — search/filter/sort)
+- `test:phase-12.6`: 59/59 passed (service detail experience)
+- `test:phase-12.7`: 60/60 passed (service images & visuals)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

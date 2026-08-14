@@ -16,14 +16,16 @@ import BeautySpaHero from './heroes/BeautySpaHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
+import SiteTrust from './SiteTrust';
+import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { BEAUTY_SPA_SURFACES, surfacesOf } from '../lib/themeSurfaces';
-import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
+import { dayLabel, siteText } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
   activeCatalogItems,
-  featuredServices,
   headerModeOf,
   resolveSectionState,
   sectionProps,
@@ -75,11 +77,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
     markPerformance('beauty_skin_spa-render-start');
     return () => { markPerformance('beauty_skin_spa-render-end'); };
   }, []);
-  const services = activeCatalogItems(data.services);
   const packages = activeCatalogItems(data.packages);
-  const featured = featuredServices(data.services);
-  const servicesState = resolveSectionState('services', services);
-  const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
   const galleryState = resolveSectionState('gallery', data.gallery);
   const teamState = resolveSectionState('team', data.team);
@@ -141,84 +139,14 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
         {/* Hero — PHASE 11.1: soft arch spa hero */}
         <BeautySpaHero data={data} mode={mode} />
 
-        <div {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: beigeSoft }}>
-          <div className="max-w-3xl mx-auto text-center">
-            <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.trustEyebrow}</span>
-            <h2 className="text-xl md:text-2xl font-serif mt-2" style={{ color: text }}>{S.trustTitle}</h2>
-            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 1 })}`}>
-              {[{ v: S.trust1Value, l: S.trust1Label }, { v: S.trust2Value, l: S.trust2Label }, { v: S.trust3Value, l: S.trust3Label }].map((stat) => (
-                <div key={stat.l} className="rounded-3xl border p-4 min-w-0" style={{ borderColor: line, backgroundColor: card }}>
-                  <p className="text-2xl font-serif" style={{ color: emerald }}>{stat.v}</p>
-                  <p className="text-[10px] uppercase tracking-[0.16em] mt-1" style={{ color: muted }}>{stat.l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* Trust / Stats — PHASE 12.1: real, configured data only */}
+        <SiteTrust themeId="beauty_skin_spa" data={data} mode={mode} />
 
-        <div {...sectionProps('featured', featuredState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: cream }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-8">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.featuredEyebrow}</span>
-              <h2 className="text-2xl font-serif mt-2" style={{ color: text }}>{S.featuredTitle}</h2>
-            </div>
-            {featuredState === 'ready' ? (
-              <div className={`grid gap-4 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-                {featured.map((s) => {
-                  const shown = displayService(s, locale);
-                  return (
-                    <div key={s.id} className="rounded-3xl border p-5 min-w-0" style={{ borderColor: line, backgroundColor: card }}>
-                      <div className="flex justify-between gap-3">
-                        <h4 className="font-serif font-semibold text-sm break-words" style={{ color: text }}>{shown.name}</h4>
-                        <ServicePrice service={s} offers={data.offers} style={{ color: emerald }} compact dark={isDark} />
-                      </div>
-                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch mt-4 rounded-full px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookNow']}</button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : <SectionStatePanel status={featuredState} copy={X} palette={palette} emptyTitle={S.featuredEmpty} />}
-          </div>
-        </div>
+        {/* Featured Services — PHASE 12.2: theme-specific suggested services only */}
+        <SiteFeaturedServices themeId="beauty_skin_spa" data={data} mode={mode} />
 
-        <div {...sectionProps('services', servicesState)} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: cream }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.servicesEyebrow}</span>
-              <h2 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: text }}>{S.servicesTitle}</h2>
-              <p className="text-xs mt-3 max-w-md mx-auto" style={{ color: muted }}>
-                {S.servicesSubtitle}
-              </p>
-            </div>
-
-            {servicesState !== 'ready' ? <SectionStatePanel status={servicesState} copy={X} palette={palette} emptyTitle={S.servicesEmpty} /> : (
-            <div className={`grid gap-5 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-              {services.map((s) => {
-                const shown = displayService(s, locale);
-                return (
-                <div key={s.id} className="rounded-3xl p-6 border transition-all hover:-translate-y-0.5 min-w-0" style={{ backgroundColor: card, borderColor: line, boxShadow: isDark ? 'none' : '0 2px 10px rgba(0,0,0,0.03)' }}>
-                  {shown.imageUrl && <img src={shown.imageUrl} alt="" className="w-full h-24 object-cover rounded-2xl mb-3" />}
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <h4 className="font-serif font-semibold text-sm break-words" style={{ color: text }}>{shown.name}</h4>
-                    <ServicePrice service={s} offers={data.offers} style={{ color: emerald }} compact dark={isDark} />
-                  </div>
-                  <span className="inline-block text-[9px] uppercase tracking-[0.2em] font-semibold px-2.5 py-0.5 rounded-full mb-3" style={{ backgroundColor: emeraldSoft, color: isDark ? '#bfe3d6' : emeraldDeep }}>
-                    {translateCategory(s.category, locale)}
-                  </span>
-                  <p className="text-xs leading-relaxed line-clamp-2 mb-4 break-words" style={{ color: muted }}>{shown.description}</p>
-                  <div className="flex justify-between items-center pt-3 border-t" style={{ borderColor: line }}>
-                    <span className="text-[11px] font-medium" style={{ color: muted }}>{s.duration} {S['common.mins']}</span>
-                    <button data-open-booking="true" onClick={openSiteBooking} className="px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-105" style={btnEmerald}>
-                      {S['common.bookNow']}
-                    </button>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-            )}
-          </div>
-        </div>
+        {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
+        <SiteServiceDirectory themeId="beauty_skin_spa" data={data} mode={mode} />
 
         <div {...sectionProps('offers', offersState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: beigeSoft }}>
           <div className="max-w-3xl mx-auto">

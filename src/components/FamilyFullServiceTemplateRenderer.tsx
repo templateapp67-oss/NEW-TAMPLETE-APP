@@ -17,6 +17,9 @@ import FamilyHero from './heroes/FamilyHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
+import SiteTrust from './SiteTrust';
+import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
 import { FAMILY_SURFACES, surfacesOf } from '../lib/themeSurfaces';
@@ -24,7 +27,6 @@ import type { FamilySurface } from '../lib/themeSurfaces';
 import { dayLabel, siteText } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
-  featuredServices,
   headerModeOf,
   resolveSectionState,
   sectionProps,
@@ -39,7 +41,6 @@ import {
   CalendarDays,
   Camera,
   CheckCircle2,
-  ChevronRight,
   Clock3,
   HeartHandshake,
   Instagram,
@@ -334,7 +335,6 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
     markPerformance('family_full_service-render-start');
     return () => { markPerformance('family_full_service-render-end'); };
   }, []);
-  const featured = featuredServices(data.services);
 
   const MENU_FOCUSES: { men: FocusItem[]; women: FocusItem[]; kids: FocusItem[]; combos: FocusItem[] } = {
     men: [
@@ -359,13 +359,6 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
     ],
   };
 
-  const NAV_ITEMS = [
-    { id: 'section-men-services', label: S.navMen },
-    { id: 'section-women-services', label: S.navWomen },
-    { id: 'section-kids', label: S.navKids },
-    { id: 'section-combos', label: S.navCombos },
-  ];
-
   const groups = getServiceGroups(data);
   const FALLBACK_GALLERY: GalleryImageTile[] = PREVIEW_GALLERY_BASE.map((img, i) => ({
     ...img,
@@ -379,8 +372,6 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
       }))
     : FALLBACK_GALLERY;
   const publicTeam = (data.team || []).map(getPublicStaffData);
-  const featuredState = resolveSectionState('featured', featured);
-  const servicesState = resolveSectionState('services', data.services);
   const offersState = resolveSectionState('offers', (data.packages || []));
   const galleryState = resolveSectionState('gallery', data.gallery);
   const teamState = resolveSectionState('team', publicTeam);
@@ -435,55 +426,14 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
         {/* Hero — PHASE 11.1: bright family action-card hero */}
         <FamilyHero data={data} mode={mode} />
 
-        <section {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: t.well }}>
-          <div className="text-center max-w-xl mx-auto">
-            <SectionIntro eyebrow={S.trustEyebrow} title={S.trustTitle} align="center" t={t} />
-            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 1 })}`}>
-              {[{ v: S.trust1Value, l: S.trust1Label }, { v: S.trust2Value, l: S.trust2Label }, { v: S.trust3Value, l: S.trust3Label }].map((stat) => (
-                <div key={stat.l} className="rounded-2xl border p-4 min-w-0" style={{ borderColor: line, backgroundColor: t.card }}>
-                  <p className="text-2xl font-extrabold" style={{ color: teal }}>{stat.v}</p>
-                  <p className="text-[9px] font-bold mt-1" style={{ color: muted }}>{stat.l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        {/* Trust / Stats — PHASE 12.1: real, configured data only */}
+        <SiteTrust themeId="family_full_service" data={data} mode={mode} />
 
-        <section {...sectionProps('featured', featuredState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
-          <SectionIntro eyebrow={S.featuredEyebrow} title={S.featuredTitle} body={S.featuredEmpty} t={t} />
-          {featuredState === 'ready' ? (
-            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-              {featured.map((service) => (
-                <div key={service.id} className="rounded-2xl border p-4 min-w-0 flex items-center justify-between gap-3" style={{ borderColor: line, backgroundColor: t.well }}>
-                  <p className="text-sm font-extrabold break-words" style={{ color: ink }}>{service.name}</p>
-                  <a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="site-touch shrink-0 rounded-xl px-3 py-2 text-[9px] font-extrabold uppercase" style={{ backgroundColor: teal, color: '#ffffff' }}>{S['common.bookNow']}</a>
-                </div>
-              ))}
-            </div>
-          ) : <div className="mt-6"><SectionStatePanel status={featuredState} copy={X} palette={palette} emptyTitle={S.featuredEmpty} /></div>}
-        </section>
+        {/* Featured Services — PHASE 12.2: theme-specific suggested services only */}
+        <SiteFeaturedServices themeId="family_full_service" data={data} mode={mode} />
 
-        <section {...sectionProps('services', servicesState)} className="site-section px-5 md:px-8 py-8" style={{ backgroundColor: white, borderBottom: `1px solid ${line}` }}>
-          {servicesState !== 'ready' && <SectionStatePanel status={servicesState} copy={X} palette={palette} emptyTitle={S.servicesEmpty} />}
-          {servicesState === 'ready' && (<>
-          <div className="flex items-end justify-between gap-4 mb-5">
-            <SectionIntro eyebrow={S.servicesEyebrow} title={S.servicesTitle} body={S.servicesSubtitle} t={t} />
-            <span className="hidden md:inline-flex rounded-full px-3 py-1.5 text-[9px] font-extrabold" style={{ backgroundColor: sky, color: blue }}>{S.servicesChip}</span>
-          </div>
-          <div className={`grid gap-2 ${siteGrid(mode, { desktop: 4, tablet: 2, mobile: 2 })}`}>
-            {NAV_ITEMS.map(({ id, label }, index) => {
-              const Icon = index === 0 ? UserRound : index === 1 ? Sparkles : index === 2 ? Baby : PackageIcon;
-              const accent = index === 2 ? coral : index === 3 ? teal : blue;
-              return (
-                <a key={id} href={`#${id}`} className="group rounded-2xl p-4 border flex items-center justify-between gap-2 transition-all hover:-translate-y-0.5 hover:shadow-md" style={{ borderColor: line, backgroundColor: index === 2 ? sunSoft : t.well }}>
-                  <span className="flex items-center gap-2.5"><span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${accent}18`, color: accent }}><Icon className="w-4 h-4" /></span><span className="text-[10px] font-extrabold" style={{ color: ink }}>{label}</span></span>
-                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" style={{ color: accent }} />
-                </a>
-              );
-            })}
-          </div>
-          </>)}
-        </section>
+        {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
+        <SiteServiceDirectory themeId="family_full_service" data={data} mode={mode} />
 
         {/* Men's services */}
         <section id="section-men-services" className="px-5 md:px-8 py-12" style={{ backgroundColor: sky }}>
