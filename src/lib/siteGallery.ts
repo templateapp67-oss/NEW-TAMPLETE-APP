@@ -47,6 +47,13 @@ export interface GalleryItem {
   caption?: string;
   featured: boolean;
   origin: 'owner' | 'service' | 'theme';
+  /**
+   * PHASE 14.5 — id of the configured service this image belongs to
+   * (origin === 'service' only). Resolved back through
+   * `galleryServiceForItem` so the gallery can open the EXISTING service
+   * detail / booking flow for the correct theme + service.
+   */
+  serviceId?: string;
 }
 
 export interface GalleryThemeMediaItem {
@@ -416,6 +423,7 @@ export function serviceGalleryItemsForTheme(
       beforeAlt: '',
       featured: false,
       origin: 'service',
+      serviceId: service.id,
     });
   }
   return items;
@@ -521,4 +529,23 @@ export function filterGalleryItems(
 /** The item the featured banner spotlights (first `featured` item). */
 export function galleryFeaturedItem(items: readonly GalleryItem[]): GalleryItem | null {
   return items.find((item) => item.featured) || items[0] || null;
+}
+
+/**
+ * PHASE 14.5 — resolves the configured service a gallery item belongs to.
+ *
+ * Only service-origin items with a `serviceId` resolve, and the lookup is
+ * constrained to the ACTIVE theme's own services via
+ * `directoryServicesForTheme`, so a foreign theme's service can never be
+ * mapped. Invalid / missing references fail gracefully (`null`) — the gallery
+ * simply shows no service CTA and never breaks.
+ */
+export function galleryServiceForItem(
+  item: GalleryItem | null | undefined,
+  data: SalonData,
+  themeId: SiteHeaderThemeId,
+): Service | null {
+  if (!item || item.origin !== 'service' || !item.serviceId) return null;
+  const service = directoryServicesForTheme(data, themeId).find((candidate) => candidate.id === item.serviceId);
+  return service || null;
 }

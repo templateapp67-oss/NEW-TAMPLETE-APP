@@ -43,6 +43,39 @@
   padding-right: env(safe-area-inset-right, 0px);
 }
 
+/* PHASE 14.5 — smooth, subtle gallery viewer transition (no excessive motion). */
+@keyframes site-gallery-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.site-gallery-lightbox-anim {
+  animation: site-gallery-fade 180ms ease-out;
+}
+.site-gallery-stage-anim {
+  animation: site-gallery-fade 220ms ease-out;
+}
+
+/* PHASE 14.5 — visible keyboard focus on gallery viewer controls. */
+.site-gallery-lightbox button:focus-visible,
+.site-gallery-cta:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* PHASE 14.5 — reduced-motion support: drop viewer animation entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .site-gallery-lightbox-anim,
+  .site-gallery-stage-anim {
+    animation: none !important;
+  }
+  .site-gallery-lightbox *,
+  .site-gallery-lightbox *::before,
+  .site-gallery-lightbox *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
 /* PHASE 11.5 — hero CTA interaction states.
    Scoped to the hero only (`.site-hero-cta`) so Phase 10 controls are
    untouched. Uses the theme's own accent via `currentColor`, so each hero

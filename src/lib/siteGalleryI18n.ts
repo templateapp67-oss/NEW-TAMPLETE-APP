@@ -24,6 +24,8 @@ export interface GalleryChromeCopy {
   captionFallback: string;
   emptyTitle: string;
   emptyBody: string;
+  /** PHASE 14.5 — viewer service CTA copy. */
+  viewService: string;
 }
 
 const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeCopy>> = {
@@ -43,6 +45,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'From the shop',
       emptyTitle: 'No photos yet',
       emptyBody: 'Shop photos and cuts will show here.',
+      viewService: 'View Service',
     },
     hi: {
       filterAll: 'सारा काम',
@@ -59,6 +62,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'दुकान से',
       emptyTitle: 'अभी कोई तस्वीर नहीं',
       emptyBody: 'दुकान और कट की तस्वीरें यहाँ दिखेंगी।',
+      viewService: 'सेवा देखें',
     },
   },
 
@@ -78,6 +82,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'Studio work',
       emptyTitle: 'Portfolio coming soon',
       emptyBody: 'Transformations will show here.',
+      viewService: 'View Service',
     },
     hi: {
       filterAll: 'सारा काम',
@@ -94,6 +99,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'स्टूडियो का काम',
       emptyTitle: 'पोर्टफोलियो जल्द आ रहा है',
       emptyBody: 'ट्रांसफ़ॉर्मेशन यहाँ दिखेंगे।',
+      viewService: 'सेवा देखें',
     },
   },
 
@@ -113,6 +119,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'From the spa',
       emptyTitle: 'Photos on the way',
       emptyBody: 'Our space will appear here.',
+      viewService: 'View Service',
     },
     hi: {
       filterAll: 'सारे पल',
@@ -129,6 +136,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'स्पा से',
       emptyTitle: 'तस्वीरें जल्द आ रही हैं',
       emptyBody: 'हमारी जगह यहाँ दिखेगी।',
+      viewService: 'सेवा देखें',
     },
   },
 
@@ -148,6 +156,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'Salon moments',
       emptyTitle: 'Nothing here yet',
       emptyBody: 'Salon moments will appear here.',
+      viewService: 'View Service',
     },
     hi: {
       filterAll: 'सब कुछ',
@@ -164,6 +173,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'सैलून के पल',
       emptyTitle: 'अभी यहाँ कुछ नहीं है',
       emptyBody: 'सैलून के पल यहाँ दिखेंगे।',
+      viewService: 'सेवा देखें',
     },
   },
 
@@ -183,6 +193,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'The visual diary',
       emptyTitle: 'Diary is loading',
       emptyBody: 'The visual diary will appear here.',
+      viewService: 'View Service',
     },
     hi: {
       filterAll: 'पूरा एडिट',
@@ -199,6 +210,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       captionFallback: 'विज़ुअल डायरी',
       emptyTitle: 'डायरी लोड हो रही है',
       emptyBody: 'विज़ुअल डायरी यहाँ दिखेगी।',
+      viewService: 'सेवा देखें',
     },
   },
 };

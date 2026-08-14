@@ -83,9 +83,26 @@
   - Root-cause fix: test assertions that compared a rendered DOM node against
     `null` now use `Boolean(node)` — the old pattern walked the React fiber
     tree on failure and OOM-killed the runner.
-  - Validation: `test:phase-14` **114/114** (55 + 37 + 22); lint 0; build +
+  - Validation: `test:phase-14` **136/136** (55 + 37 + 22 + 22); lint 0; build +
     25-screen verification green. Details:
     `docs/phase-14.4-gallery-final-validation.md`.
+
+- **PHASE 14.5 — GALLERY CONVERSION & FINAL POLISH: COMPLETE for all five themes (22 tests).**
+  - Contextual viewer CTAs via the EXISTING booking flow: service image →
+    "View Service" + "Book This Service"; non-service image → "Book
+    Appointment"; the viewer closes before the booking hand-off.
+  - Service connection: `GalleryItem.serviceId` + `galleryServiceForItem`
+    resolve a service image back to the active theme's service (invalid/foreign
+    refs fail gracefully → null); "View Service" opens the existing
+    `SiteServiceDetail`, whose Book CTA preserves theme + service into the
+    booking prefill channel.
+  - Visual polish: smooth lightbox/stage fade, `focus-visible` outlines,
+    theme-accent CTAs, `prefers-reduced-motion` support.
+  - Safety: configured data only; no cross-theme service mapping; missing CTA
+    data falls back to the generic "Book Appointment".
+  - Validation: `test:phase-14` **136/136** (14.1 55 + 14.3 37 + 14.4 22 +
+    14.5 22); lint 0; build + 25-screen verification green. Details:
+    `docs/phase-14.5-gallery-conversion-polish.md`.
 
 - **PHASE 12.7 — SERVICE IMAGES & VISUALS: COMPLETE for all five themes (60 tests).**
   - Service cards (directory) + the Service Detail modal now render a visual

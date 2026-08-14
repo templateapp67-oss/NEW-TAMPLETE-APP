@@ -204,7 +204,7 @@ await test('next/previous buttons navigate with wrap-around and close button clo
   await act(async () => { fireEvent.click(utils.getByTestId('site-gallery-lightbox-prev')); });
   assert.equal(counter(utils), '4 / 4', 'prev navigates back');
   await act(async () => { fireEvent.click(utils.getByTestId('site-gallery-lightbox-close')); });
-  assert.equal(lightbox(utils), null, 'viewer did not close');
+  assert.equal(Boolean(lightbox(utils)), false, 'viewer did not close');
   reset();
 });
 
@@ -217,7 +217,7 @@ await test('keyboard: ArrowRight/ArrowLeft navigate and Escape closes', async ()
   await act(async () => { fireEvent.keyDown(document, { key: 'ArrowLeft' }); });
   assert.equal(counter(utils), '1 / 4');
   await act(async () => { fireEvent.keyDown(document, { key: 'Escape' }); });
-  assert.equal(lightbox(utils), null);
+  assert.equal(Boolean(lightbox(utils)), false);
   reset();
 });
 
@@ -238,9 +238,12 @@ await test('focus is trapped within the viewer (Tab from last wraps to first)', 
   reset();
   const utils = render(React.createElement(Barber, { data: salonData('barber_mens_grooming', { gallery: VIEWER_GALLERY }), mode: 'desktop' }));
   await openTile(utils, 'v1');
-  const nextBtn = utils.getByTestId('site-gallery-lightbox-next');
-  nextBtn.focus();
-  assert.equal(document.activeElement, nextBtn);
+  const lb = lightbox(utils);
+  const focusables = Array.from(lb.querySelectorAll('button:not([disabled]), input:not([disabled])'));
+  assert.ok(focusables.length >= 2, 'viewer must have multiple focusable controls');
+  const last = focusables[focusables.length - 1];
+  last.focus();
+  assert.equal(document.activeElement, last);
   await act(async () => { fireEvent.keyDown(document, { key: 'Tab' }); });
   assert.equal(document.activeElement, utils.getByTestId('site-gallery-lightbox-close'), 'Tab from last did not wrap to first');
   reset();
@@ -415,7 +418,7 @@ await test('full-size image shows a skeleton while loading, then clears on load'
   const img = lb.querySelector('[data-testid="site-image"]');
   await act(async () => { fireEvent.load(img); });
   assert.equal(wrapper?.getAttribute('data-loaded'), 'true', 'loaded flag not set');
-  assert.equal(lb.querySelector('[data-testid="site-image-skeleton"]'), null, 'skeleton not cleared after load');
+  assert.equal(Boolean(lb.querySelector('[data-testid="site-image-skeleton"]')), false, 'skeleton not cleared after load');
   reset();
 });
 
@@ -488,7 +491,7 @@ await test('data change closes and resets the viewer (no stale viewer state)', a
   assert.ok(lightbox(utils), 'viewer should be open');
   const newData = salonData('barber_mens_grooming', { gallery: [{ id: 'n1', url: 'https://owner.example/new.jpg', alt: 'New', category: 'General' }] });
   await act(async () => { utils.rerender(React.createElement(Barber, { data: newData, mode: 'desktop' })); });
-  assert.equal(lightbox(utils), null, 'viewer must reset on data change');
+  assert.equal(Boolean(lightbox(utils)), false, 'viewer must reset on data change');
   reset();
 });
 
@@ -499,7 +502,7 @@ await test('switching theme unmounts the viewer and removes previous theme media
   assert.ok(lightbox(first), 'barber viewer should be open');
   cleanup();
   const second = render(React.createElement(NailLash, { data: salonData('nail_lash_studio', { gallery: [{ id: 'n1', url: 'https://owner.example/nail-set.jpg', alt: 'Nail set', category: 'Beauty' }] }), mode: 'desktop' }));
-  assert.equal(lightbox(second), null, 'viewer must not carry over to the new theme');
+  assert.equal(Boolean(lightbox(second)), false, 'viewer must not carry over to the new theme');
   const gallerySection = second.container.querySelector('[data-site-section="gallery"]');
   const srcs = Array.from(gallerySection.querySelectorAll('img')).map((el) => el.getAttribute('src') || '').join(' ');
   assert.ok(!srcs.includes('beard-work'), 'stale barber image leaked after theme switch');
@@ -524,7 +527,7 @@ await test('viewer opens, navigates and closes at desktop/tablet/mobile for ever
       await act(async () => { fireEvent.click(utils.getByTestId('site-gallery-lightbox-next')); });
       assert.equal(counter(utils), '2 / 4');
       await act(async () => { fireEvent.click(utils.getByTestId('site-gallery-lightbox-close')); });
-      assert.equal(lightbox(utils), null);
+      assert.equal(Boolean(lightbox(utils)), false);
       reset();
     }
   }
