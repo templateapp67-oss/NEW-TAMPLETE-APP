@@ -129,6 +129,18 @@ export function resolveSectionState(
   return 'ready';
 }
 
+/**
+ * PHASE 12.2 — exposes a test-injected override for one section, or null.
+ * Lets sections that have their OWN natural loading/error lifecycle (e.g. the
+ * async Featured Services catalog load) still honour the shared
+ * `setWebsiteSectionFlagsForTests` seam without collapsing natural states.
+ */
+export function injectedSectionStatus(key: SiteSectionKey): SectionStatus | null {
+  const forced = injectedFlags[key];
+  if (forced === 'loading' || forced === 'error' || forced === 'empty') return forced;
+  return null;
+}
+
 export function liveOffers(offers: readonly ServiceOffer[] | undefined): ServiceOffer[] {
   return (offers || []).filter((offer) => offer.effectiveStatus === 'active' && offer.status === 'active');
 }

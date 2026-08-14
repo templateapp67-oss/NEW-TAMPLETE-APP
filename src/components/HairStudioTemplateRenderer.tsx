@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
-import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { BundlePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
@@ -16,14 +16,15 @@ import HairStudioHero from './heroes/HairStudioHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
+import SiteTrust from './SiteTrust';
+import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
-import { displayService } from '../lib/displayService';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
   activeCatalogItems,
-  featuredServices,
   headerModeOf,
   resolveSectionState,
   sectionProps,
@@ -89,11 +90,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
     markPerformance('hair_studio_color_bar-render-start');
     return () => { markPerformance('hair_studio_color_bar-render-end'); };
   }, []);
-  const services = activeCatalogItems(data.services);
   const packages = activeCatalogItems(data.packages);
-  const featured = featuredServices(data.services);
-  const servicesState = resolveSectionState('services', services);
-  const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
   const galleryState = resolveSectionState('gallery', data.gallery);
   const teamState = resolveSectionState('team', data.team);
@@ -135,138 +132,50 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
         {/* Hero — PHASE 11.1: editorial gallery hero */}
         <HairStudioHero data={data} mode={mode} />
 
-        <div {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10 border-y" style={{ backgroundColor: paper, borderColor: line }}>
-          <div className="max-w-3xl mx-auto text-center">
-            <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>{S.trustEyebrow}</span>
-            <h2 className="text-xl md:text-2xl font-serif mt-2" style={{ color: ink }}>{S.trustTitle}</h2>
-            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 1 })}`}>
-              {[{ v: S.trust1Value, l: S.trust1Label }, { v: S.trust2Value, l: S.trust2Label }, { v: S.trust3Value, l: S.trust3Label }].map((stat) => (
-                <div key={stat.l} className="border p-4 min-w-0" style={{ borderColor: line, backgroundColor: card }}>
-                  <p className="text-2xl font-serif" style={{ color: roseDeep }}>{stat.v}</p>
-                  <p className="text-[10px] uppercase tracking-[0.16em] mt-1" style={{ color: muted }}>{stat.l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* Trust / Stats — PHASE 12.1: real, configured data only */}
+        <SiteTrust themeId="hair_studio_color_bar" data={data} mode={mode} />
 
-        <div {...sectionProps('featured', featuredState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: paperDeep }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-8">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>{S.featuredEyebrow}</span>
-              <h2 className="text-2xl font-serif mt-2" style={{ color: ink }}>{S.featuredTitle}</h2>
-            </div>
-            {featuredState === 'ready' ? (
-              <div className={`grid gap-4 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-                {featured.map((s) => {
-                  const shown = displayService(s, locale);
-                  return (
-                    <div key={s.id} className="border p-5 min-w-0" style={{ borderColor: line, backgroundColor: card }}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-serif font-semibold break-words" style={{ color: ink }}>{shown.name}</h4>
-                          <p className="text-[10px] uppercase tracking-[0.18em] mt-1" style={{ color: roseDeep }}>{translateCategory(shown.category, locale)}</p>
-                        </div>
-                        <ServicePrice service={s} offers={data.offers} style={{ color: roseDeep }} compact dark={isDark} />
-                      </div>
-                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch mt-4 text-[10px] uppercase tracking-[0.2em] font-semibold underline underline-offset-4" style={{ color: roseDeep }}>{S['common.bookThisService']}</button>
-                    </div>
-                  );
-                })}
+        {/* Featured Services — PHASE 12.2: theme-specific suggested services only */}
+        <SiteFeaturedServices themeId="hair_studio_color_bar" data={data} mode={mode} />
+
+        {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
+        <SiteServiceDirectory themeId="hair_studio_color_bar" data={data} mode={mode} />
+
+        {/* Packages — Phase 10.1: anchor target for the global Offers nav item */}
+        {data.packages && data.packages.length > 0 && (
+          <div {...sectionProps('offers', offersState)} className="site-section px-5 md:px-8 py-14 border-t" style={{ backgroundColor: paper, borderColor: line }}>
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-8">
+                <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>{S.packagesEyebrow}</span>
+                <h3 className="text-xl font-serif mt-2" style={{ color: ink }}>{S.packagesTitle}</h3>
               </div>
-            ) : <SectionStatePanel status={featuredState} copy={X} palette={palette} emptyTitle={S.featuredEmpty} />}
-          </div>
-        </div>
-
-        {/* Services — editorial menu, grouped by category */}
-        <div {...sectionProps('services', servicesState)} className="site-section px-5 md:px-8 py-16" style={{ backgroundColor: paper }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>{S.servicesEyebrow}</span>
-              <h2 className="text-2xl md:text-3xl font-serif mt-3" style={{ color: ink }}>{S.servicesTitle}</h2>
-              <div className="h-px w-16 mx-auto mt-5" style={{ backgroundColor: rose }}></div>
-            </div>
-
-            {servicesState !== 'ready' ? (
-              <SectionStatePanel status={servicesState} copy={X} palette={palette} emptyTitle={S.servicesEmpty} />
-            ) : (() => {
-              const categories: { cat: string; items: typeof services }[] = [];
-              for (const s of services) {
-                let group = categories.find((g) => g.cat === s.category);
-                if (!group) {
-                  group = { cat: s.category, items: [] };
-                  categories.push(group);
-                }
-                group.items.push(s);
-              }
-              return categories.map((group) => (
-                <div key={group.cat} className="mb-10">
-                  <div className="flex items-center gap-4 mb-5">
-                    <h3 className="text-[11px] uppercase tracking-[0.35em] font-semibold whitespace-nowrap" style={{ color: roseDeep }}>
-                      {translateCategory(group.cat, locale)}
-                    </h3>
-                    <div className="h-px flex-1" style={{ backgroundColor: line }}></div>
-                  </div>
-                  <div className={`grid gap-x-10 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-                    {group.items.map((s) => {
-                      const shown = displayService(s, locale);
-                      return (
-                      <div key={s.id} className="py-4 flex items-start justify-between gap-4 min-w-0" style={{ borderBottom: `1px solid ${line}` }}>
-                        {shown.iconUrl && <img src={shown.iconUrl} alt="" className="w-8 h-8 object-cover shrink-0" />}
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-serif font-semibold break-words" style={{ color: ink }}>{shown.name}</h4>
-                          <p className="text-[11px] mt-1 leading-relaxed line-clamp-2 break-words" style={{ color: muted }}>{shown.description}</p>
-                          <button data-open-booking="true" onClick={openSiteBooking} className="text-[10px] uppercase tracking-[0.2em] font-semibold mt-2 underline underline-offset-4 transition-colors" style={{ color: roseDeep }}>
-                            {S['common.bookThisService']}
-                          </button>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <ServicePrice service={s} offers={data.offers} style={{ color: roseDeep }} compact dark={isDark} />
-                          <p className="text-[10px] mt-0.5" style={{ color: muted }}>{s.duration} {S['common.minutes']}</p>
-                        </div>
+              <div className="grid gap-4 grid-cols-1">
+                {data.packages.map((p) => (
+                  <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 border" style={{ borderColor: line, backgroundColor: card }}>
+                    <div className="space-y-1 max-w-xl">
+                      <div className="flex items-center gap-3">
+                        <h4 className="font-serif font-semibold text-sm" style={{ color: ink }}>{p.name}</h4>
+                        <span className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-0.5" style={{ backgroundColor: roseSoft, color: roseDeep }}>{S.packagesBadge}</span>
                       </div>
-                    );
-                    })}
-                  </div>
-                </div>
-              ));
-            })()}
-
-            {/* Packages — Phase 10.1: anchor target for the global Offers nav item */}
-            {data.packages && data.packages.length > 0 && (
-              <div {...sectionProps('offers', offersState)} className="site-section mt-14 pt-10 border-t" style={{ borderColor: line }}>
-                <div className="text-center mb-8">
-                  <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>{S.packagesEyebrow}</span>
-                  <h3 className="text-xl font-serif mt-2" style={{ color: ink }}>{S.packagesTitle}</h3>
-                </div>
-                <div className="grid gap-4 grid-cols-1">
-                  {data.packages.map((p) => (
-                    <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 border" style={{ borderColor: line, backgroundColor: card }}>
-                      <div className="space-y-1 max-w-xl">
-                        <div className="flex items-center gap-3">
-                          <h4 className="font-serif font-semibold text-sm" style={{ color: ink }}>{p.name}</h4>
-                          <span className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-0.5" style={{ backgroundColor: roseSoft, color: roseDeep }}>{S.packagesBadge}</span>
-                        </div>
-                        <p className="text-xs leading-relaxed" style={{ color: muted }}>{p.description}</p>
-                        <div className="text-[10px] uppercase tracking-[0.2em] font-medium flex items-center gap-2 pt-1" style={{ color: muted }}>
-                          <span>⏱ {p.duration} {S['common.mins']}</span>
-                          <span>•</span>
-                          <span>{S.packagesMeta}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                        <BundlePrice bundle={p} offers={data.offers} style={{ color: roseDeep }} dark={isDark} />
-                        <button data-open-booking="true" onClick={openSiteBooking} className="px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-110" style={btnRose}>
-                          {S['common.bookPackage']}
-                        </button>
+                      <p className="text-xs leading-relaxed" style={{ color: muted }}>{p.description}</p>
+                      <div className="text-[10px] uppercase tracking-[0.2em] font-medium flex items-center gap-2 pt-1" style={{ color: muted }}>
+                        <span>⏱ {p.duration} {S['common.mins']}</span>
+                        <span>•</span>
+                        <span>{S.packagesMeta}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
+                      <BundlePrice bundle={p} offers={data.offers} style={{ color: roseDeep }} dark={isDark} />
+                      <button data-open-booking="true" onClick={openSiteBooking} className="px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-110" style={btnRose}>
+                        {S['common.bookPackage']}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Color Showcase — the signature hair-color gallery */}
         <div id="section-color" className="px-8 py-16" style={{ backgroundColor: paperDeep }}>

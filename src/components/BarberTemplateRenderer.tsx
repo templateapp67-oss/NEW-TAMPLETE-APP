@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
-import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { BundlePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
@@ -16,15 +16,16 @@ import SiteSkeleton from './SiteSkeleton';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
+import SiteTrust from './SiteTrust';
+import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteServiceDirectory from './SiteServiceDirectory';
 import { setActiveTheme, markPerformance, paginateList } from '../lib/sitePerformance';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
-import { displayService } from '../lib/displayService';
 import { BARBER_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
   activeCatalogItems,
-  featuredServices,
   headerModeOf,
   resolveSectionState,
   sectionProps,
@@ -76,24 +77,18 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
       markPerformance('barber-render-end');
     };
   }, []);
-  const services = useMemo(() => activeCatalogItems(data.services), [data.services]);
   const packages = useMemo(() => activeCatalogItems(data.packages), [data.packages]);
-  const featured = useMemo(() => featuredServices(data.services), [data.services]);
   const galleryItems = useMemo(() => data.gallery || [], [data.gallery]);
   const teamItems = useMemo(() => data.team || [], [data.team]);
-  const servicesState = resolveSectionState('services', services);
-  const featuredState = resolveSectionState('featured', featured);
   const offersState = resolveSectionState('offers', packages);
   const galleryState = resolveSectionState('gallery', galleryItems);
   const teamState = resolveSectionState('team', teamItems);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', (data.about || S.heroFallbackAbout) ? [1] : []);
   const locationState = resolveSectionState('location', data.address?.fullAddress ? [data.address.fullAddress] : ['fallback']);
-  // Large list optimization: paginate gallery/services for fast mobile on slow networks
+  // Large list optimization: paginate gallery for fast mobile on slow networks
   const [visibleGallery, setVisibleGallery] = useState(12);
-  const [visibleServices, setVisibleServices] = useState(12);
   const displayedGallery = useMemo(() => galleryItems.slice(0, visibleGallery), [galleryItems, visibleGallery]);
-  const displayedServices = useMemo(() => services.slice(0, visibleServices), [services, visibleServices]);
 
   const btnGold: CSSProperties = {
     backgroundColor: gold,
@@ -129,106 +124,14 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
         {/* Hero — PHASE 11.1: dedicated barber hero (cinematic slab) */}
         <BarberHero data={data} mode={mode} />
 
-        {/* Trust / Stats */}
-        <div {...sectionProps('trust', 'ready')} className="site-section px-6 py-10 border-y" style={{ backgroundColor: charcoal, borderColor: line }}>
-          <div className="max-w-3xl mx-auto text-center">
-            <span className="text-[10px] font-bold uppercase tracking-[0.35em]" style={{ color: accentText }}>{S.trustEyebrow}</span>
-            <h2 className="text-xl md:text-2xl font-black uppercase tracking-[0.05em] mt-2" style={{ color: textStrong }}>{S.trustTitle}</h2>
-            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 1 })}`}>
-              {[{ v: S.trust1Value, l: S.trust1Label }, { v: S.trust2Value, l: S.trust2Label }, { v: S.trust3Value, l: S.trust3Label }].map((stat) => (
-                <div key={stat.l} className="border p-4 min-w-0" style={{ backgroundColor: card, borderColor: line }}>
-                  <p className="text-2xl font-black" style={{ color: gold }}>{stat.v}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] mt-1" style={{ color: muted }}>{stat.l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* Trust / Stats — PHASE 12.1: real, configured data only */}
+        <SiteTrust themeId="barber_mens_grooming" data={data} mode={mode} />
 
-        {/* Featured Services */}
-        <div {...sectionProps('featured', featuredState)} className="site-section px-6 py-14" style={{ backgroundColor: charcoalSoft }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-8">
-              <span className="text-[10px] font-bold uppercase tracking-[0.35em]" style={{ color: accentText }}>{S.featuredEyebrow}</span>
-              <h2 className="text-2xl font-black uppercase tracking-[0.05em] mt-2" style={{ color: textStrong }}>{S.featuredTitle}</h2>
-            </div>
-            {featuredState === 'ready' ? (
-              <div className={`grid gap-3 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-                {featured.map((s) => {
-                  const shown = displayService(s, locale);
-                  return (
-                    <div key={s.id} className="border p-4 min-w-0" style={{ backgroundColor: card, borderColor: gold }}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-black uppercase tracking-wider break-words" style={{ color: textStrong }}>{shown.name}</h4>
-                          <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: muted }}>{translateCategory(shown.category, locale)}</p>
-                        </div>
-                        <ServicePrice service={s} offers={data.offers} style={{ color: accentText }} compact dark={appearance === 'dark'} />
-                      </div>
-                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch mt-4 w-full py-2.5 text-[10px] font-black uppercase tracking-[0.15em]" style={btnGold}>{S['common.bookSlot']}</button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <SectionStatePanel status={featuredState} copy={X} palette={palette} emptyTitle={S.featuredEmpty} />
-            )}
-          </div>
-        </div>
+        {/* Featured Services — PHASE 12.2: theme-specific suggested services only */}
+        <SiteFeaturedServices themeId="barber_mens_grooming" data={data} mode={mode} />
 
-        {/* Services — the price board */}
-        <div {...sectionProps('services', servicesState)} className="site-section px-6 py-14" style={{ backgroundColor: charcoalSoft }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-10">
-              <span className="text-[10px] font-bold uppercase tracking-[0.35em]" style={{ color: accentText }}>{S.servicesEyebrow}</span>
-              <h2 className="text-2xl md:text-3xl font-black uppercase tracking-[0.05em] mt-2" style={{ color: textStrong }}>{S.servicesTitle}</h2>
-              <div className="h-px w-16 mx-auto mt-4" style={{ backgroundColor: gold }}></div>
-            </div>
-
-            {servicesState === 'ready' ? (
-            <div className={`grid gap-3 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-              {services.map((s, i) => {
-                const shown = displayService(s, locale);
-                return (
-                <div key={s.id} className="group border hover:border-[#c9a227]/70 transition-colors p-4 min-w-0" style={{ backgroundColor: card, borderColor: line, contain: 'content' }}>
-                  {shown.bannerUrl && <SiteImage src={shown.bannerUrl} alt="" className="w-full h-16 object-cover mb-3" context="service" aspectRatio="16/9" />}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      {shown.iconUrl ? (
-                        <SiteImage src={shown.iconUrl} alt="" className="w-8 h-8 object-cover shrink-0" context="service" aspectRatio="1/1" />
-                      ) : (
-                      <span className="text-[11px] font-black" style={{ color: gold }}>
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      )}
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-black uppercase tracking-wider break-words" style={{ color: textStrong }}>{shown.name}</h4>
-                        <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: muted }}>{translateCategory(shown.category, locale)}</p>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <ServicePrice service={s} offers={data.offers} style={{ color: accentText }} compact dark={appearance === 'dark'} />
-                      <p className="text-[10px] font-semibold" style={{ color: muted }}>{s.duration} {S['common.minutes']}</p>
-                    </div>
-                  </div>
-                  <p className="text-[11px] mt-3 leading-relaxed line-clamp-2 break-words" style={{ color: muted }}>
-                    {shown.description}
-                  </p>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: line }}>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: muted }}>{S.serviceNote}</span>
-                    <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all hover:brightness-110" style={btnGold}>
-                      {S['common.bookSlot']}
-                    </button>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-            ) : (
-              <SectionStatePanel status={servicesState} copy={X} palette={palette} emptyTitle={S.servicesEmpty} />
-            )}
-          </div>
-        </div>
+        {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
+        <SiteServiceDirectory themeId="barber_mens_grooming" data={data} mode={mode} />
 
         {/* Offers & Combos */}
         <div {...sectionProps('offers', offersState)} className="site-section px-6 py-14" style={{ backgroundColor: charcoal }}>

@@ -5,7 +5,7 @@ import { getPublicStaffData } from '../types';
 import { NAIL_LASH_STUDIO_THEME } from '../lib/themeServices';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import OwnerAvatar from './OwnerAvatar';
-import { BundlePrice, ServicePrice } from './PromotionalPricing';
+import { BundlePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
@@ -18,14 +18,15 @@ import NailLashHero from './heroes/NailLashHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
+import SiteTrust from './SiteTrust';
+import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
-import { displayService } from '../lib/displayService';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../lib/themeSurfaces';
 import type { NailLashSurface } from '../lib/themeSurfaces';
-import { dayLabel, siteText, translateCategory } from '../lib/siteI18n';
+import { dayLabel, siteText } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
-  featuredServices,
   headerModeOf,
   resolveSectionState,
   sectionProps,
@@ -46,13 +47,10 @@ import {
   MapPin,
   MessageCircle,
   Navigation,
-  Palette,
   Phone,
-  Sparkles,
   Star,
   UserRound,
   Users,
-  WandSparkles,
 } from 'lucide-react';
 
 interface Props {
@@ -211,7 +209,7 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance('nail_lash_studio');
   const t = surfacesOf(NAIL_LASH_SURFACES, appearance);
-  const { ink, inkSoft, pink, pinkDeep, pinkGlow, pinkSoft, sand, sandDeep, nude, cream, muted, line, white } = t;
+  const { ink, pink, pinkDeep, pinkGlow, pinkSoft, sand, sandDeep, nude, cream, muted, line, white } = t;
   const S = { ...siteText('nail_lash_studio', locale), ...structureText('nail_lash_studio', locale) };
   const X = structureCopyFrom(S);
   const palette = { accent: pink, text: ink, muted, card: t.card, line, invert: '#ffffff' };
@@ -222,22 +220,12 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
     markPerformance('nail_lash_studio-render-start');
     return () => { markPerformance('nail_lash_studio-render-end'); };
   }, []);
-  const featuredLive = featuredServices(data.services);
-  const featuredState = resolveSectionState('featured', featuredLive.length ? featuredLive : [1]);
-  const servicesState = resolveSectionState('services', data.services);
   const offersState = resolveSectionState('offers', data.packages);
   const galleryState = resolveSectionState('gallery', [1]);
   const teamState = resolveSectionState('team', data.team);
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', [1]);
   const locationState = resolveSectionState('location', ['ready']);
-
-  const FEATURED = [
-    { number: '01', name: S.feature1Name, detail: S.feature1Detail, icon: Palette, color: pink },
-    { number: '02', name: S.feature2Name, detail: S.feature2Detail, icon: WandSparkles, color: NAIL_LASH_STUDIO_THEME.nude },
-    { number: '03', name: S.feature3Name, detail: S.feature3Detail, icon: Sparkles, color: pinkDeep },
-    { number: '04', name: S.feature4Name, detail: S.feature4Detail, icon: Eye, color: inkSoft },
-  ];
 
   const publicTeam = (data.team || []).map(getPublicStaffData);
   const phone = data.phone || '';
@@ -262,49 +250,14 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
         {/* Hero — PHASE 11.1: glam card-shelf hero */}
         <NailLashHero data={data} mode={mode} />
 
-        <section {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: sand }}>
-          <div className="text-center max-w-xl mx-auto">
-            <SectionTitle eyebrow={S.trustEyebrow} title={S.trustTitle} center t={t} />
-            <div className={`grid gap-3 mt-7 ${siteGrid(mode, { desktop: 3, tablet: 3, mobile: 1 })}`}>
-              {[{ v: S.trust1Value, l: S.trust1Label }, { v: S.trust2Value, l: S.trust2Label }, { v: S.trust3Value, l: S.trust3Label }].map((stat) => (
-                <div key={stat.l} className="rounded-2xl border p-4 min-w-0" style={{ borderColor: line, backgroundColor: t.card }}>
-                  <p className="text-2xl font-extrabold" style={{ color: pinkDeep }}>{stat.v}</p>
-                  <p className="text-[8px] uppercase tracking-[0.12em] font-bold mt-1" style={{ color: muted }}>{stat.l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        {/* Trust / Stats — PHASE 12.1: real, configured data only */}
+        <SiteTrust themeId="nail_lash_studio" data={data} mode={mode} />
 
-        <section {...sectionProps('featured', featuredState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: cream }}>
-          <div className="flex items-end justify-between gap-4 mb-7"><SectionTitle eyebrow={S.featuredEyebrow} title={S.featuredTitle} body={S.featuredBody} t={t} /><span className="hidden md:inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[8px] font-extrabold uppercase tracking-[0.16em]" style={{ color: pinkDeep, backgroundColor: pinkSoft }}>{S.featuredChip}</span></div>
-          <div className={`grid gap-3 ${siteGrid(mode, { desktop: 4, tablet: 2, mobile: 2 })}`}>{FEATURED.map((item) => { const Icon = item.icon; const darkCard = item.color === inkSoft; return <a href="#section-contact" key={item.name} className="group rounded-[1.5rem] p-4 min-h-[170px] border flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-lg" style={{ borderColor: line, backgroundColor: darkCard ? t.artBand : white }}><div className="flex items-center justify-between"><span className="text-[9px] font-extrabold" style={{ color: darkCard ? pinkGlow : pinkDeep }}>{item.number}</span><Icon className="w-5 h-5" style={{ color: darkCard ? pink : item.color }} /></div><div><h3 className="text-sm font-extrabold" style={{ color: darkCard ? '#ffffff' : ink }}>{item.name}</h3><p className="text-[9px] leading-relaxed mt-1" style={{ color: darkCard ? 'rgba(255,255,255,0.6)' : muted }}>{item.detail}</p><span className="inline-flex items-center gap-1 mt-4 text-[8px] font-extrabold uppercase tracking-[0.15em]" style={{ color: darkCard ? pinkGlow : pinkDeep }}>{S.exploreLabel} <ChevronRight className="w-3 h-3 transition-transform group-hover:translate-x-1" /></span></div></a>; })}</div>
-        </section>
+        {/* Featured Services — PHASE 12.2: theme-specific suggested services only */}
+        <SiteFeaturedServices themeId="nail_lash_studio" data={data} mode={mode} />
 
-        {/* Owner service records — kept visually aligned with the existing
-            editorial theme while exposing Phase 9.1 prices and promotions. */}
-        <section {...sectionProps('services', servicesState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: white }}>
-          {servicesState !== 'ready' && <SectionStatePanel status={servicesState} copy={X} palette={palette} emptyTitle={S.servicesEmpty} />}
-          {servicesState === 'ready' && (<>
-            <SectionTitle eyebrow={S.menuEyebrow} title={S.menuTitle} body={S.menuBody} t={t} />
-            <div className={`grid gap-3 mt-8 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-              {data.services.filter((service) => service.status !== 'inactive' && service.status !== 'archived').map((service) => {
-                const shown = displayService(service, locale);
-                return (
-                <article key={service.id} className="rounded-[1.5rem] border p-4 flex items-start justify-between gap-4 min-w-0" style={{ borderColor: line, backgroundColor: cream }}>
-                  {shown.imageUrl && <img src={shown.imageUrl} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />}
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-extrabold break-words" style={{ color: ink }}>{shown.name}</h3>
-                    <p className="text-[9px] uppercase tracking-[0.14em] font-bold mt-1" style={{ color: pinkDeep }}>{translateCategory(shown.category, locale)} · {service.duration} {S['common.minutes']}</p>
-                    <p className="text-[10px] leading-relaxed mt-2 line-clamp-2 break-words" style={{ color: muted }}>{shown.description}</p>
-                  </div>
-                  <ServicePrice service={service} offers={data.offers} style={{ color: pinkDeep }} compact dark={appearance === 'dark'} />
-                </article>
-                );
-              })}
-            </div>
-            </>)}
-        </section>
+        {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
+        <SiteServiceDirectory themeId="nail_lash_studio" data={data} mode={mode} />
 
         <section {...sectionProps('offers', offersState, 'section-service-menu')} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: cream }}>
           <SectionTitle eyebrow={S.menuEyebrow} title={S.menuTitle} t={t} />

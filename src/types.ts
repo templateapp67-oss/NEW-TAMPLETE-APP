@@ -287,6 +287,13 @@ export interface SalonData {
   ownerRole: string;
   /** Optional owner/founder portrait. Data URL or remote URL; persisted with salon draft. */
   ownerPhotoUrl?: string;
+  /**
+   * PHASE 12.1 — Trust/Stats figures the owner explicitly configures.
+   * Absent (or ≤ 0) means the matching stat is HIDDEN on the public site;
+   * the trust section never invents these numbers.
+   */
+  yearsOfExperience?: number;
+  happyCustomers?: number;
   about: string;
   phone: string;
   email: string;

@@ -7,11 +7,40 @@
  *
  * No database or service/theme-data changes.
  */
-import type { SalonData } from '../types';
+import type { SalonData, Service } from '../types';
 
 export const SITE_BOOKING_EVENT = 'nexora:open-booking';
 export const SITE_BOOKING_CLOSE_EVENT = 'nexora:close-booking';
 export const BOOKING_TRIGGER_ATTR = 'data-open-booking';
+
+/* ------------------------------------------------------------------ */
+/* PHASE 12.3 — service prefill channel.                               */
+/*                                                                     */
+/* A Featured-service "Book Now" hands the EXISTING booking flow one   */
+/* pre-selected service. This is still the SAME single booking event / */
+/* flow — no second booking system. The prefill is stored in-memory,   */
+/* consumed once by `SiteBookingFlow` on mount, and cleared so a plain  */
+/* header/final Book Appointment never inherits a stale selection.     */
+/* ------------------------------------------------------------------ */
+
+let bookingServicePrefill: { service: Service; themeId: string } | null = null;
+
+/** Opens the existing booking flow with `service` pre-selected. */
+export function openSiteBookingForService(service: Service, themeId: string): void {
+  bookingServicePrefill = { service, themeId };
+  openSiteBooking();
+}
+
+/** One-shot read of the prefill for `themeId`; clears it afterwards. */
+export function consumeBookingServicePrefill(themeId: string): Service | null {
+  if (bookingServicePrefill && bookingServicePrefill.themeId === themeId) {
+    const service = bookingServicePrefill.service;
+    bookingServicePrefill = null;
+    return service;
+  }
+  bookingServicePrefill = null;
+  return null;
+}
 
 export function digitsOnly(value: string | undefined | null): string {
   return (value || '').replace(/\D/g, '');

@@ -51,7 +51,14 @@
     "test:phase-11.6": "tsx scripts/test-phase-11.6.mjs",
     "test:phase-11.7": "tsx scripts/test-phase-11.7.mjs",
     "test:phase-11.8": "tsx scripts/test-phase-11.8.mjs",
-    "test:phase-11": "npm run test:phase-11.1 && npm run test:phase-11.2 && npm run test:phase-11.3 && npm run test:phase-11.4 && npm run test:phase-11.5 && npm run test:phase-11.6 && npm run test:phase-11.7 && npm run test:phase-11.8"
+    "test:phase-11": "npm run test:phase-11.1 && npm run test:phase-11.2 && npm run test:phase-11.3 && npm run test:phase-11.4 && npm run test:phase-11.5 && npm run test:phase-11.6 && npm run test:phase-11.7 && npm run test:phase-11.8",
+    "test:phase-12.1": "tsx scripts/test-phase-12.1.mjs",
+    "test:phase-12.2": "tsx scripts/test-phase-12.2.mjs",
+    "test:phase-12.3": "tsx scripts/test-phase-12.3.mjs",
+    "test:phase-12.4": "tsx scripts/test-phase-12.4.mjs",
+    "test:phase-12.5": "tsx scripts/test-phase-12.5.mjs",
+    "test:phase-12.6": "tsx scripts/test-phase-12.6.mjs",
+    "test:phase-12.7": "tsx scripts/test-phase-12.7.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

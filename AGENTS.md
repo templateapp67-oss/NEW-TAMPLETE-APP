@@ -75,9 +75,16 @@ npm run test:phase-11.4     # hero desktop + tablet + mobile QA
 npm run test:phase-11.5     # hero final polish across all five themes
 npm run test:phase-11.6     # hero interaction & conversion
 npm run test:phase-11.7     # hero data validation
-npm run test:phase-11.8     # final hero acceptance gate
-npm run test:phase-11       # every Phase 11 suite (2398 tests)
-npm run test:phase-11       # both Phase 11 suites
+npm run test:phase-11.8    # final hero acceptance gate
+npm run test:phase-11      # every Phase 11 suite (2398 tests)
+npm run test:phase-11      # both Phase 11 suites
+npm run test:phase-12.1    # trust & salon stats across all five themes (84 tests)
+npm run test:phase-12.2    # featured services across all five themes (117 tests)
+npm run test:phase-12.3    # featured service card enhancement (74 tests)
+npm run test:phase-12.4    # complete service directory across all five themes (105 tests)
+npm run test:phase-12.5    # service discovery (search/filter/sort) across all five themes (83 tests)
+npm run test:phase-12.6    # service detail experience across all five themes (59 tests)
+npm run test:phase-12.7    # service images & visuals across all five themes (60 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```

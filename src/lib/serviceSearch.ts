@@ -4,6 +4,7 @@ import { localizedDescription, localizedName } from './locale';
 
 export type ServiceSort =
   | 'default'
+  | 'name_asc'
   | 'price_asc'
   | 'price_desc'
   | 'duration_asc'
@@ -67,6 +68,14 @@ export function filterAndSortServices(
 
   const copy = [...rows];
   switch (query.sort) {
+    case 'name_asc':
+      copy.sort((a, b) =>
+        localizedName(a.name, a.translations, locale).localeCompare(
+          localizedName(b.name, b.translations, locale),
+          locale,
+        ),
+      );
+      break;
     case 'price_asc':
       copy.sort((a, b) => a.price - b.price);
       break;
