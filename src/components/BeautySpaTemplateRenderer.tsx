@@ -10,9 +10,9 @@ import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
 import SiteSeo from './SiteSeo';
-import SiteImage from './SiteImage';
 import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
+import BeautySpaHero from './heroes/BeautySpaHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
@@ -138,32 +138,8 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
         <SiteAnnouncementBar themeId="beauty_skin_spa" data={data} />
         <SiteHeader themeId="beauty_skin_spa" data={data} mode={headerMode} />
 
-        <div id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative px-5 md:px-8 py-16 md:py-20 text-center overflow-hidden" style={{ background: `linear-gradient(160deg, ${emeraldSoft} 0%, ${cream} 55%, ${beigeSoft} 100%)` }}>
-          {/* soft floating pastel blobs */}
-          <div className="absolute -top-10 -left-10 w-56 h-56 rounded-full opacity-50 pointer-events-none" style={{ backgroundColor: sage }}></div>
-          <div className="absolute -bottom-16 -right-10 w-64 h-64 rounded-full opacity-50 pointer-events-none" style={{ backgroundColor: blush }}></div>
-
-          <div className="relative z-10 max-w-2xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6" style={{ backgroundColor: card, color: emerald, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-              <Flower2 className="w-3.5 h-3.5" />
-              <span className="text-[10px] uppercase tracking-[0.35em] font-semibold">{S.heroBadge}</span>
-            </div>
-            <h1 className="text-3xl md:text-5xl font-serif leading-tight" style={{ color: text }}>
-              {data.tagline || S.heroFallbackTagline}
-            </h1>
-            <p className="text-xs md:text-sm mt-6 mb-9 max-w-lg mx-auto leading-relaxed" style={{ color: muted }}>
-              {data.about || S.heroFallbackAbout}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <button data-open-booking="true" onClick={openSiteBooking} className="px-9 py-3.5 rounded-full text-[11px] uppercase tracking-[0.25em] font-semibold transition-all hover:brightness-105 shadow-md" style={btnEmerald}>
-                {S.heroPrimaryCta}
-              </button>
-              <button className="px-9 py-3.5 rounded-full text-[11px] uppercase tracking-[0.25em] font-semibold border transition-colors" style={{ borderColor: emerald, color: emerald, backgroundColor: 'transparent' }}>
-                {S.heroSecondaryCta}
-              </button>
-            </div>
-          </div>
-        </div>
+        {/* Hero — PHASE 11.1: soft arch spa hero */}
+        <BeautySpaHero data={data} mode={mode} />
 
         <div {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: beigeSoft }}>
           <div className="max-w-3xl mx-auto text-center">

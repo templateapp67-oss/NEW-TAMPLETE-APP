@@ -1,10 +1,211 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-14** (session `arena/019ffdeb-new-tamplete-app`).
+> Last updated: **2026-08-14** (session `arena/019ffe18-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 11 ACCEPTED — Phase 11.8 final hero acceptance passed for all five
+  themes (2398 Phase 11 tests green).**
+  - Acceptance-only phase: **no product source was changed**. The hero passed
+    the full gate exactly as built in 11.1-11.7; the only addition is the
+    450-assertion suite `scripts/test-phase-11.8.mjs`.
+  - Accepted per theme x desktop/tablet/mobile: unique layout, headline,
+    description, media and styling (all pairwise distinct, no shared image);
+    Book Appointment + Explore Services CTAs; mobile-optimized and fallback
+    media; loading/error states with no layout shift; full a11y contract.
+  - Complete flows verified on every theme and frame: Hero -> Book Appointment
+    opens exactly ONE existing booking flow; Explore Services -> services
+    section; Gallery -> gallery section; Call -> tel:; WhatsApp -> wa.me. No
+    duplicate sections, no route change, canonical order intact.
+  - **Full-cycle switch** Barber -> Hair -> Spa -> Family -> Nail -> **back to
+    Barber** in en/light and hi/dark on all three frames, asserting zero stale
+    copy, badges, motion classes, media or `theme:<prior>:` cache keys at every
+    step, and an exact restore of the Barber hero at the end.
+  - Confirmed a single hero implementation: routed through the real shared
+    `TemplateRenderer`, each theme renders exactly one `#section-hero`, one
+    `<h1>` and one media frame (the legacy hero markup in `TemplateRenderer`
+    is unreachable for all five themes).
+  - Validation: `npm run test:phase-11.8` = 450/450; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369, 11.5 294, 11.6 377, 11.7 306; `test:phase-10`
+    1259/1259; lint, build and 25-screen verification green.
+    Details: `docs/phase-11.8-final-hero-acceptance.md`.
+
+- **Phase 11.7 — HERO DATA VALIDATION: COMPLETE for all five themes
+  (1948 Phase 11 tests green).**
+  - Data/fallback fixes only; no hero redesign, no DB/service/booking or
+    Phase 10 change. Two real defects fixed:
+    1. **Unvalidated owner media reached the DOM.** `heroImageUrl`, gallery
+       entries and reel URLs were used after only a `.trim()`, so
+       `javascript:alert(1)` became a literal `<img src>` and free text became
+       a broken image instead of falling back. (React blocked the `href` case
+       at render, so it was not exploitable today — but the hero was leaning on
+       a framework guardrail instead of validating its own data.) New
+       `isSafeMediaUrl()` / `safeMediaUrl()` in `src/lib/siteHero.ts` allow
+       only http(s), protocol-relative, root/relative, `data:image`/`data:video`
+       and `blob:` sources; everything else falls back to the theme's own safe
+       media. Applied to `heroMedia()`, `heroVideoSource()` and
+       `setThemeHeroVideo()`.
+    2. **Fake initials from placeholder copy.** An unnamed salon produced a
+       "Y"/"N" monogram out of the generic "Your Salon" fallback. Initials now
+       come from the real `salonName` only; new `heroLogoMark()` renders a
+       neutral per-theme glyph when the salon is unnamed.
+  - Verified: per-theme headline/description/CTA/media uniqueness in EN+HI,
+    owner data winning over theme copy, 8 sparse-data profiles rendering
+    without crashing, hostile URLs rejected pre-render, broken URLs hitting the
+    existing error state with no layout shift, clean theme switching (no stale
+    copy/media/cache, language + light/dark preserved), no duplicate media
+    requests and lazy-loading untouched.
+  - Validation: `npm run test:phase-11.7` = 306/306; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369, 11.5 294, 11.6 377; `test:phase-10` 1259/1259; lint,
+    build and 25-screen verification green.
+    Details: `docs/phase-11.7-hero-data-validation.md`.
+
+- **Phase 11.6 — HERO INTERACTION & CONVERSION: COMPLETE for all five themes
+  (1642 Phase 11 tests green).**
+  - New `src/lib/siteHeroNav.ts` wraps the EXISTING Phase 10 navigation — no
+    new route, section or second booking flow. Four issues fixed:
+    1. Explore Services / View Gallery were `<button onClick>`; they are now
+       real `<a href="#section-...">` anchors (focusable, visible destination,
+       open-in-new-tab) with a smooth-scroll enhancement. Book Appointment
+       stays a `<button type="button">` because it is an action.
+    2. Destinations were hardcoded strings; they now resolve through the
+       Phase 10.3 alias registry via `heroTargetId()`.
+    3. Smooth scrolling ignored `prefers-reduced-motion`; `heroScrollTo()`
+       now jumps instantly for those visitors (same destination).
+    4. CTA motion was inconsistent; each theme now has its own signature
+       (barber mechanical press, hair editorial hairline, spa calm lift,
+       family springy bounce, nail neon glow), all <=180ms, no loops, and all
+       disabled together under one reduced-motion block.
+  - Verified: booking opens exactly one existing flow; services/gallery land
+    on the right `data-site-section`; Call is `tel:` and WhatsApp `wa.me`;
+    canonical 16-section order intact with unique ids and no route change;
+    a11y semantics/keyboard/labels/contrast; and full theme isolation across
+    desktop/tablet/mobile x EN/HI x light/dark.
+  - Validation: `npm run test:phase-11.6` = 377/377; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369, 11.5 294; `test:phase-10` 1259/1259; lint, build and
+    25-screen verification green.
+    Details: `docs/phase-11.6-hero-interaction-conversion.md`.
+
+- **PHASE 11 CLOSED — Phase 11.5 hero final polish passed for all five themes
+  (1265 Phase 11 tests green).**
+  - Polish/QA only; no hero layout redesigned. Four real defects fixed:
+    1. **Fabricated business metrics removed.** Heroes hardcoded claims like
+       "12k+ cuts delivered" and "9 colour formulas" that no salon supplied.
+       New `heroStat()` in `src/lib/siteHero.ts` derives the value from real
+       data (active services → team → nothing); the copy table keeps only
+       per-theme wording (`statServicesLabel` / `statTeamLabel`, EN + HI).
+    2. **No keyboard focus on any CTA.** New scoped `.site-hero-cta` class in
+       `src/index.css` adds hover / focus-visible / active states (with a
+       reduced-motion guard) to all 30 hero CTAs. Phase 10 controls untouched.
+    3. **Accessibility gaps.** 45 decorative icons now `aria-hidden`; the
+       ambience video is `role="img"` + `tabIndex={-1}`.
+    4. **Mobile hero too tall.** Barber dropped its second stacked media cell
+       on phones (459px → 219px) and the spa arch narrowed (392px → 265px);
+       all themes now under a 300px mobile media budget, test-enforced.
+  - Verified per theme: real salon name/logo, theme-correct headline/
+    description/CTA/media, readable text over media, frame-accurate spacing and
+    typography, a11y labels, Hindi-safe layout, dark mode never dropping a WCAG
+    tier, and full theme isolation across Barber → Hair → Spa → Family → Nail
+    on desktop/tablet/mobile with no previous-theme content surviving.
+  - Validation: `npm run test:phase-11.5` = 294/294; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369; `test:phase-10` 1259/1259; lint, build and 25-screen
+    verification green. Details: `docs/phase-11.5-hero-final-polish.md`.
+
+- **PHASE 11 COMPLETE — Phase 11.4 hero Desktop + Tablet + Mobile QA passed
+  for all five themes (971 Phase 11 tests green).**
+  - QA-only phase; the hero was not redesigned. Two REAL defects were found
+    and fixed at the root cause:
+    1. **Tablet rendered at desktop scale, and `hidden md:inline-flex`
+       inverted on mobile.** The heroes mixed frame-based `mode` (fixed
+       preview widths 950/768/390) with Tailwind `md:` classes that key off
+       the BROWSER viewport, so `md:` matched even inside the 390px phone
+       frame. Fixed with `heroModeValue(mode, {desktop,tablet,mobile})` in
+       `src/lib/siteHero.ts`; all 28 `md:` classes across the five heroes are
+       now frame-accurate, and the nail studio badge is desktop-only by mode.
+       Guarded by a test asserting zero viewport-breakpoint classes in any
+       hero on any frame.
+    2. **Owner catalog silently deleted focus badges.** `heroFocusBadges()`
+       matched substrings, so one `Haircut` service matched the hair studio's
+       "Cut & Styling" + "Hair Treatments" and hid Colour/Balayage. Now
+       matches whole words against a tokenised catalog set.
+  - Verified per theme × desktop/tablet/mobile: media fit, no cropping, no
+    horizontal overflow, readable headline/description, visible 44px CTAs,
+    Book Appointment opening the existing flow, Explore Services targeting
+    `#section-services`, mobile-optimized sources (w=640/q=70), video and
+    image fallbacks preserving the aspect ratio, no layout shift, light/dark,
+    EN/HI, and per-frame theme isolation.
+  - Validation: `npm run test:phase-11.4` = 369/369; 11.1 215/215,
+    11.2 138/138, 11.3 249/249, `test:phase-10` 1259/1259; lint, build and
+    25-screen verification green.
+    Details: `docs/phase-11.4-hero-responsive-qa.md`.
+
+- **Phase 11.3 — HERO MEDIA & CALL-TO-ACTION: COMPLETE for all five themes.**
+  - New `src/lib/siteHeroMedia.ts` + `src/components/heroes/HeroMediaFrame.tsx`
+    give every theme its own hero media slot inside its EXISTING 11.1 layout
+    (barber film-strip motion cell, hair editorial plate 01, spa arch, family
+    collage tile, nail look-of-the-week card). No media shared across themes.
+  - Media behaviour: existing `SiteImage` pipeline (srcset/eager/skeleton/
+    error), per-viewport width rewrite (1400/1000/640, q=70 mobile), reserved
+    aspect-ratio (no layout shift), video always muted + playsInline + loop
+    with no controls, `prefers-reduced-motion` honoured, video error → poster,
+    image error → existing SiteImage error state.
+  - **Hero video is image-first by default**: `THEME_VIDEOS` ships empty
+    because the sandbox has no network to verify third-party clip URLs.
+    Motion comes from owner `socialVideos` playable files, or from
+    `setThemeHeroVideo(themeId, src)` per-theme deployment registration.
+    Non-playable reels become click-to-open links, never autoplay.
+  - CTAs: existing Book Appointment (10.6 flow) + Explore Services, plus new
+    optional Call / WhatsApp / View Gallery via `heroCtaOptions()` on the
+    existing contact system; each theme has its own CTA text and styling and
+    they hide when the owner disables them.
+  - Validation: `npm run test:phase-11.3` = 249/249; 11.1 215/215, 11.2
+    138/138, `test:phase-10` 1259/1259, lint/build/25-screens green.
+    Details: `docs/phase-11.3-hero-media-cta.md`.
+
+- **Phase 11.2 — HERO HEADLINE & CONTENT: COMPLETE for all five themes.**
+  - Mandated headlines render exactly: barber "Sharp Cuts. Classic Grooming.
+    Modern Confidence.", hair "Luxury Hair. Signature Style. Beautifully You.",
+    spa "Relax. Refresh. Reveal Your Natural Glow.", family "Beauty & Grooming
+    for the Whole Family.", nail "Nails, Lashes & Beauty Made to Stand Out."
+  - Each theme also gained a unique short description, theme-specific primary +
+    secondary CTA text, service-focus badges (barber haircuts/beard/shave/
+    grooming · hair cut/colour/balayage/treatments · spa facial/skin/spa/
+    wellness/makeup · family men/women/kids/haircare/combos · nail
+    art/gel/lash/brow/mani-pedi) and a target-audience line — rendered in each
+    theme's EXISTING 11.1 layout, no layout recreated.
+  - All copy lives in `src/lib/siteHeroI18n.ts` and flows through the existing
+    Phase 10.2 language system; every Hindi string is a real Devanagari
+    translation. New `heroFocusBadges()` in `src/lib/siteHero.ts` narrows the
+    badges to the owner's active catalog (archived/inactive ignored).
+  - Owner content still wins: `tagline` → `<h1>`, `about` → description,
+    `services` → badges. No database, migration or service change.
+  - Validation: `npm run test:phase-11.2` = 138/138, `test:phase-11.1`
+    215/215, `test:phase-10` 1259/1259, lint/build/25-screens green.
+    Details: `docs/phase-11.2-hero-headline-content.md`.
+
+- **Phase 11.1 — UNIQUE HERO DESIGN: COMPLETE for all five themes.**
+  - Five genuinely separate hero components in `src/components/heroes/`
+    (`BarberHero`, `HairStudioHero`, `BeautySpaHero`, `FamilyHero`,
+    `NailLashHero`) — one file per theme, no shared layout:
+    barber `cinematic-slab`, hair `editorial-gallery`, spa `soft-arch`,
+    family `action-card-collage`, nail `glam-card-shelf`.
+  - Every hero carries: salon logo/name, theme headline, short description,
+    primary Book Appointment CTA (opens the existing 10.6 flow), secondary
+    Explore Services CTA (scrolls to `#section-services`), hero image and/or
+    owner reel, plus optional rating / location / live open-status.
+  - Owner data wins: tagline drives the single `<h1>`, About drives the
+    description, `logoUrl` / `heroImageUrl` / gallery drive the visuals; each
+    theme falls back to its own disjoint imagery set.
+  - New: `src/lib/siteHeroI18n.ts` (per-theme EN/HI hero copy) and
+    `src/lib/siteHero.ts` (media / meta / headline helpers). Renderers only
+    swapped their inline hero markup for one hero component call.
+  - Phase 10.1 header, 10.2 Language + Dark Mode and 10.3 canonical section
+    order are untouched; no database, migration, service or theme-data change.
+  - Validation: `npm run test:phase-11.1` = 215/215; `npm run test:phase-10`
+    = 1259/1259; lint, build and 25-screen verification green. Details:
+    `docs/phase-11.1-unique-hero-design.md`.
 
 - **Phase 10.13 — GLOBAL WEBSITE FINAL AUDIT: COMPLETE for all five themes.**
   - Exact 16-section flow passes in Desktop, Tablet and Mobile for Barber,
@@ -578,7 +779,17 @@ npm run test:phase-10.4    # final CTA, footer & floating actions
 npm run test:phase-10.5    # announcement bar & live salon status
 npm run test:phase-10.6    # Book Appointment entry flow (102 tests)
 npm run test:phase-10.7    # Advance payment & booking confirmation (66 tests)
-npm run test:phase-10      # every Phase 10 suite (557 tests)
+npm run test:phase-10      # every Phase 10 suite (1259 tests)
+npm run test:phase-11.1    # unique hero design across all five themes (215 tests)
+npm run test:phase-11.2    # hero headline & content, EN + HI (138 tests)
+npm run test:phase-11.3    # hero media & CTA across all five themes (249 tests)
+npm run test:phase-11.4    # hero desktop+tablet+mobile QA (369 tests)
+npm run test:phase-11.5    # hero final polish (294 tests)
+npm run test:phase-11.6    # hero interaction & conversion (377 tests)
+npm run test:phase-11.7    # hero data validation (306 tests)
+npm run test:phase-11.8    # final hero acceptance gate (450 tests)
+npm run test:phase-11      # every Phase 11 suite (2398 tests)
+npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -591,6 +802,15 @@ Expected output:
 - `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
 - `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
+- `test:phase-11.1`: 215/215 passed (unique hero design, all five themes)
+- `test:phase-11.2`: 138/138 passed (hero headline & content, EN + HI)
+- `test:phase-11.3`: 249/249 passed (hero media & CTA, all five themes)
+- `test:phase-11.4`: 369/369 passed (hero desktop + tablet + mobile QA)
+- `test:phase-11.5`: 294/294 passed (hero final polish)
+- `test:phase-11.6`: 377/377 passed (hero interaction & conversion)
+- `test:phase-11.7`: 306/306 passed (hero data validation)
+- `test:phase-11.8`: 450/450 passed (final hero acceptance)
+- `test:phase-11`: 2398 tests, all green — PHASE 11 ACCEPTED
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

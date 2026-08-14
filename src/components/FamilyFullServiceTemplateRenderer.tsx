@@ -11,9 +11,9 @@ import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
 import SiteSeo from './SiteSeo';
-import SiteImage from './SiteImage';
 import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
+import FamilyHero from './heroes/FamilyHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
@@ -387,7 +387,6 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   const ownerState = resolveSectionState('owner', data.ownerName ? [data.ownerName] : []);
   const aboutState = resolveSectionState('about', [data.about || '1']);
   const locationState = resolveSectionState('location', ['ready']);
-  const heroImage = data.heroImageUrl || PREVIEW_GALLERY_BASE[0].url;
   const secondaryImage = gallery[1]?.url || PREVIEW_GALLERY_BASE[1].url;
   const contactPhone = data.phone || '';
   const whatsappPhone = (data.whatsappPhone || data.phone || '').replace(/\D/g, '');
@@ -433,59 +432,8 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
         <SiteAnnouncementBar themeId="family_full_service" data={data} />
         <SiteHeader themeId="family_full_service" data={data} mode={headerMode} />
 
-        <section id="section-hero" data-site-section="hero" data-section-state="ready" className="site-section relative overflow-hidden px-5 md:px-8 py-8 md:py-12" style={{ backgroundColor: sky }}>
-          <div className="absolute -right-20 -top-24 w-64 h-64 rounded-full" style={{ backgroundColor: skyDeep, opacity: 0.7 }} />
-          <div className="absolute right-24 bottom-[-70px] w-40 h-40 rounded-full border-[18px]" style={{ borderColor: 'rgba(7,159,154,0.12)' }} />
-          <div className="relative z-10 grid md:grid-cols-[1.04fr_0.96fr] gap-8 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 border" style={{ borderColor: skyDeep, backgroundColor: appearance === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)' }}>
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: coral }} />
-                <span className="text-[9px] font-extrabold uppercase tracking-[0.2em]" style={{ color: blue }}>{S.heroBadge}</span>
-              </div>
-              <h1 className="mt-5 text-4xl md:text-5xl font-extrabold leading-[0.98] tracking-[-0.055em]" style={{ color: t.heading }}>
-                {S.heroTitle1}<br /><span style={{ color: teal }}>{S.heroTitle2}</span>
-              </h1>
-              <p className="mt-5 max-w-md text-sm leading-relaxed" style={{ color: muted }}>
-                {data.tagline || S.heroFallbackTagline}
-              </p>
-              <div className="flex flex-wrap gap-3 mt-7">
-                <a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="rounded-xl px-5 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center gap-2 shadow-lg transition-transform hover:-translate-y-0.5" style={{ backgroundColor: teal, color: '#ffffff' }}>
-                  {S.heroPrimaryCta} <ArrowRight className="w-4 h-4" />
-                </a>
-                <a href="#section-services" className="rounded-xl px-5 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.14em] border transition-colors" style={{ borderColor: skyDeep, color: blue, backgroundColor: t.card }}>
-                  {S.heroSecondaryCta}
-                </a>
-              </div>
-              <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-[10px] font-bold" style={{ color: t.heading }}>
-                <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" style={{ color: teal }} /> {S.heroChip1}</span>
-                <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" style={{ color: teal }} /> {S.heroChip2}</span>
-              </div>
-            </div>
-            <div className="relative min-h-[270px] md:min-h-[320px]">
-              <div className="absolute inset-x-4 top-3 bottom-0 rounded-[2rem] rotate-3" style={{ backgroundColor: teal }} />
-              <div className="absolute inset-0 rounded-[2rem] overflow-hidden border-4 shadow-2xl -rotate-2" style={{ borderColor: t.card, backgroundColor: tealSoft }}>
-                <img
-                  src={heroImage}
-                  alt="A welcoming family salon experience"
-                  className="w-full h-full object-cover"
-                  style={{ objectPosition: data.heroPosition === 'Top' ? 'center top' : data.heroPosition === 'Bottom' ? 'center bottom' : 'center' }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#12385b]/70 via-transparent to-transparent" />
-                <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between gap-3 text-white">
-                  <div>
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-white/70">{S.heroCardEyebrow}</p>
-                    <p className="text-lg font-extrabold mt-1">{S.heroCardTitle}</p>
-                  </div>
-                  <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: sun, color: '#12385b' }}><Smile className="w-5 h-5" /></span>
-                </div>
-              </div>
-              <div className="absolute -left-2 md:-left-6 top-10 rounded-2xl px-3 py-2.5 shadow-xl border flex items-center gap-2" style={{ borderColor: line, backgroundColor: t.card }}>
-                <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: sunSoft, color: coral }}><Baby className="w-4 h-4" /></span>
-                <div><p className="text-[9px] font-extrabold" style={{ color: ink }}>{S.heroKidsTitle}</p><p className="text-[8px]" style={{ color: muted }}>{S.heroKidsNote}</p></div>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* Hero — PHASE 11.1: bright family action-card hero */}
+        <FamilyHero data={data} mode={mode} />
 
         <section {...sectionProps('trust', 'ready')} className="site-section px-5 md:px-8 py-10" style={{ backgroundColor: t.well }}>
           <div className="text-center max-w-xl mx-auto">

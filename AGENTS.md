@@ -68,6 +68,16 @@ npm run test:phase-10.6     # Book Appointment entry flow (Service → Date → 
 npm run test:phase-10.7     # Advance payment & booking confirmation
 npm run test:phase-10.8     # Reviews, ratings & social / latest-work feed
 npm run test:phase-10       # all Phase 10 suites
+npm run test:phase-11.1     # unique hero design across all five themes
+npm run test:phase-11.2     # hero headline & content (EN + HI) across all five themes
+npm run test:phase-11.3     # hero media & CTA across all five themes
+npm run test:phase-11.4     # hero desktop + tablet + mobile QA
+npm run test:phase-11.5     # hero final polish across all five themes
+npm run test:phase-11.6     # hero interaction & conversion
+npm run test:phase-11.7     # hero data validation
+npm run test:phase-11.8     # final hero acceptance gate
+npm run test:phase-11       # every Phase 11 suite (2398 tests)
+npm run test:phase-11       # both Phase 11 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
@@ -154,9 +164,25 @@ loads). All `.env*` files are gitignored except `.env.example`.
 
 ## Conventions & guardrails
 
+- **Frame-aware responsiveness**: themed website renderers draw inside a
+  FIXED-WIDTH preview frame (desktop 950 / tablet 768 / mobile 390). Never size
+  them with Tailwind viewport breakpoints (`md:` …) — those key off the real
+  browser and match even inside the 390px phone frame. Use the renderer `mode`
+  via `siteGrid()` / `heroModeValue()`.
 - **Style**: Tailwind utility classes inline; follow the existing look of the
   screens; use `TopBar` for standardized headers; `motion` for transitions;
   `lucide-react` for icons. The `@` alias points at the repo root.
+- **Navigation vs action semantics**: in-page navigation must be an `<a
+  href="#section-...">` (focusable, visible target, open-in-new-tab); only
+  real actions are `<button type="button">`. Resolve section ids through
+  `siteSectionDomId()` / `heroTargetId()`, never hardcoded strings.
+- **Validate owner-supplied media URLs.** Salon media is untrusted input:
+  pass it through `isSafeMediaUrl()` / `safeMediaUrl()` before it reaches a
+  `src`/`href`, and fall back to theme media when it fails. Never rely on
+  React's `javascript:` guard as the only defence.
+- **Never invent business facts.** Customer-facing surfaces must not hardcode
+  counts, ratings, years or volumes a salon did not supply. Derive them from
+  real data (see `heroStat()`) and render nothing when there is no data.
 - **Gemini features must keep their offline fallbacks** — the app must work
   without an API key.
 - **Server-side secrets stay server-side** — `GEMINI_API_KEY` etc. must never
