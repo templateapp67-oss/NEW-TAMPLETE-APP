@@ -19,6 +19,8 @@ import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteOffers from './SiteOffers';
+import SiteCombos from './SiteCombos';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
@@ -489,25 +491,11 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           </div>
         </section>
 
-        {/* Combos */}
-        <section {...sectionProps('offers', offersState, 'section-combos')} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: t.bandBg }}>
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-7">
-            <SectionIntro eyebrow={S.combosEyebrow} title={S.combosTitle} body={S.combosBody} light t={t} />
-            <span className="rounded-full px-3 py-1.5 text-[9px] font-extrabold self-start" style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: sun }}>{S.combosChip}</span>
-          </div>
-          {groups.combos.length > 0 ? (
-            <div className={`grid gap-3 ${siteGrid(mode, { desktop: 2, tablet: 2, mobile: 1 })}`}>
-              {groups.combos.map((combo) => (
-                <div key={combo.id} className="rounded-2xl border p-5 flex items-center justify-between gap-4" style={{ borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                  <div className="min-w-0"><div className="flex items-center gap-2"><PackageIcon className="w-4 h-4 shrink-0" style={{ color: sun }} /><h3 className="text-sm font-extrabold text-white truncate">{combo.name}</h3></div><p className="text-[10px] leading-relaxed mt-2 text-white/65 line-clamp-2">{combo.description}</p><p className="text-[9px] mt-3 font-bold text-white/55">{combo.duration} {S['common.minutes']} · {S.comboOneBooking}</p></div>
-                  <div className="text-right shrink-0"><BundlePrice bundle={combo} offers={data.offers} style={{ color: sun }} dark /><a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-white mt-2">{S['common.bookNow']} <ArrowRight className="w-3 h-3" /></a></div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyMenu title={S.emptyCombosTitle} body={S.emptyMenuBody} focuses={MENU_FOCUSES.combos} dark t={t} />
-          )}
-        </section>
+        {/* Offers & Discounts */}
+        <SiteOffers themeId="family_full_service" data={data} mode={mode} />
+
+        {/* Combos & Packages */}
+        <SiteCombos themeId="family_full_service" data={data} mode={mode} />
 
         {/* Gallery */}
         <section {...sectionProps('gallery', galleryState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: sky }}>

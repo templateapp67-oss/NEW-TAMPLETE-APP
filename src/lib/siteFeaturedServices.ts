@@ -151,12 +151,7 @@ export function featuredPrice(service: FeaturedService, offer?: ServiceOffer): {
  * A percentage offer → "20% off"; a fixed offer → "₹100 off". Never a made-up
  * value: both numbers come straight from the offer's `discountValue`.
  */
-export function featuredDiscountLabel(offer: ServiceOffer): string {
-  if (offer.discountType === 'percentage') {
-    return `${Math.round(offer.discountValue * 100) / 100}% off`;
-  }
-  return `₹${offer.discountValue.toLocaleString('en-IN')} off`;
-}
+
 
 /**
  * PHASE 12.3 — starting-price support. When a service carries multiple active
@@ -212,6 +207,18 @@ export function localizeFeaturedService(
     };
   }
   return { name: service.name, description: service.description, category: service.category };
+}
+
+/**
+ * PHASE 12.3 — the human-readable discount amount for an active offer.
+ * A percentage offer → "20% off"; a fixed offer → "₹100 off". Never a made-up
+ * value: both numbers come straight from the offer's `discountValue`.
+ */
+export function featuredDiscountLabel(offer: ServiceOffer): string {
+  if (offer.discountType === 'percentage') {
+    return `${Math.round(offer.discountValue * 100) / 100}% off`;
+  }
+  return `₹${offer.discountValue.toLocaleString('en-IN')} off`;
 }
 
 /** Async loader hook with theme-isolation + retry (no stale-theme leakage). */

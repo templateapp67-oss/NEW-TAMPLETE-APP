@@ -18,6 +18,8 @@ import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteOffers from './SiteOffers';
+import SiteCombos from './SiteCombos';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { displayService } from '../lib/displayService';
@@ -148,33 +150,11 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
         {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
         <SiteServiceDirectory themeId="beauty_skin_spa" data={data} mode={mode} />
 
-        <div {...sectionProps('offers', offersState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: beigeSoft }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-8">
-              <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: emerald }}>{S.packagesEyebrow}</span>
-              <h3 className="text-xl font-serif mt-2" style={{ color: text }}>{S.packagesTitle}</h3>
-            </div>
-            {offersState === 'ready' ? (
-              <div className="grid gap-4 grid-cols-1">
-                {packages.map((p) => (
-                  <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl border min-w-0" style={{ backgroundColor: card, borderColor: line }}>
-                    <div className="space-y-1 max-w-xl min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-serif font-semibold text-sm break-words" style={{ color: text }}>{p.name}</h4>
-                        <span className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: blush, color: isDark ? '#ffd9ef' : emeraldDeep }}>{S['common.bestValue']}</span>
-                      </div>
-                      <p className="text-xs leading-relaxed break-words" style={{ color: muted }}>{p.description}</p>
-                    </div>
-                    <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                      <BundlePrice bundle={p} offers={data.offers} style={{ color: emerald }} dark={isDark} />
-                      <button data-open-booking="true" onClick={openSiteBooking} className="site-touch px-5 py-2 rounded-full text-[10px] uppercase tracking-[0.2em] font-semibold" style={btnEmerald}>{S['common.bookPackage']}</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : <SectionStatePanel status={offersState} copy={X} palette={palette} emptyTitle={S.offersEmpty} />}
-          </div>
-        </div>
+        {/* Offers & Discounts */}
+        <SiteOffers themeId="beauty_skin_spa" data={data} mode={mode} />
+
+        {/* Combos & Packages */}
+        <SiteCombos themeId="beauty_skin_spa" data={data} mode={mode} />
 
         {/* Facial & Skincare — split visual section */}
         <div id="section-skincare" className="px-8 py-16" style={{ backgroundColor: beigeSoft }}>

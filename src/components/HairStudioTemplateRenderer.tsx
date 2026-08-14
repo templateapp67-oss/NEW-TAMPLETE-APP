@@ -18,6 +18,8 @@ import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteOffers from './SiteOffers';
+import SiteCombos from './SiteCombos';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../lib/themeSurfaces';
@@ -141,41 +143,11 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
         {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
         <SiteServiceDirectory themeId="hair_studio_color_bar" data={data} mode={mode} />
 
-        {/* Packages — Phase 10.1: anchor target for the global Offers nav item */}
-        {data.packages && data.packages.length > 0 && (
-          <div {...sectionProps('offers', offersState)} className="site-section px-5 md:px-8 py-14 border-t" style={{ backgroundColor: paper, borderColor: line }}>
-            <div className="max-w-3xl mx-auto">
-              <div className="text-center mb-8">
-                <span className="text-[10px] uppercase tracking-[0.4em] font-semibold" style={{ color: roseDeep }}>{S.packagesEyebrow}</span>
-                <h3 className="text-xl font-serif mt-2" style={{ color: ink }}>{S.packagesTitle}</h3>
-              </div>
-              <div className="grid gap-4 grid-cols-1">
-                {data.packages.map((p) => (
-                  <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 border" style={{ borderColor: line, backgroundColor: card }}>
-                    <div className="space-y-1 max-w-xl">
-                      <div className="flex items-center gap-3">
-                        <h4 className="font-serif font-semibold text-sm" style={{ color: ink }}>{p.name}</h4>
-                        <span className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-0.5" style={{ backgroundColor: roseSoft, color: roseDeep }}>{S.packagesBadge}</span>
-                      </div>
-                      <p className="text-xs leading-relaxed" style={{ color: muted }}>{p.description}</p>
-                      <div className="text-[10px] uppercase tracking-[0.2em] font-medium flex items-center gap-2 pt-1" style={{ color: muted }}>
-                        <span>⏱ {p.duration} {S['common.mins']}</span>
-                        <span>•</span>
-                        <span>{S.packagesMeta}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-                      <BundlePrice bundle={p} offers={data.offers} style={{ color: roseDeep }} dark={isDark} />
-                      <button data-open-booking="true" onClick={openSiteBooking} className="px-5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold transition-all hover:brightness-110" style={btnRose}>
-                        {S['common.bookPackage']}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Offers & Discounts */}
+        <SiteOffers themeId="hair_studio_color_bar" data={data} mode={mode} />
+
+        {/* Combos & Packages */}
+        <SiteCombos themeId="hair_studio_color_bar" data={data} mode={mode} />
 
         {/* Color Showcase — the signature hair-color gallery */}
         <div id="section-color" className="px-8 py-16" style={{ backgroundColor: paperDeep }}>

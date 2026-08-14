@@ -49,6 +49,8 @@ export interface Service {
   promotionalBadge?: string;
   /** Additional price choices. These never replace the base service row. */
   pricingVariants?: ServicePriceVariant[];
+  selectedVariantId?: string;
+  selectedVariantName?: string;
 }
 
 export interface BundleService {

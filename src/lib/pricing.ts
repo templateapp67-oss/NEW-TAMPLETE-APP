@@ -19,6 +19,21 @@ export function todayDateKey(now = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+export function formatCurrency(value: number): string {
+  return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
+export function formatDiscountLabel(offer: ServiceOffer): string {
+  if (offer.discountType === 'percentage') {
+    return `${Math.round(offer.discountValue * 100) / 100}% off`;
+  }
+  return `₹${offer.discountValue.toLocaleString('en-IN')} off`;
+}
+
+export function featuredDiscountLabel(offer: ServiceOffer): string {
+  return formatDiscountLabel(offer);
+}
+
 /**
  * Client-side mirror of M24's database effective-status function. The database
  * remains authoritative; this makes an already-open preview expire correctly
@@ -39,27 +54,72 @@ export function isOfferActive(offer: ServiceOffer, today = todayDateKey()): bool
   return getOfferEffectiveStatus(offer, today) === 'active';
 }
 
-export function offerAppliesToService(offer: ServiceOffer, service: Service): boolean {
-  if (!service.themeId || offer.themeId !== service.themeId) return false;
+export function offerAppliesToService(
+  offer: ServiceOffer,
+  service: Service,
+  today = todayDateKey(),
+): boolean {
+  // 1. Theme Isolation Check (Strict)
+  const offerTheme = offer.themeKey || offer.themeId;
+  const serviceTheme = service.themeKey || service.themeId;
+  if (offerTheme && serviceTheme && offerTheme !== serviceTheme) return false;
+  if (!offerTheme && !serviceTheme && offer.themeId !== service.themeId) return false;
+
+  // 2. Auto Validation: active offer status & validity dates
+  if (!isOfferActive(offer, today)) return false;
+
+  // 3. Auto Validation: service availability
+  if (service.status === 'inactive' || service.status === 'archived') return false;
+
+  // 4. Target Mapping Support (single service, multi service, category, theme)
   switch (offer.targetType) {
     case 'theme':
       return true;
     case 'category':
-      return Boolean(service.categoryId) && offer.categoryId === service.categoryId;
+      return (Boolean(service.categoryId) && offer.categoryId === service.categoryId) ||
+             (Boolean(service.category) && offer.categoryId === service.category);
     case 'predefined_service':
-      return Boolean(service.predefinedServiceId)
-        && offer.predefinedServiceId === service.predefinedServiceId;
+      return (Boolean(service.predefinedServiceId) && offer.predefinedServiceId === service.predefinedServiceId) ||
+             (Boolean(service.name) && offer.predefinedServiceId === service.name) ||
+             (Boolean(service.id) && offer.predefinedServiceId === service.id) ||
+             (Array.isArray(offer.serviceIds) && offer.serviceIds.includes(service.id));
     case 'saved_service':
-      return offer.savedServiceId === service.id;
+      return offer.savedServiceId === service.id ||
+             (Array.isArray(offer.serviceIds) && offer.serviceIds.includes(service.id));
     case 'bundle':
-      return false;
+      return offer.packageId === service.id ||
+             (Array.isArray(offer.serviceIds) && offer.serviceIds.includes(service.id));
   }
 }
 
-export function offerAppliesToBundle(offer: ServiceOffer, bundle: Package): boolean {
-  if (!bundle.themeId || offer.themeId !== bundle.themeId) return false;
+export function offerAppliesToBundle(
+  offer: ServiceOffer,
+  bundle: Package,
+  today = todayDateKey(),
+): boolean {
+  // 1. Theme Isolation Check (Strict)
+  const offerTheme = offer.themeKey || offer.themeId;
+  const bundleTheme = bundle.themeKey || bundle.themeId;
+  if (offerTheme && bundleTheme && offerTheme !== bundleTheme) return false;
+  if (!offerTheme && !bundleTheme && offer.themeId !== bundle.themeId) return false;
+
+  // 2. Auto Validation: active offer status & validity dates
+  if (!isOfferActive(offer, today)) return false;
+
+  // 3. Auto Validation: bundle availability
+  if (bundle.status === 'inactive' || bundle.status === 'archived') return false;
+
+  // 4. Target Mapping Support (single combo, multi combo, theme)
   if (offer.targetType === 'theme') return true;
-  return offer.targetType === 'bundle' && offer.packageId === bundle.id;
+  if (offer.targetType === 'bundle') {
+    return offer.packageId === bundle.id || (Array.isArray(offer.serviceIds) && offer.serviceIds.includes(bundle.id));
+  }
+  if (offer.targetType === 'saved_service' || offer.targetType === 'predefined_service') {
+    return offer.savedServiceId === bundle.id ||
+           offer.predefinedServiceId === bundle.id ||
+           (Array.isArray(offer.serviceIds) && offer.serviceIds.includes(bundle.id));
+  }
+  return false;
 }
 
 export function discountedPrice(price: number, offer?: ServiceOffer): number {
@@ -79,18 +139,20 @@ export function bestServiceOffer(
   service: Service,
   offers: ServiceOffer[] = [],
   price = service.price,
+  today = todayDateKey(),
 ): ServiceOffer | undefined {
   return offers
-    .filter((offer) => isOfferActive(offer) && offerAppliesToService(offer, service))
+    .filter((offer) => offerAppliesToService(offer, service, today))
     .sort((a, b) => offerSaving(price, b) - offerSaving(price, a))[0];
 }
 
 export function bestBundleOffer(
   bundle: Package,
   offers: ServiceOffer[] = [],
+  today = todayDateKey(),
 ): ServiceOffer | undefined {
   return offers
-    .filter((offer) => isOfferActive(offer) && offerAppliesToBundle(offer, bundle))
+    .filter((offer) => offerAppliesToBundle(offer, bundle, today))
     .sort((a, b) => offerSaving(bundle.price, b) - offerSaving(bundle.price, a))[0];
 }
 
@@ -98,20 +160,18 @@ export function serviceDisplayPrice(
   service: Service,
   offers: ServiceOffer[] = [],
   variantId?: string | null,
+  today = todayDateKey(),
 ): { basePrice: number; finalPrice: number; offer?: ServiceOffer; variantName?: string } {
-  const variant = variantId
-    ? service.pricingVariants?.find((item) => item.id === variantId && item.status === 'active')
+  const targetVariantId = variantId ?? service.selectedVariantId;
+  const variant = targetVariantId
+    ? service.pricingVariants?.find((item) => item.id === targetVariantId && item.status === 'active')
     : undefined;
   const basePrice = variant?.price ?? service.price;
-  const offer = bestServiceOffer(service, offers, basePrice);
+  const offer = bestServiceOffer(service, offers, basePrice, today);
   return {
     basePrice,
     finalPrice: discountedPrice(basePrice, offer),
     offer,
-    variantName: variant?.name,
+    variantName: variant?.name || service.selectedVariantName,
   };
-}
-
-export function formatCurrency(value: number): string {
-  return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }

@@ -20,6 +20,8 @@ import SiteReviews from './SiteReviews';
 import SiteSocialFeed from './SiteSocialFeed';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
+import SiteOffers from './SiteOffers';
+import SiteCombos from './SiteCombos';
 import SiteServiceDirectory from './SiteServiceDirectory';
 import { openSiteBooking, salonMapsHref } from '../lib/siteBooking';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../lib/themeSurfaces';
@@ -259,19 +261,11 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
         {/* Services — complete directory (PHASE 12.4: theme-scoped categories + search + sort) */}
         <SiteServiceDirectory themeId="nail_lash_studio" data={data} mode={mode} />
 
-        <section {...sectionProps('offers', offersState, 'section-service-menu')} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: cream }}>
-          <SectionTitle eyebrow={S.menuEyebrow} title={S.menuTitle} t={t} />
-          {offersState === 'ready' ? (
-            <div className="mt-8 space-y-3">
-              {data.packages.filter((bundle) => bundle.status !== 'inactive' && bundle.status !== 'archived').map((bundle) => (
-                <article key={bundle.id} className="rounded-[1.5rem] border p-5 flex items-center justify-between gap-4 min-w-0" style={{ borderColor: pink, backgroundColor: pinkSoft }}>
-                  <div className="min-w-0"><h3 className="text-sm font-extrabold break-words" style={{ color: ink }}>{bundle.name}</h3><p className="text-[10px] mt-1 break-words" style={{ color: muted }}>{bundle.includedServices?.map((item) => item.name).join(' + ') || bundle.description}</p></div>
-                  <BundlePrice bundle={bundle} offers={data.offers} style={{ color: pinkDeep }} dark={appearance === 'dark'} />
-                </article>
-              ))}
-            </div>
-          ) : <div className="mt-6"><SectionStatePanel status={offersState} copy={X} palette={palette} emptyTitle={S.offersEmpty} /></div>}
-        </section>
+        {/* Offers & Discounts */}
+        <SiteOffers themeId="nail_lash_studio" data={data} mode={mode} />
+
+        {/* Combos & Packages */}
+        <SiteCombos themeId="nail_lash_studio" data={data} mode={mode} />
 
         {/* Nail Art Showcase */}
         <section id="section-nail-art" className="px-5 md:px-8 py-12" style={{ backgroundColor: t.artBand }}><div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-8"><SectionTitle eyebrow={S.nailArtEyebrow} title={S.nailArtTitle} body={S.nailArtBody} light t={t} /><a href="#section-contact" data-open-booking="true" onClick={(e) => { e.preventDefault(); openSiteBooking(); }} className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.18em] self-start" style={{ backgroundColor: pink, color: '#ffffff' }}>{S.startYourSet} <ArrowRight className="w-3.5 h-3.5" /></a></div><div className={`grid gap-3 ${siteGrid(mode, { desktop: 3, tablet: 2, mobile: 2 })}`}>{NAIL_ART.map((item, index) => <ImageShowcaseCard key={item.name} item={item} index={index} />)}</div></section>
