@@ -6,6 +6,32 @@
 
 ## Current repository state
 
+- **PHASE 11 ACCEPTED — Phase 11.8 final hero acceptance passed for all five
+  themes (2398 Phase 11 tests green).**
+  - Acceptance-only phase: **no product source was changed**. The hero passed
+    the full gate exactly as built in 11.1-11.7; the only addition is the
+    450-assertion suite `scripts/test-phase-11.8.mjs`.
+  - Accepted per theme x desktop/tablet/mobile: unique layout, headline,
+    description, media and styling (all pairwise distinct, no shared image);
+    Book Appointment + Explore Services CTAs; mobile-optimized and fallback
+    media; loading/error states with no layout shift; full a11y contract.
+  - Complete flows verified on every theme and frame: Hero -> Book Appointment
+    opens exactly ONE existing booking flow; Explore Services -> services
+    section; Gallery -> gallery section; Call -> tel:; WhatsApp -> wa.me. No
+    duplicate sections, no route change, canonical order intact.
+  - **Full-cycle switch** Barber -> Hair -> Spa -> Family -> Nail -> **back to
+    Barber** in en/light and hi/dark on all three frames, asserting zero stale
+    copy, badges, motion classes, media or `theme:<prior>:` cache keys at every
+    step, and an exact restore of the Barber hero at the end.
+  - Confirmed a single hero implementation: routed through the real shared
+    `TemplateRenderer`, each theme renders exactly one `#section-hero`, one
+    `<h1>` and one media frame (the legacy hero markup in `TemplateRenderer`
+    is unreachable for all five themes).
+  - Validation: `npm run test:phase-11.8` = 450/450; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369, 11.5 294, 11.6 377, 11.7 306; `test:phase-10`
+    1259/1259; lint, build and 25-screen verification green.
+    Details: `docs/phase-11.8-final-hero-acceptance.md`.
+
 - **Phase 11.7 — HERO DATA VALIDATION: COMPLETE for all five themes
   (1948 Phase 11 tests green).**
   - Data/fallback fixes only; no hero redesign, no DB/service/booking or
@@ -761,7 +787,8 @@ npm run test:phase-11.4    # hero desktop+tablet+mobile QA (369 tests)
 npm run test:phase-11.5    # hero final polish (294 tests)
 npm run test:phase-11.6    # hero interaction & conversion (377 tests)
 npm run test:phase-11.7    # hero data validation (306 tests)
-npm run test:phase-11      # every Phase 11 suite (1948 tests)
+npm run test:phase-11.8    # final hero acceptance gate (450 tests)
+npm run test:phase-11      # every Phase 11 suite (2398 tests)
 npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
@@ -782,7 +809,8 @@ Expected output:
 - `test:phase-11.5`: 294/294 passed (hero final polish)
 - `test:phase-11.6`: 377/377 passed (hero interaction & conversion)
 - `test:phase-11.7`: 306/306 passed (hero data validation)
-- `test:phase-11`: 1948 tests, all green
+- `test:phase-11.8`: 450/450 passed (final hero acceptance)
+- `test:phase-11`: 2398 tests, all green — PHASE 11 ACCEPTED
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

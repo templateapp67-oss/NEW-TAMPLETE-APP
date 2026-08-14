@@ -75,7 +75,8 @@ npm run test:phase-11.4     # hero desktop + tablet + mobile QA
 npm run test:phase-11.5     # hero final polish across all five themes
 npm run test:phase-11.6     # hero interaction & conversion
 npm run test:phase-11.7     # hero data validation
-npm run test:phase-11       # every Phase 11 suite (1948 tests)
+npm run test:phase-11.8     # final hero acceptance gate
+npm run test:phase-11       # every Phase 11 suite (2398 tests)
 npm run test:phase-11       # both Phase 11 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
