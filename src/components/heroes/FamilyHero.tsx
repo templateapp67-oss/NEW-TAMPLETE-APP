@@ -22,7 +22,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
-import { scrollToSiteSection } from '../../lib/siteNavigation';
+import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, ArrowRight, Smile, Users, PlayCircle, CalendarCheck, Phone, MessageCircle, Images } from 'lucide-react';
 
@@ -153,20 +153,19 @@ export default function FamilyHero({ data, mode }: Props) {
                   data-testid="hero-book-cta"
                   data-open-booking="true"
                   onClick={openSiteBooking}
-                  className="site-touch site-hero-cta rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center justify-center gap-2 shadow-md transition-transform hover:-translate-y-0.5"
+                  className={heroCtaClass('family_full_service', "rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] flex items-center justify-center gap-2 shadow-md transition-transform hover:-translate-y-0.5")}
                   style={tealBtn}
                 >
                   {H.primaryCta} <ArrowRight className="w-4 h-4" aria-hidden />
                 </button>
-                <button
-                  type="button"
+                <a
                   data-testid="hero-services-cta"
-                  onClick={() => scrollToSiteSection('section-services')}
-                  className="site-touch site-hero-cta rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] border flex items-center justify-center gap-2 transition-colors"
+                  {...heroLinkProps('family_full_service', 'services', reducedMotion)}
+                  className={heroCtaClass('family_full_service', "rounded-2xl px-5 py-4 text-[10px] font-extrabold uppercase tracking-[0.14em] border flex items-center justify-center gap-2 transition-colors")}
                   style={{ borderColor: t.skyDeep, color: t.blue, backgroundColor: t.well }}
                 >
                   {H.secondaryCta} <Users className="w-4 h-4" aria-hidden />
-                </button>
+                </a>
               </div>
 
               {/* PHASE 11.3 — quick contact row inside the easy-access card */}
@@ -176,7 +175,7 @@ export default function FamilyHero({ data, mode }: Props) {
                     <a
                       data-testid="hero-call-cta"
                       href={cta.call.href}
-                      className="site-touch site-hero-cta rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
+                      className={heroCtaClass('family_full_service', "rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5")}
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
                       <Phone className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.callCta}
@@ -188,22 +187,21 @@ export default function FamilyHero({ data, mode }: Props) {
                       href={cta.whatsApp.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="site-touch site-hero-cta rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
+                      className={heroCtaClass('family_full_service', "rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5")}
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
                       <MessageCircle className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.whatsAppCta}
                     </a>
                   )}
                   {cta.gallery && (
-                    <button
-                      type="button"
+                    <a
                       data-testid="hero-gallery-cta"
-                      onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                      className="site-touch site-hero-cta rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
+                      {...heroLinkProps('family_full_service', 'gallery', reducedMotion)}
+                      className={heroCtaClass('family_full_service', "rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5")}
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
                       <Images className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.galleryCta}
-                    </button>
+                    </a>
                   )}
                 </div>
               )}
@@ -299,7 +297,7 @@ export default function FamilyHero({ data, mode }: Props) {
                 href={plan.externalVideo.src}
                 target="_blank"
                 rel="noreferrer"
-                className="site-touch site-hero-cta absolute right-0 top-0 rounded-full px-3 py-2 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-lg inline-flex items-center gap-1.5"
+                className={heroCtaClass('family_full_service', "absolute right-0 top-0 rounded-full px-3 py-2 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-lg inline-flex items-center gap-1.5")}
                 style={{ backgroundColor: t.sun, color: '#12385b' }}
               >
                 <PlayCircle className="w-3.5 h-3.5" aria-hidden /> {plan.externalVideo.title || H.videoCta}

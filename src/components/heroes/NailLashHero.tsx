@@ -22,7 +22,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
-import { scrollToSiteSection } from '../../lib/siteNavigation';
+import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, Sparkles, ArrowRight, Camera, PlayCircle, Phone, MessageCircle, Images } from 'lucide-react';
 
@@ -169,20 +169,19 @@ export default function NailLashHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch site-hero-cta rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] inline-flex items-center gap-2 transition-transform hover:-translate-y-0.5"
+                className={heroCtaClass('nail_lash_studio', "rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] inline-flex items-center gap-2 transition-transform hover:-translate-y-0.5")}
                 style={neonBtn}
               >
                 {H.primaryCta} <ArrowRight className="w-4 h-4" aria-hidden />
               </button>
-              <button
-                type="button"
+              <a
                 data-testid="hero-services-cta"
-                onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch site-hero-cta rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] border inline-flex items-center gap-2"
+                {...heroLinkProps('nail_lash_studio', 'services', reducedMotion)}
+                className={heroCtaClass('nail_lash_studio', "rounded-full px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.18em] border inline-flex items-center gap-2")}
                 style={{ borderColor: t.sandDeep, color: t.ink, backgroundColor: t.card }}
               >
                 {H.secondaryCta} <Camera className="w-4 h-4" aria-hidden />
-              </button>
+              </a>
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: t.ink }}>
@@ -197,7 +196,7 @@ export default function NailLashHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    className={heroCtaClass('nail_lash_studio', "rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5")}
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
                     <Phone className="w-3.5 h-3.5" aria-hidden /> {H.callCta}
@@ -209,22 +208,21 @@ export default function NailLashHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    className={heroCtaClass('nail_lash_studio', "rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5")}
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
                     <MessageCircle className="w-3.5 h-3.5" aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
-                  <button
-                    type="button"
+                  <a
                     data-testid="hero-gallery-cta"
-                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    {...heroLinkProps('nail_lash_studio', 'gallery', reducedMotion)}
+                    className={heroCtaClass('nail_lash_studio', "rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5")}
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
                     <Images className="w-3.5 h-3.5" aria-hidden /> {H.galleryCta}
-                  </button>
+                  </a>
                 )}
               </div>
             )}
@@ -281,7 +279,7 @@ export default function NailLashHero({ data, mode }: Props) {
                   href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
-                  className="site-touch site-hero-cta rounded-full px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-1.5"
+                  className={heroCtaClass('nail_lash_studio', "rounded-full px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-1.5")}
                   style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                 >
                   <PlayCircle className="w-3.5 h-3.5" aria-hidden /> {plan.externalVideo.title || H.videoCta}

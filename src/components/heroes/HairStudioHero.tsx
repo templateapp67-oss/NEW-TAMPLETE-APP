@@ -22,7 +22,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
-import { scrollToSiteSection } from '../../lib/siteNavigation';
+import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, ArrowUpRight, Play, Phone, MessageCircle, Images } from 'lucide-react';
 
@@ -158,20 +158,19 @@ export default function HairStudioHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch site-hero-cta px-9 py-3.5 text-[10px] uppercase tracking-[0.3em] font-semibold transition-all hover:brightness-110"
+                className={heroCtaClass('hair_studio_color_bar', "px-9 py-3.5 text-[10px] uppercase tracking-[0.3em] font-semibold transition-all hover:brightness-110")}
                 style={roseBtn}
               >
                 {H.primaryCta}
               </button>
-              <button
-                type="button"
+              <a
                 data-testid="hero-services-cta"
-                onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.28em] font-semibold pb-1 border-b"
+                {...heroLinkProps('hair_studio_color_bar', 'services', reducedMotion)}
+                className={heroCtaClass('hair_studio_color_bar', "inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.28em] font-semibold pb-1 border-b")}
                 style={{ color: t.ink, borderColor: t.ink }}
               >
                 {H.secondaryCta} <ArrowUpRight className="w-3.5 h-3.5" aria-hidden />
-              </button>
+              </a>
             </div>
 
             {/* PHASE 11.3 — optional actions as editorial hairline links */}
@@ -181,7 +180,7 @@ export default function HairStudioHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    className={heroCtaClass('hair_studio_color_bar', "inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b")}
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
                     <Phone className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.callCta}
@@ -193,22 +192,21 @@ export default function HairStudioHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    className={heroCtaClass('hair_studio_color_bar', "inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b")}
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
                     <MessageCircle className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
-                  <button
-                    type="button"
+                  <a
                     data-testid="hero-gallery-cta"
-                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch site-hero-cta inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b"
+                    {...heroLinkProps('hair_studio_color_bar', 'gallery', reducedMotion)}
+                    className={heroCtaClass('hair_studio_color_bar', "inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b")}
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
                     <Images className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.galleryCta}
-                  </button>
+                  </a>
                 )}
               </div>
             )}
@@ -281,7 +279,7 @@ export default function HairStudioHero({ data, mode }: Props) {
                   href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
-                  className="site-touch site-hero-cta flex items-center gap-2 px-3 py-2.5 text-[9px] uppercase tracking-[0.2em] font-semibold border"
+                  className={heroCtaClass('hair_studio_color_bar', "flex items-center gap-2 px-3 py-2.5 text-[9px] uppercase tracking-[0.2em] font-semibold border")}
                   style={{ borderColor: t.line, color: t.roseDeep, backgroundColor: t.card }}
                 >
                   <Play className="w-3.5 h-3.5" aria-hidden /> {plan.externalVideo.title || H.videoCta}

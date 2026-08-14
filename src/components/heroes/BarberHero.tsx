@@ -25,7 +25,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion, withHeroPoster } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
-import { scrollToSiteSection } from '../../lib/siteNavigation';
+import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, Scissors, PlayCircle, Phone, MessageCircle, Images } from 'lucide-react';
 
@@ -179,20 +179,19 @@ export default function BarberHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch site-hero-cta px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] transition-all hover:brightness-110"
+                className={heroCtaClass('barber_mens_grooming', "px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] transition-all hover:brightness-110")}
                 style={goldBtn}
               >
                 {H.primaryCta}
               </button>
-              <button
-                type="button"
+              <a
                 data-testid="hero-services-cta"
-                onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch site-hero-cta px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] border transition-all hover:bg-white/5"
+                {...heroLinkProps('barber_mens_grooming', 'services', reducedMotion)}
+                className={heroCtaClass('barber_mens_grooming', "px-8 py-4 text-[11px] font-black uppercase tracking-[0.22em] border transition-all hover:bg-white/5")}
                 style={{ borderColor: t.gold, color: t.accentText }}
               >
                 {H.secondaryCta}
-              </button>
+              </a>
             </div>
 
             {/* PHASE 11.3 — optional actions, barber slab treatment */}
@@ -202,7 +201,7 @@ export default function BarberHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch site-hero-cta flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    className={heroCtaClass('barber_mens_grooming', "flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border")}
                     style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
                   >
                     <Phone className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.callCta}
@@ -214,22 +213,21 @@ export default function BarberHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch site-hero-cta flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    className={heroCtaClass('barber_mens_grooming', "flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border")}
                     style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
                   >
                     <MessageCircle className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
-                  <button
-                    type="button"
+                  <a
                     data-testid="hero-gallery-cta"
-                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch site-hero-cta flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    {...heroLinkProps('barber_mens_grooming', 'gallery', reducedMotion)}
+                    className={heroCtaClass('barber_mens_grooming', "flex items-center gap-2 px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border")}
                     style={{ borderColor: t.line, color: t.text, backgroundColor: t.card }}
                   >
                     <Images className="w-3.5 h-3.5" style={{ color: t.gold }} aria-hidden /> {H.galleryCta}
-                  </button>
+                  </a>
                 )}
               </div>
             )}
@@ -289,7 +287,7 @@ export default function BarberHero({ data, mode }: Props) {
                 href={plan.externalVideo.src}
                 target="_blank"
                 rel="noreferrer"
-                className="site-touch site-hero-cta mt-2 flex items-center gap-2 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                className={heroCtaClass('barber_mens_grooming', "mt-2 flex items-center gap-2 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.18em] border")}
                 style={{ borderColor: t.gold, color: t.accentText, backgroundColor: t.card }}
               >
                 <PlayCircle className="w-4 h-4" aria-hidden /> {plan.externalVideo.title || H.videoCta}

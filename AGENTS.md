@@ -73,7 +73,8 @@ npm run test:phase-11.2     # hero headline & content (EN + HI) across all five 
 npm run test:phase-11.3     # hero media & CTA across all five themes
 npm run test:phase-11.4     # hero desktop + tablet + mobile QA
 npm run test:phase-11.5     # hero final polish across all five themes
-npm run test:phase-11       # every Phase 11 suite (1265 tests)
+npm run test:phase-11.6     # hero interaction & conversion
+npm run test:phase-11       # every Phase 11 suite (1642 tests)
 npm run test:phase-11       # both Phase 11 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
@@ -169,6 +170,10 @@ loads). All `.env*` files are gitignored except `.env.example`.
 - **Style**: Tailwind utility classes inline; follow the existing look of the
   screens; use `TopBar` for standardized headers; `motion` for transitions;
   `lucide-react` for icons. The `@` alias points at the repo root.
+- **Navigation vs action semantics**: in-page navigation must be an `<a
+  href="#section-...">` (focusable, visible target, open-in-new-tab); only
+  real actions are `<button type="button">`. Resolve section ids through
+  `siteSectionDomId()` / `heroTargetId()`, never hardcoded strings.
 - **Never invent business facts.** Customer-facing surfaces must not hardcode
   counts, ratings, years or volumes a salon did not supply. Derive them from
   real data (see `heroStat()`) and render nothing when there is no data.

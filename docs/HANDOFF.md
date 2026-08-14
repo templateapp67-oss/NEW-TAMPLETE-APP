@@ -6,6 +6,32 @@
 
 ## Current repository state
 
+- **Phase 11.6 — HERO INTERACTION & CONVERSION: COMPLETE for all five themes
+  (1642 Phase 11 tests green).**
+  - New `src/lib/siteHeroNav.ts` wraps the EXISTING Phase 10 navigation — no
+    new route, section or second booking flow. Four issues fixed:
+    1. Explore Services / View Gallery were `<button onClick>`; they are now
+       real `<a href="#section-...">` anchors (focusable, visible destination,
+       open-in-new-tab) with a smooth-scroll enhancement. Book Appointment
+       stays a `<button type="button">` because it is an action.
+    2. Destinations were hardcoded strings; they now resolve through the
+       Phase 10.3 alias registry via `heroTargetId()`.
+    3. Smooth scrolling ignored `prefers-reduced-motion`; `heroScrollTo()`
+       now jumps instantly for those visitors (same destination).
+    4. CTA motion was inconsistent; each theme now has its own signature
+       (barber mechanical press, hair editorial hairline, spa calm lift,
+       family springy bounce, nail neon glow), all <=180ms, no loops, and all
+       disabled together under one reduced-motion block.
+  - Verified: booking opens exactly one existing flow; services/gallery land
+    on the right `data-site-section`; Call is `tel:` and WhatsApp `wa.me`;
+    canonical 16-section order intact with unique ids and no route change;
+    a11y semantics/keyboard/labels/contrast; and full theme isolation across
+    desktop/tablet/mobile x EN/HI x light/dark.
+  - Validation: `npm run test:phase-11.6` = 377/377; 11.1 215, 11.2 138,
+    11.3 249, 11.4 369, 11.5 294; `test:phase-10` 1259/1259; lint, build and
+    25-screen verification green.
+    Details: `docs/phase-11.6-hero-interaction-conversion.md`.
+
 - **PHASE 11 CLOSED — Phase 11.5 hero final polish passed for all five themes
   (1265 Phase 11 tests green).**
   - Polish/QA only; no hero layout redesigned. Four real defects fixed:
@@ -703,7 +729,8 @@ npm run test:phase-11.2    # hero headline & content, EN + HI (138 tests)
 npm run test:phase-11.3    # hero media & CTA across all five themes (249 tests)
 npm run test:phase-11.4    # hero desktop+tablet+mobile QA (369 tests)
 npm run test:phase-11.5    # hero final polish (294 tests)
-npm run test:phase-11      # every Phase 11 suite (1265 tests)
+npm run test:phase-11.6    # hero interaction & conversion (377 tests)
+npm run test:phase-11      # every Phase 11 suite (1642 tests)
 npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
@@ -722,7 +749,8 @@ Expected output:
 - `test:phase-11.3`: 249/249 passed (hero media & CTA, all five themes)
 - `test:phase-11.4`: 369/369 passed (hero desktop + tablet + mobile QA)
 - `test:phase-11.5`: 294/294 passed (hero final polish)
-- `test:phase-11`: 1265 tests, all green
+- `test:phase-11.6`: 377/377 passed (hero interaction & conversion)
+- `test:phase-11`: 1642 tests, all green
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

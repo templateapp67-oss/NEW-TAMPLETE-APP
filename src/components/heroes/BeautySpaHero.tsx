@@ -21,7 +21,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
-import { scrollToSiteSection } from '../../lib/siteNavigation';
+import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, Flower2, Leaf, PlayCircle, Phone, MessageCircle, Images } from 'lucide-react';
 
@@ -197,20 +197,19 @@ export default function BeautySpaHero({ data, mode }: Props) {
                 data-testid="hero-book-cta"
                 data-open-booking="true"
                 onClick={openSiteBooking}
-                className="site-touch site-hero-cta rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold shadow-md transition-all hover:brightness-105"
+                className={heroCtaClass('beauty_skin_spa', "rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold shadow-md transition-all hover:brightness-105")}
                 style={emeraldBtn}
               >
                 {H.primaryCta}
               </button>
-              <button
-                type="button"
+              <a
                 data-testid="hero-services-cta"
-                onClick={() => scrollToSiteSection('section-services')}
-                className="site-touch site-hero-cta rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold border transition-colors"
+                {...heroLinkProps('beauty_skin_spa', 'services', reducedMotion)}
+                className={heroCtaClass('beauty_skin_spa', "rounded-full px-8 py-3.5 text-[10px] uppercase tracking-[0.26em] font-semibold border transition-colors")}
                 style={{ borderColor: t.emerald, color: t.emerald, backgroundColor: 'transparent' }}
               >
                 {H.secondaryCta}
-              </button>
+              </a>
             </div>
 
             {/* Soft capsules */}
@@ -240,7 +239,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
                   href={plan.externalVideo.src}
                   target="_blank"
                   rel="noreferrer"
-                  className="site-touch site-hero-cta rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em] inline-flex items-center gap-1.5"
+                  className={heroCtaClass('beauty_skin_spa', "rounded-full border px-3 py-1.5 text-[9px] font-semibold tracking-[0.12em] inline-flex items-center gap-1.5")}
                   style={capsule}
                 >
                   <PlayCircle className="w-3 h-3" style={{ color: t.emerald }} aria-hidden /> {plan.externalVideo.title || H.videoCta}
@@ -255,7 +254,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
                   <a
                     data-testid="hero-call-cta"
                     href={cta.call.href}
-                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    className={heroCtaClass('beauty_skin_spa', "rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm")}
                     style={{ backgroundColor: t.card, color: t.emerald }}
                   >
                     <Phone className="w-3 h-3" aria-hidden /> {H.callCta}
@@ -267,22 +266,21 @@ export default function BeautySpaHero({ data, mode }: Props) {
                     href={cta.whatsApp.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    className={heroCtaClass('beauty_skin_spa', "rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm")}
                     style={{ backgroundColor: t.card, color: t.emerald }}
                   >
                     <MessageCircle className="w-3 h-3" aria-hidden /> {H.whatsAppCta}
                   </a>
                 )}
                 {cta.gallery && (
-                  <button
-                    type="button"
+                  <a
                     data-testid="hero-gallery-cta"
-                    onClick={() => scrollToSiteSection(cta.gallery!.targetId)}
-                    className="site-touch site-hero-cta rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm"
+                    {...heroLinkProps('beauty_skin_spa', 'gallery', reducedMotion)}
+                    className={heroCtaClass('beauty_skin_spa', "rounded-full px-4 py-2.5 text-[9px] font-semibold tracking-[0.14em] inline-flex items-center gap-1.5 shadow-sm")}
                     style={{ backgroundColor: t.card, color: t.emerald }}
                   >
                     <Images className="w-3 h-3" aria-hidden /> {H.galleryCta}
-                  </button>
+                  </a>
                 )}
               </div>
             )}
