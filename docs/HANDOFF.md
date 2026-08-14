@@ -49,6 +49,102 @@
     `test:service-saving` assert a stale migration count (24 vs the 26
     M01–M26 files).
 
+- **PHASE 14.3 — GALLERY VIEWER: COMPLETE for all five themes (37 tests).**
+  - The shared 14.1 lightbox is upgraded into an advanced full-screen viewer —
+    no second viewer system.
+  - Mobile: swipe left/right (40px threshold, horizontal dominance), touch
+    targets (`site-touch` 44px), safe-area spacing via
+    `.site-gallery-lightbox-safe` (`env(safe-area-inset-*)`), `touch-action:
+    pan-y` and body scroll lock so the page never scrolls horizontally.
+  - Before/After: slider stays interactive inside the viewer; swipes that start
+    on the slider are ignored so the handle is never hijacked.
+  - Media safety: existing gallery data only; broken image → `SiteImage`
+    fallback; skeleton while the full-size loads; only the active full-size
+    image is mounted (adjacent-only preload); lazy + srcSet kept from 10.12.
+  - Theme isolation: viewer renders only the active theme's media; theme/data
+    switch closes/resets the viewer and drops previous media.
+  - Accessibility: Arrow/ESC keyboard nav, focus to close on open + restore to
+    trigger on close, focus trap (Tab/Shift+Tab), aria-labels, localised
+    `swipeHint` (EN/HI).
+  - Validation: `test:phase-14.3` **37/37**; `test:phase-14.1` 55/55 (no
+    regression); lint 0 errors; build + 25-screen verification green.
+    Details: `docs/phase-14.3-gallery-viewer.md`.
+
+- **PHASE 14.4 — GALLERY FINAL VALIDATION: COMPLETE for all five themes (22 tests).**
+  - Final acceptance matrix over 14.1 + 14.3: theme-specific content, category
+    filters, before/after, lightbox open/close, next/prev, mobile swipe,
+    broken-image fallback, skeleton, empty state, lazy loading, single
+    full-size mount, no layout shift / horizontal overflow, alt/accessibility.
+  - Theme switch cycle (Barber → Hair Studio → Spa → Family → Nail/Lash →
+    Barber): after every switch the filter resets, the viewer closes, previous
+    media is removed and only the active theme's media loads.
+  - Matrix: desktop/tablet/mobile, EN/HI, light/dark, normal/slow network,
+    valid/broken image, available/empty gallery.
+  - Root-cause fix: test assertions that compared a rendered DOM node against
+    `null` now use `Boolean(node)` — the old pattern walked the React fiber
+    tree on failure and OOM-killed the runner.
+  - Validation: `test:phase-14` **136/136** (55 + 37 + 22 + 22); lint 0; build +
+    25-screen verification green. Details:
+    `docs/phase-14.4-gallery-final-validation.md`.
+
+- **PHASE 14.5 — GALLERY CONVERSION & FINAL POLISH: COMPLETE for all five themes (22 tests).**
+  - Contextual viewer CTAs via the EXISTING booking flow: service image →
+    "View Service" + "Book This Service"; non-service image → "Book
+    Appointment"; the viewer closes before the booking hand-off.
+  - Service connection: `GalleryItem.serviceId` + `galleryServiceForItem`
+    resolve a service image back to the active theme's service (invalid/foreign
+    refs fail gracefully → null); "View Service" opens the existing
+    `SiteServiceDetail`, whose Book CTA preserves theme + service into the
+    booking prefill channel.
+  - Visual polish: smooth lightbox/stage fade, `focus-visible` outlines,
+    theme-accent CTAs, `prefers-reduced-motion` support.
+  - Safety: configured data only; no cross-theme service mapping; missing CTA
+    data falls back to the generic "Book Appointment".
+  - Validation: `test:phase-14` **162/162** (14.1 55 + 14.3 37 + 14.4 22 +
+    14.5 22 + 14.6 26); lint 0; build + 25-screen verification green.
+    Details: `docs/phase-14.5-gallery-conversion-polish.md`.
+
+- **PHASE 14.6 — GALLERY MANAGEMENT: COMPLETE for all five themes (26 tests).**
+  - Owner/Admin management for gallery content, built on the existing 14.1
+    gallery (no duplicate gallery system, no booking/payment/database changes).
+  - `src/lib/galleryManagement.ts` — pure helpers: media validation (image type
+    + 5 MB size), theme scoping (five themes, `ownerGalleryItemBelongsToTheme`),
+    theme-scoped service linking (`directoryServicesForTheme`), before/after,
+    display order + activate/deactivate, customer projection, and an
+    authorization gate reusing `useAuth` + `resolveOwnerSalonId`.
+  - `src/types.ts` — additive `GalleryImage` fields (`title`, `description`,
+    `serviceId`, `displayOrder`, `status`); optional, so saved galleries load
+    unchanged. `siteGallery.ts` now skips `status: 'inactive'` owner items.
+  - `src/screens/StepPhotos.tsx` — management UI: theme select, theme-scoped
+    category + service link, title/description, before-image upload
+    (Before/After pair), activate/deactivate, persisted display order, upload
+    progress + error with retry, authorization notice.
+  - Safety: authorization via existing auth/ownership (no invented salon/theme
+    ids, no service-role/private credentials in the frontend); broken uploads
+    never create incomplete records; existing valid gallery data is preserved.
+  - Validation: `test:phase-14` **180/180** (55 + 37 + 22 + 22 + 26 + 18);
+    lint 0; build + 25-screen verification green. Details:
+    `docs/phase-14.6-gallery-management.md`.
+
+- **PHASE 14.7 — OWNER/ADMIN GALLERY APPROVAL: COMPLETE for all five themes (18 tests).**
+  - Moderation state machine on the existing gallery: Upload → Pending →
+    Approve/Reject → Published/Rejected.
+  - `src/lib/galleryModeration.ts` — approve/reject/unpublish/reactivate
+    transitions, `validateGalleryItemForPublish` (invalid mapping is refused),
+    `isCustomerVisibleGalleryItem` (approved + active only), and a
+    `canModerateGallery` gate reusing the existing ownership resolution.
+  - `types.ts` — additive `moderation` / `rejectionReason` / `reviewedAt`;
+    absent moderation = grandfathered approved, so existing galleries stay
+    public. `siteGallery.ts` + `galleryManagement.ts` now hide pending/
+    rejected/unpublished content from the customer projection.
+  - `src/components/GalleryModerationPanel.tsx` — approval UI (thumbnail,
+    theme, category, linked service, status, Approve/Reject/Unpublish/
+    Reactivate, rejection reason, locked for unauthorized); `StepPhotos` starts
+    new uploads as `pending` and renders the panel.
+  - Validation: `test:phase-14` **180/180** (55 + 37 + 22 + 22 + 26 + 18);
+    lint 0; build + 25-screen verification green. Details:
+    `docs/phase-14.7-gallery-approval.md`.
+
 - **PHASE 12.7 — SERVICE IMAGES & VISUALS: COMPLETE for all five themes (60 tests).**
   - Service cards (directory) + the Service Detail modal now render a visual
     from configured media only: Service Image (image → banner → icon),
@@ -996,6 +1092,12 @@ npm run test:phase-12.5    # service discovery (search/filter/sort) across all f
 npm run test:phase-12.6    # service detail experience across all five themes (59 tests)
 npm run test:phase-12.7    # service images & visuals across all five themes (60 tests)
 npm run test:phase-14.1    # gallery & visual portfolio across all five themes (55 tests)
+npm run test:phase-14.3    # gallery viewer (advanced lightbox) across all five themes (37 tests)
+npm run test:phase-14.4    # gallery final validation across all five themes (22 tests)
+npm run test:phase-14.5    # gallery conversion & final polish (22 tests)
+npm run test:phase-14.6    # owner/admin gallery management (26 tests)
+npm run test:phase-14.7    # owner/admin gallery approval / moderation (18 tests)
+npm run test:phase-14      # every Phase 14 suite (180 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1025,6 +1127,12 @@ Expected output:
 - `test:phase-12.6`: 59/59 passed (service detail experience)
 - `test:phase-12.7`: 60/60 passed (service images & visuals)
 - `test:phase-14.1`: 55/55 passed (gallery & visual portfolio, all five themes)
+- `test:phase-14.3`: 37/37 passed (gallery viewer, all five themes)
+- `test:phase-14.4`: 22/22 passed (gallery final validation)
+- `test:phase-14.5`: 22/22 passed (gallery conversion & final polish)
+- `test:phase-14.6`: 26/26 passed (owner/admin gallery management)
+- `test:phase-14.7`: 18/18 passed (owner/admin gallery approval / moderation)
+- `test:phase-14`: 180/180 passed (Phase 14 complete)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

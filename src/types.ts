@@ -169,6 +169,24 @@ export interface GalleryImage {
   caption?: string;
   /** Marks the image the gallery features as its spotlight/hero visual. */
   featured?: boolean;
+  /**
+   * PHASE 14.6 — owner gallery management fields (additive; never required by
+   * the customer gallery so existing saved galleries keep working unchanged).
+   */
+  title?: string;
+  description?: string;
+  serviceId?: string | null;
+  displayOrder?: number;
+  status?: 'active' | 'inactive';
+  /**
+   * PHASE 14.7 — moderation state. Absent means "grandfathered approved", so
+   * existing saved galleries stay visible; new uploads start `pending`.
+   */
+  moderation?: 'pending' | 'approved' | 'rejected';
+  /** PHASE 14.7 — human-readable rejection reason (set on reject). */
+  rejectionReason?: string;
+  /** PHASE 14.7 — ISO timestamp of the last approve/reject review. */
+  reviewedAt?: string;
 }
 
 export interface SocialProfiles {

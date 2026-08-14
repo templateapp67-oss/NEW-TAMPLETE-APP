@@ -1,11 +1,31 @@
 import { 
   ArrowLeft, ArrowRight, Plus, Edit2, Trash2, X, Image as ImageIcon, Monitor, 
-  Sparkles, Upload, Check, ChevronLeft, ChevronRight, Wand2, Eye, RefreshCw
+  Sparkles, Upload, Check, ChevronLeft, ChevronRight, Wand2, Eye, RefreshCw,
+  ArrowLeftRight, ShieldAlert
 } from 'lucide-react';
 import { SalonData, GalleryImage } from '../types';
 import PreviewPane from '../components/PreviewPane';
+import GalleryModerationPanel from '../components/GalleryModerationPanel';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useRef, DragEvent } from 'react';
+import { useState, useRef, DragEvent, useEffect } from 'react';
+import {
+  GALLERY_MANAGEMENT_THEMES,
+  GALLERY_OWNER_CATEGORIES,
+  galleryManagementThemeLabel,
+  galleryServicesForTheme,
+  galleryEditPermission,
+  galleryEditDeniedMessage,
+  normalizeGalleryCategory,
+  nextGalleryDisplayOrder,
+  applyGalleryDisplayOrder,
+  readGalleryFileAsDataUrl,
+  validateGalleryImageFile,
+  type GalleryStatus,
+} from '../lib/galleryManagement';
+import { isSiteHeaderTheme, type SiteHeaderThemeId } from '../lib/siteNavigation';
+import { useAuth } from '../lib/useAuth';
+import { resolveOwnerSalonId } from '../lib/ownerSalon';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 interface Props {
   data: SalonData;
@@ -48,8 +68,6 @@ const DEMO_GALLERY_PRESETS: GalleryImage[] = [
   }
 ];
 
-const PRESET_CATEGORIES = ['Interior', 'Details', 'Hair', 'Barber', 'Beauty', 'General'];
-
 export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Props) {
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
   
@@ -65,6 +83,42 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
   const [editCategory, setEditCategory] = useState<string>('Interior');
   const [editAlt, setEditAlt] = useState<string>('');
+  // PHASE 14.6 — extended gallery management fields
+  const [editTheme, setEditTheme] = useState<string>('');
+  const [editTitle, setEditTitle] = useState<string>('');
+  const [editDescription, setEditDescription] = useState<string>('');
+  const [editServiceId, setEditServiceId] = useState<string>('');
+  const [editBeforeUrl, setEditBeforeUrl] = useState<string>('');
+  const [editStatus, setEditStatus] = useState<GalleryStatus>('active');
+
+  // PHASE 14.6 — upload progress + error (with retry)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [beforeUploadProgress, setBeforeUploadProgress] = useState<number | null>(null);
+  const beforeInputRef = useRef<HTMLInputElement>(null);
+
+  // PHASE 14.6 — authorization (existing auth + ownership logic)
+  const { user, loading: authLoading } = useAuth();
+  const [editPermission, setEditPermission] = useState<'authorized' | 'not-configured' | 'not-authenticated' | 'no-ownership' | 'ambiguous' | 'permission-denied' | 'error'>(isSupabaseConfigured ? 'not-authenticated' : 'not-configured');
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setEditPermission('not-configured');
+      return;
+    }
+    if (authLoading) return;
+    let cancelled = false;
+    resolveOwnerSalonId()
+      .then((resolution) => {
+        if (cancelled) return;
+        setEditPermission(galleryEditPermission(!!user, resolution));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEditPermission('error');
+      });
+    return () => { cancelled = true; };
+  }, [user, authLoading]);
+  const permissionDenied = galleryEditDeniedMessage(editPermission) !== null;
 
   // Toast feedback
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -104,35 +158,50 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
     reader.readAsDataURL(file);
   };
 
-  // Helper for gallery upload
-  const handleGalleryFiles = (files: FileList | File[]) => {
-    const newItems: GalleryImage[] = [];
-    let processed = 0;
-    const total = files.length;
+  // Helper for gallery upload (validated, with progress + error + retry)
+  const handleGalleryFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setUploadError(null);
+    setUploadProgress(0);
 
-    Array.from(files).forEach((file, idx) => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const url = e.target?.result as string;
-        if (url) {
-          newItems.push({
-            id: 'g-' + Date.now() + '-' + idx,
-            url,
-            alt: file.name.replace(/\.[^/.]+$/, ''),
-            category: 'General'
-          });
-        }
-        processed++;
-        if (processed === total && newItems.length > 0) {
-          const currentGallery = data.gallery || [];
-          setData({ ...data, gallery: [...currentGallery, ...newItems] });
-          showFeedback(`Added ${newItems.length} photo(s) to gallery`);
-          if (onSave) onSave();
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    const valid: { file: File; url: string }[] = [];
+    for (const file of list) {
+      const problem = validateGalleryImageFile(file);
+      if (problem) {
+        setUploadError(problem);
+        setUploadProgress(null);
+        return;
+      }
+      try {
+        const url = await readGalleryFileAsDataUrl(file, (percent) => setUploadProgress(percent));
+        valid.push({ file, url });
+      } catch {
+        setUploadError('Could not read that image. Try another image.');
+        setUploadProgress(null);
+        return;
+      }
+    }
+
+    if (valid.length > 0) {
+      const currentGallery = data.gallery || [];
+      const start = nextGalleryDisplayOrder(currentGallery);
+      const newItems: GalleryImage[] = valid.map((entry, idx) => ({
+        id: 'g-' + Date.now() + '-' + idx,
+        url: entry.url,
+        alt: entry.file.name.replace(/\.[^/.]+$/, ''),
+        category: 'General',
+        title: entry.file.name.replace(/\.[^/.]+$/, ''),
+        displayOrder: start + idx,
+        status: 'active',
+        // PHASE 14.7 — new uploads enter moderation as pending.
+        moderation: 'pending',
+      }));
+      setData({ ...data, gallery: [...currentGallery, ...newItems] });
+      showFeedback(`Added ${newItems.length} photo(s) to gallery`);
+      if (onSave) onSave();
+    }
+    setUploadProgress(null);
   };
 
   // Drag & drop handlers
@@ -180,7 +249,7 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
     if (onSave) onSave();
   };
 
-  // Reorder gallery images
+  // Reorder gallery images (persists displayOrder)
   const moveGalleryImage = (index: number, direction: 'left' | 'right') => {
     const current = [...(data.gallery || [])];
     const target = direction === 'left' ? index - 1 : index + 1;
@@ -188,18 +257,58 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
     const temp = current[index];
     current[index] = current[target];
     current[target] = temp;
-    setData({ ...data, gallery: current });
+    const ordered = applyGalleryDisplayOrder(current, current.map((img) => img.id));
+    setData({ ...data, gallery: ordered });
     if (onSave) onSave();
   };
 
-  // Edit image modal / popup submit
+  // Open the extended edit modal for an image
+  const openImageEditor = (img: GalleryImage) => {
+    setEditingImageId(img.id);
+    setEditCategory(normalizeGalleryCategory(img.category));
+    setEditAlt(img.alt || '');
+    setEditTheme(img.themeId || '');
+    setEditTitle(img.title || '');
+    setEditDescription(img.description || '');
+    setEditServiceId(img.serviceId || '');
+    setEditBeforeUrl(img.beforeUrl || '');
+    setEditStatus(img.status === 'inactive' ? 'inactive' : 'active');
+  };
+
+  // Before image upload (Before/After pair — inherits the item's theme scope)
+  const handleBeforeFile = async (file: File) => {
+    setUploadError(null);
+    setBeforeUploadProgress(0);
+    const problem = validateGalleryImageFile(file);
+    if (problem) {
+      setUploadError(problem);
+      setBeforeUploadProgress(null);
+      return;
+    }
+    try {
+      const url = await readGalleryFileAsDataUrl(file, (percent) => setBeforeUploadProgress(percent));
+      setEditBeforeUrl(url);
+    } catch {
+      setUploadError('Could not read that before image. Try another image.');
+    }
+    setBeforeUploadProgress(null);
+  };
+
+  // Edit image modal / popup submit (extended for gallery management)
   const handleSaveImageEdit = (id: string) => {
     const current = (data.gallery || []).map(img => {
       if (img.id === id) {
         return {
           ...img,
-          category: editCategory,
-          alt: editAlt
+          category: normalizeGalleryCategory(editCategory),
+          alt: editAlt,
+          themeId: editTheme || null,
+          title: editTitle || undefined,
+          description: editDescription || undefined,
+          serviceId: editServiceId || null,
+          beforeUrl: editBeforeUrl || undefined,
+          beforeAlt: editBeforeUrl ? (editAlt || 'Before image') : img.beforeAlt,
+          status: editStatus,
         };
       }
       return img;
@@ -211,6 +320,14 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
   };
 
   const galleryList = data.gallery || [];
+
+  // PHASE 14.6 — service list is scoped to the selected theme (never cross-theme).
+  const effectiveServiceTheme: SiteHeaderThemeId | null = isSiteHeaderTheme(editTheme)
+    ? editTheme
+    : isSiteHeaderTheme(data.templateId || '')
+      ? (data.templateId as SiteHeaderThemeId)
+      : null;
+  const themeServices = effectiveServiceTheme ? galleryServicesForTheme(data, effectiveServiceTheme) : [];
 
   return (
     <div className="flex-1 flex flex-col md:flex-row w-full h-full bg-[#f9f9f9]">
@@ -251,6 +368,17 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                 Bring your Lumina template to life. Upload your logo and high-quality images to showcase your space, tools, and results.
               </p>
             </div>
+
+            {/* PHASE 14.6 — authorization notice (existing auth + ownership) */}
+            {permissionDenied && (
+              <div
+                data-testid="gallery-auth-notice"
+                className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 flex items-start gap-2"
+              >
+                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{galleryEditDeniedMessage(editPermission)}</span>
+              </div>
+            )}
 
             {/* Feedback toast */}
             <AnimatePresence>
@@ -450,12 +578,38 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                 <input
                   type="file"
                   ref={galleryInputRef}
+                  data-testid="gallery-file-input"
                   multiple
                   onChange={e => e.target.files && handleGalleryFiles(e.target.files)}
                   accept="image/*"
                   className="hidden"
                 />
               </div>
+
+              {/* PHASE 14.6 — upload progress + error with retry */}
+              {uploadProgress !== null && (
+                <div data-testid="gallery-upload-progress" className="flex items-center gap-2 text-xs text-[#5f5e5e]">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#ac0053] transition-all" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                  <span className="font-semibold tabular-nums">{uploadProgress}%</span>
+                </div>
+              )}
+              {uploadError && (
+                <div data-testid="gallery-upload-error" className="flex items-center justify-between gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5" /> {uploadError}
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="gallery-upload-retry"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="shrink-0 text-red-700 font-bold underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
 
               {/* Thumbnails Grid */}
               <div 
@@ -515,11 +669,10 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                           <div className="flex gap-1">
                             <button
                               type="button"
+                              data-testid="gallery-edit-item"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setEditingImageId(img.id);
-                                setEditCategory(img.category || 'Interior');
-                                setEditAlt(img.alt || '');
+                                openImageEditor(img);
                               }}
                               className="w-7 h-7 bg-white text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-100 shadow-xs"
                               title="Edit Image Details"
@@ -540,11 +693,36 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                           </div>
                         </div>
 
-                        {/* Category Badge */}
-                        <div className="mt-auto">
+                        {/* Category / theme / status badges */}
+                        <div className="mt-auto flex flex-wrap items-center gap-1">
                           <span className="bg-white/90 backdrop-blur-xs text-[#1a1c1c] text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs inline-block">
                             {img.category || 'General'}
                           </span>
+                          {img.themeId && (
+                            <span className="bg-white/90 backdrop-blur-xs text-[#ac0053] text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-xs inline-block">
+                              {galleryManagementThemeLabel(img.themeId)}
+                            </span>
+                          )}
+                          {img.beforeUrl && (
+                            <span className="bg-white/90 backdrop-blur-xs text-[#1a1c1c] text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-xs inline-flex items-center gap-1">
+                              <ArrowLeftRight className="w-3 h-3" /> Before/After
+                            </span>
+                          )}
+                          {img.status === 'inactive' && (
+                            <span className="bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block">
+                              Inactive
+                            </span>
+                          )}
+                          {img.moderation === 'pending' && (
+                            <span data-testid="gallery-thumb-pending" className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block">
+                              Pending
+                            </span>
+                          )}
+                          {img.moderation === 'rejected' && (
+                            <span data-testid="gallery-thumb-rejected" className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block">
+                              Rejected
+                            </span>
+                          )}
                         </div>
                       </div>
                     </motion.div>
@@ -563,6 +741,16 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                   <span className="text-[11px] font-bold">Add Photo</span>
                 </button>
               </div>
+            </div>
+
+            {/* SECTION 3B: GALLERY APPROVAL (PHASE 14.7 moderation) */}
+            <div className="bg-white rounded-2xl p-5 md:p-6 border border-[#eeeeee] shadow-2xs space-y-4">
+              <GalleryModerationPanel
+                data={data}
+                setData={setData}
+                onSave={onSave}
+                canModerate={!permissionDenied}
+              />
             </div>
 
             {/* SECTION 4: DEMO STOCK PHOTOS OPTION */}
@@ -613,7 +801,7 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
         <PreviewPane data={data} step={5} />
       </div>
 
-      {/* MODAL: EDIT IMAGE DETAILS */}
+      {/* MODAL: EDIT IMAGE DETAILS (PHASE 14.6 gallery management) */}
       <AnimatePresence>
         {editingImageId && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -621,54 +809,165 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-md border border-gray-200 shadow-xl space-y-4"
+              data-testid="gallery-edit-modal"
+              className="bg-white rounded-2xl p-6 w-full max-w-lg border border-gray-200 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                <h3 className="font-bold text-gray-900 text-base">Edit Image Details</h3>
+                <h3 className="font-bold text-gray-900 text-base">Manage Gallery Image</h3>
                 <button
                   onClick={() => setEditingImageId(null)}
                   className="text-gray-400 hover:text-black p-1"
+                  aria-label="Close editor"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
+              {/* Theme (isolation) */}
               <div>
-                <label className="block text-xs font-bold text-gray-800 mb-1">Category Tag</label>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {PRESET_CATEGORIES.map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setEditCategory(cat)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                        editCategory === cat
-                          ? 'bg-[#ac0053] text-white border-[#ac0053]'
-                          : 'bg-gray-50 text-gray-700 border-gray-200'
-                      }`}
-                    >
-                      {cat}
-                    </button>
+                <label className="block text-xs font-bold text-gray-800 mb-1">Theme</label>
+                <select
+                  data-testid="gallery-theme-select"
+                  value={editTheme}
+                  onChange={e => {
+                    setEditTheme(e.target.value);
+                    // Cross-theme service link is dropped when the theme changes.
+                    setEditServiceId('');
+                  }}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053]"
+                >
+                  <option value="">Salon default (appears on your theme)</option>
+                  {GALLERY_MANAGEMENT_THEMES.map(themeId => (
+                    <option key={themeId} value={themeId}>{galleryManagementThemeLabel(themeId)}</option>
                   ))}
-                </div>
-                <input
-                  type="text"
+                </select>
+              </div>
+
+              {/* Category (theme-scoped generic tags) */}
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-1">Gallery Category</label>
+                <select
+                  data-testid="gallery-category-select"
                   value={editCategory}
                   onChange={e => setEditCategory(e.target.value)}
-                  placeholder="Custom category"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053]"
+                >
+                  {GALLERY_OWNER_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Title + Description */}
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-1">Title</label>
+                <input
+                  type="text"
+                  data-testid="gallery-title-input"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  placeholder="e.g. Signature fade"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-1">Description / Alt Text</label>
+                <input
+                  type="text"
+                  data-testid="gallery-description-input"
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  placeholder="e.g. Modern salon interior with bright lighting"
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053]"
                 />
               </div>
 
+              {/* Link Service (optional, theme-scoped) */}
               <div>
-                <label className="block text-xs font-bold text-gray-800 mb-1">Alt Text / Description</label>
-                <input
-                  type="text"
-                  value={editAlt}
-                  onChange={e => setEditAlt(e.target.value)}
-                  placeholder="e.g. Modern salon interior with bright lighting"
+                <label className="block text-xs font-bold text-gray-800 mb-1">Link Service (optional)</label>
+                <select
+                  data-testid="gallery-service-select"
+                  value={editServiceId}
+                  onChange={e => setEditServiceId(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053]"
+                >
+                  <option value="">No linked service</option>
+                  {themeServices.map(service => (
+                    <option key={service.id} value={service.id}>{service.name}</option>
+                  ))}
+                </select>
+                {!effectiveServiceTheme && (
+                  <p className="text-[11px] text-gray-400 mt-1">Select a theme to link a service.</p>
+                )}
+              </div>
+
+              {/* Before/After pair */}
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-1">Before Image (Before/After pair)</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="gallery-before-upload"
+                    onClick={() => beforeInputRef.current?.click()}
+                    className="px-3 py-2 text-xs font-semibold border border-[#ac0053] text-[#ac0053] rounded-xl hover:bg-[#ffd9e1]/40 flex items-center gap-1.5"
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                    {editBeforeUrl ? 'Change Before Image' : 'Add Before Image'}
+                  </button>
+                  {editBeforeUrl && (
+                    <button
+                      type="button"
+                      data-testid="gallery-before-remove"
+                      onClick={() => setEditBeforeUrl('')}
+                      className="text-[11px] text-red-600 font-semibold hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  ref={beforeInputRef}
+                  data-testid="gallery-before-input"
+                  onChange={e => e.target.files?.[0] && handleBeforeFile(e.target.files[0])}
+                  accept="image/*"
+                  className="hidden"
                 />
+                {beforeUploadProgress !== null && (
+                  <div data-testid="gallery-before-progress" className="mt-2 text-xs text-[#5f5e5e] flex items-center gap-2">
+                    <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#ac0053]" style={{ width: `${beforeUploadProgress}%` }} />
+                    </div>
+                    <span className="font-semibold tabular-nums">{beforeUploadProgress}%</span>
+                  </div>
+                )}
+                {editBeforeUrl && (
+                  <div className="mt-2 flex gap-2">
+                    <img src={editBeforeUrl} alt="Before" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                    <img src={galleryList.find(g => g.id === editingImageId)?.url || ''} alt="After" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                  </div>
+                )}
+                {editBeforeUrl && (
+                  <p data-testid="gallery-before-theme-note" className="text-[11px] text-gray-400 mt-1">
+                    Before/After shares the same theme: {editTheme ? galleryManagementThemeLabel(editTheme) : 'Salon default'}.
+                  </p>
+                )}
+              </div>
+
+              {/* Activate / Deactivate */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+                <span className="text-xs font-bold text-gray-800">Visible in customer gallery</span>
+                <button
+                  type="button"
+                  data-testid="gallery-status-toggle"
+                  aria-pressed={editStatus === 'active'}
+                  onClick={() => setEditStatus(prev => (prev === 'active' ? 'inactive' : 'active'))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    editStatus === 'active' ? 'bg-[#ac0053] text-white' : 'bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  {editStatus === 'active' ? 'Active' : 'Inactive'}
+                </button>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
@@ -681,6 +980,7 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                 </button>
                 <button
                   type="button"
+                  data-testid="gallery-save-details"
                   onClick={() => handleSaveImageEdit(editingImageId)}
                   className="px-5 py-2 text-xs bg-[#ac0053] text-white font-bold rounded-xl hover:bg-[#ba005b]"
                 >

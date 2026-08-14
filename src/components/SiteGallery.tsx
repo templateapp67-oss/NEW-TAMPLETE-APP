@@ -16,18 +16,28 @@
  *   - Full-screen lightbox with previous/next navigation, counter and caption
  *   - Before/After slider view for configured pairs
  *
+ * PHASE 14.3 — GALLERY VIEWER upgrades to the shared lightbox (no duplicate
+ * viewer system):
+ *   - Mobile swipe left/right + touch-friendly controls + safe-area spacing
+ *   - Page scroll lock, focus trap + focus restore, keyboard navigation
+ *   - Skeleton while the full-size image loads; only the active image is
+ *     mounted (adjacent preload only) — never the whole gallery at once
+ *   - Viewer state resets on theme/data switch (no stale previous-theme media)
+ *
  * Media safety: only URLs that pass the existing `isSafeMediaUrl` gate reach
  * a `src`; every image renders through the existing `SiteImage` performance
  * system (lazy loading, responsive srcSet, fixed aspect ratios, skeleton,
  * error fallback) and carries accessible alt text.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
-import { ArrowLeftRight, ChevronLeft, ChevronRight, Instagram, Leaf, Maximize2, Scissors, Sparkles, Users, X } from 'lucide-react';
-import type { SalonData } from '../types';
+import type { CSSProperties, ReactNode, TouchEvent as ReactTouchEvent } from 'react';
+import { ArrowLeftRight, CalendarDays, ChevronLeft, ChevronRight, Instagram, Leaf, Maximize2, Scissors, Sparkles, Users, X } from 'lucide-react';
+import type { SalonData, Service } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import type { AppLocale } from '../lib/locale';
+import { openSiteBooking, openSiteBookingForService } from '../lib/siteBooking';
 import SiteImage from './SiteImage';
+import SiteServiceDetail from './SiteServiceDetail';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import { SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import type { StructurePalette } from './SiteSectionStates';
@@ -43,6 +53,7 @@ import {
   galleryFeaturedItem,
   galleryFilterOptions,
   galleryItemsForTheme,
+  galleryServiceForItem,
   galleryThemeConfig,
 } from '../lib/siteGallery';
 import type { GalleryItem } from '../lib/siteGallery';
@@ -320,9 +331,11 @@ function GalleryLightbox({
   chrome,
   style,
   copy,
+  data,
   sectionTitle,
   onClose,
   onNavigate,
+  onViewService,
 }: {
   items: GalleryItem[];
   index: number;
@@ -333,11 +346,16 @@ function GalleryLightbox({
   style: GalleryVisualStyle;
   /** Full theme copy table (for theme-media caption keys like `gallery1`). */
   copy: Record<string, string>;
+  data: SalonData;
   sectionTitle: string;
   onClose: () => void;
   onNavigate: (delta: number) => void;
+  onViewService: (service: Service) => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const touchRef = useRef({ x: 0, y: 0, active: false, ignore: false });
   const total = items.length;
   const item = items[index];
   const ratio = mode === 'mobile' ? '4/3' : '16/9';
@@ -345,33 +363,115 @@ function GalleryLightbox({
   const prev = useCallback(() => onNavigate(-1), [onNavigate]);
   const next = useCallback(() => onNavigate(1), [onNavigate]);
 
+  // Open: lock page scroll, focus the close control, trap focus; restore on close.
   useEffect(() => {
+    restoreRef.current = (document.activeElement as HTMLElement) || null;
     closeRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
       else if (event.key === 'ArrowRight') next();
       else if (event.key === 'ArrowLeft') prev();
+      else if (event.key === 'Tab') {
+        const root = dialogRef.current;
+        if (!root) return;
+        const focusables: HTMLElement[] = Array.from(
+          root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, [tabindex]:not([tabindex="-1"])'),
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (event.shiftKey && active === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && active === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+      restoreRef.current?.focus?.();
+    };
   }, [onClose, prev, next]);
+
+  // Preload only the adjacent images — never the whole gallery at once.
+  useEffect(() => {
+    if (typeof Image === 'undefined') return;
+    const neighbours = [index - 1, index + 1]
+      .map((i) => ((i % total) + total) % total)
+      .filter((i) => i !== index)
+      .map((i) => items[i])
+      .filter((entry): entry is GalleryItem => !!entry && entry.kind !== 'beforeAfter');
+    const preloads = neighbours.map((entry) => {
+      const img = new Image();
+      img.src = entry.src;
+      return img;
+    });
+    return () => {
+      preloads.forEach((img) => {
+        img.src = '';
+      });
+    };
+  }, [index, items, total]);
+
+  // Mobile swipe: horizontal drags navigate; vertical scroll stays native via
+  // `touch-action: pan-y`. Drags starting on the before/after slider are
+  // ignored so its own handle keeps working.
+  const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const target = event.target as Element | null;
+    if (target && typeof target.closest === 'function' && target.closest('[data-testid="site-gallery-before-after"]')) {
+      touchRef.current = { x: 0, y: 0, active: false, ignore: true };
+      return;
+    }
+    const touch = event.touches[0];
+    if (!touch) return;
+    touchRef.current = { x: touch.clientX, y: touch.clientY, active: true, ignore: false };
+  };
+  const onTouchEnd = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const state = touchRef.current;
+    if (state.ignore) {
+      touchRef.current = { x: 0, y: 0, active: false, ignore: false };
+      return;
+    }
+    if (!state.active) return;
+    state.active = false;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - state.x;
+    const dy = touch.clientY - state.y;
+    if (Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
+    if (dx < 0) next();
+    else prev();
+  };
 
   if (!item) return null;
 
-  const caption =
-    item.origin === 'theme'
+  const service = galleryServiceForItem(item, data, themeId);
+  const caption = service
+    ? service.name
+    : item.origin === 'theme'
       ? copy[item.caption || ''] || chrome.captionFallback
       : item.caption || chrome.captionFallback;
   const categoryLabel = galleryCategoryLabel(themeId, item.category, locale);
 
   return (
     <div
+      ref={dialogRef}
       data-testid="site-gallery-lightbox"
       role="dialog"
       aria-modal="true"
       aria-label={sectionTitle}
-      className="fixed inset-0 z-50 flex flex-col"
-      style={{ backgroundColor: style.lightbox.bg, color: style.lightbox.text }}
+      className="fixed inset-0 z-50 flex flex-col site-gallery-lightbox-safe site-gallery-lightbox-anim"
+      style={{
+        backgroundColor: style.lightbox.bg,
+        color: style.lightbox.text,
+      }}
     >
       {/* Top bar — counter + close */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 shrink-0">
@@ -390,8 +490,16 @@ function GalleryLightbox({
         </button>
       </div>
 
-      {/* Stage */}
-      <div className="flex-1 min-h-0 flex items-center justify-center relative px-4 md:px-16">
+      {/* Stage — swipe target */}
+      <div
+        data-testid="site-gallery-lightbox-stage"
+        role="group"
+        aria-label={chrome.swipeHint}
+        className="flex-1 min-h-0 flex items-center justify-center relative px-4 md:px-16 site-gallery-stage-anim"
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         {total > 1 && (
           <button
             type="button"
@@ -407,7 +515,7 @@ function GalleryLightbox({
         {item.kind === 'beforeAfter' ? (
           <BeforeAfterSlider item={item} chrome={chrome} ratio={ratio} radius={style.lightbox.radius} mode={mode} />
         ) : (
-          <div className="w-full max-w-3xl">
+          <div key={item.id} className="w-full max-w-3xl">
             <SiteImage
               src={item.src}
               alt={item.alt}
@@ -442,6 +550,52 @@ function GalleryLightbox({
         <span className="text-[9px] font-bold uppercase tracking-[0.16em] px-2 py-1" style={{ backgroundColor: style.lightbox.accent, color: style.lightbox.chipText, borderRadius: 6 }}>
           {item.kind === 'beforeAfter' ? chrome.beforeAfter : categoryLabel}
         </span>
+
+        {/* PHASE 14.5 — contextual CTAs (existing booking flow only) */}
+        <div data-testid="site-gallery-cta-row" className="w-full flex flex-wrap items-center justify-center gap-2 pt-1">
+          {service ? (
+            <>
+              <button
+                type="button"
+                data-testid="site-gallery-cta-view-service"
+                onClick={() => onViewService(service)}
+                className={`site-gallery-cta site-touch inline-flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] border transition-colors hover:bg-white/10 ${style.lightbox.radius}`}
+                style={{ color: style.lightbox.text, borderColor: 'rgba(255,255,255,0.4)' }}
+              >
+                <Maximize2 className="w-3.5 h-3.5" /> {chrome.viewService}
+              </button>
+              <button
+                type="button"
+                data-testid="site-gallery-cta-book-service"
+                onClick={() => {
+                  onClose();
+                  openSiteBookingForService(service, themeId);
+                }}
+                className={`site-gallery-cta site-touch inline-flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors hover:brightness-110 ${style.lightbox.radius}`}
+                style={{ backgroundColor: style.lightbox.accent, color: style.lightbox.chipText }}
+              >
+                <CalendarDays className="w-3.5 h-3.5" /> {copy['common.bookThisService'] || 'Book this service'}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              data-testid="site-gallery-cta-book-appointment"
+              onClick={() => {
+                onClose();
+                openSiteBooking();
+              }}
+              className={`site-gallery-cta site-touch inline-flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors hover:brightness-110 ${style.lightbox.radius}`}
+              style={{ backgroundColor: style.lightbox.accent, color: style.lightbox.chipText }}
+            >
+              <CalendarDays className="w-3.5 h-3.5" /> {copy['common.bookAppointment'] || 'Book Appointment'}
+            </button>
+          )}
+        </div>
+
+        <span data-testid="site-gallery-swipe-hint" className="w-full text-center text-[9px] font-semibold uppercase tracking-[0.16em] md:hidden" style={{ color: style.lightbox.muted }}>
+          {chrome.swipeHint}
+        </span>
       </div>
     </div>
   );
@@ -466,11 +620,14 @@ export default function SiteGallery({ themeId, data, mode }: Props) {
 
   const [filter, setFilter] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [detailService, setDetailService] = useState<Service | null>(null);
 
-  // Theme switch / data change → drop filters and lightbox (no stale photos).
+  // Theme switch / data change → drop filters, lightbox and any open service
+  // detail (no stale photos or cross-theme service state).
   useEffect(() => {
     setFilter(null);
     setLightboxIndex(null);
+    setDetailService(null);
   }, [themeId, data]);
 
   const filtered = useMemo(() => filterGalleryItems(items, filter, options), [items, filter, options]);
@@ -493,6 +650,13 @@ export default function SiteGallery({ themeId, data, mode }: Props) {
   );
 
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
+
+  // Gallery image → service detail (existing SiteServiceDetail modal), then its
+  // own Book CTA hands off to the existing booking flow with the service kept.
+  const viewService = useCallback((service: Service) => {
+    setLightboxIndex(null);
+    setDetailService(service);
+  }, []);
 
   const renderContent = items.length > 0 && (status === 'ready' || config.resilient);
   const bannerRatio = config.bannerRatio[mode] || config.bannerRatio.desktop;
@@ -663,9 +827,21 @@ export default function SiteGallery({ themeId, data, mode }: Props) {
           chrome={chrome}
           style={style}
           copy={S}
+          data={data}
           sectionTitle={S.galleryTitle}
           onClose={closeLightbox}
           onNavigate={navigate}
+          onViewService={viewService}
+        />
+      )}
+
+      {detailService && (
+        <SiteServiceDetail
+          themeId={themeId}
+          data={data}
+          service={detailService}
+          mode={mode}
+          onClose={() => setDetailService(null)}
         />
       )}
     </div>
