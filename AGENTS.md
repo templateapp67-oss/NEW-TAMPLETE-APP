@@ -71,6 +71,8 @@ npm run test:phase-10       # all Phase 10 suites
 npm run test:phase-11.1     # unique hero design across all five themes
 npm run test:phase-11.2     # hero headline & content (EN + HI) across all five themes
 npm run test:phase-11.3     # hero media & CTA across all five themes
+npm run test:phase-11.4     # hero desktop + tablet + mobile QA
+npm run test:phase-11       # every Phase 11 suite (971 tests)
 npm run test:phase-11       # both Phase 11 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
@@ -158,6 +160,11 @@ loads). All `.env*` files are gitignored except `.env.example`.
 
 ## Conventions & guardrails
 
+- **Frame-aware responsiveness**: themed website renderers draw inside a
+  FIXED-WIDTH preview frame (desktop 950 / tablet 768 / mobile 390). Never size
+  them with Tailwind viewport breakpoints (`md:` …) — those key off the real
+  browser and match even inside the 390px phone frame. Use the renderer `mode`
+  via `siteGrid()` / `heroModeValue()`.
 - **Style**: Tailwind utility classes inline; follow the existing look of the
   screens; use `TopBar` for standardized headers; `motion` for transitions;
   `lucide-react` for icons. The `@` alias points at the repo root.

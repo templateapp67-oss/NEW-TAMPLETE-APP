@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -45,6 +45,15 @@ export default function HairStudioHero({ data, mode }: Props) {
   const plan = heroMediaPlan('hair_studio_color_bar', data, reducedMotion);
   const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
+  // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
+  const frameInset = heroModeValue(mode, { desktop: 'inset-5', tablet: 'inset-4', mobile: 'inset-3' });
+  const frameInsetInner = heroModeValue(mode, { desktop: 'inset-[22px]', tablet: 'inset-[18px]', mobile: 'inset-[14px]' });
+  const pad = heroModeValue(mode, { desktop: 'px-14 py-20', tablet: 'px-10 py-14', mobile: 'px-7 py-12' });
+  const cols = heroModeValue(mode, { desktop: 'grid-cols-[0.98fr_1.02fr] items-end', tablet: 'grid-cols-[1fr_1fr] items-end', mobile: 'grid-cols-1' });
+  const nameSize = heroModeValue(mode, { desktop: 'text-base', tablet: 'text-sm', mobile: 'text-sm' });
+  const h1Size = heroModeValue(mode, { desktop: 'text-[3.6rem]', tablet: 'text-4xl', mobile: 'text-[2.45rem]' });
+  const bodySize = heroModeValue(mode, { desktop: 'text-sm', tablet: 'text-xs', mobile: 'text-xs' });
+  const mediaCols = heroModeValue(mode, { desktop: 'grid-cols-[1.35fr_1fr]', tablet: 'grid-cols-[1.2fr_1fr]', mobile: 'grid-cols-2' });
 
   const roseBtn: CSSProperties = { backgroundColor: t.rose, color: isDark ? '#241d1b' : '#ffffff' };
 
@@ -60,10 +69,10 @@ export default function HairStudioHero({ data, mode }: Props) {
       style={{ backgroundColor: t.paperDeep }}
     >
       {/* Printed double hairline frame */}
-      <div className="absolute inset-3 md:inset-5 border pointer-events-none" style={{ borderColor: t.line }} />
-      <div className="absolute inset-[14px] md:inset-[22px] border pointer-events-none" style={{ borderColor: t.line }} />
+      <div className={`absolute ${frameInset} border pointer-events-none`} style={{ borderColor: t.line }} />
+      <div className={`absolute ${frameInsetInner} border pointer-events-none`} style={{ borderColor: t.line }} />
 
-      <div className={`relative z-10 ${compact ? 'px-7 py-12' : 'px-10 md:px-14 py-14 md:py-20'}`}>
+      <div className={`relative z-10 ${pad}`}>
         {/* ---- Masthead rule --------------------------------------- */}
         <div
           data-testid="hero-brand"
@@ -89,7 +98,7 @@ export default function HairStudioHero({ data, mode }: Props) {
             )}
             <span
               data-testid="hero-salon-name"
-              className="text-sm md:text-base font-serif truncate"
+              className={`${nameSize} font-serif truncate`}
               style={{ color: t.ink, ...getSalonNameStyle(data) }}
             >
               {heroSalonName(data)}
@@ -100,12 +109,12 @@ export default function HairStudioHero({ data, mode }: Props) {
           </span>
         </div>
 
-        <div className={`grid gap-10 mt-10 ${compact ? 'grid-cols-1' : 'md:grid-cols-[0.98fr_1.02fr] items-end'}`}>
+        <div className={`grid gap-10 mt-10 ${cols}`}>
           {/* ---- Editorial copy ------------------------------------ */}
           <div>
             <h1
               data-testid="hero-headline"
-              className={`font-serif leading-[1.02] ${compact ? 'text-[2.45rem]' : 'text-5xl md:text-[3.6rem]'}`}
+              className={`font-serif leading-[1.02] ${h1Size}`}
               style={{ color: t.ink }}
             >
               {headline.main}
@@ -116,7 +125,7 @@ export default function HairStudioHero({ data, mode }: Props) {
             <div className="h-px w-20 my-7" style={{ backgroundColor: t.rose }} />
             <p
               data-testid="hero-description"
-              className="max-w-md text-xs md:text-sm leading-[1.85]"
+              className={`max-w-md ${bodySize} leading-[1.85]`}
               style={{ color: t.muted }}
             >
               {heroDescription(data, H.description)}
@@ -224,7 +233,7 @@ export default function HairStudioHero({ data, mode }: Props) {
           </div>
 
           {/* ---- Contact-sheet gallery wall ------------------------ */}
-          <div data-testid="hero-media" className={`grid gap-3 ${compact ? 'grid-cols-2' : 'grid-cols-[1.35fr_1fr]'}`}>
+          <div data-testid="hero-media" className={`grid gap-3 ${mediaCols}`}>
             {/* PHASE 11.3 — editorial plate 01 carries the studio film */}
             <figure className="relative m-0">
               <HeroMediaFrame

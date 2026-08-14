@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -44,6 +44,15 @@ export default function NailLashHero({ data, mode }: Props) {
   const plan = heroMediaPlan('nail_lash_studio', data, reducedMotion);
   const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
+  // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
+  const pad = heroModeValue(mode, { desktop: 'px-10 py-16', tablet: 'px-8 py-12', mobile: 'px-5 py-10' });
+  const cols = heroModeValue(mode, { desktop: 'grid-cols-[0.9fr_1.1fr]', tablet: 'grid-cols-[1fr_1fr]', mobile: 'grid-cols-1' });
+  const nameSize = heroModeValue(mode, { desktop: 'text-base', tablet: 'text-sm', mobile: 'text-sm' });
+  const h1Size = heroModeValue(mode, { desktop: 'text-[4.2rem]', tablet: 'text-5xl', mobile: 'text-[2.7rem]' });
+  const mediaCols = heroModeValue(mode, { desktop: 'grid-cols-[1.3fr_1fr]', tablet: 'grid-cols-[1.15fr_1fr]', mobile: 'grid-cols-2' });
+  // The studio badge is a desktop-only flourish; on tablet/mobile the eyebrow
+  // already appears in the focus block, so it must NOT rely on a CSS breakpoint.
+  const showStudioBadge = mode === 'desktop';
 
   const neonBtn: CSSProperties = {
     backgroundColor: t.pink,
@@ -65,7 +74,7 @@ export default function NailLashHero({ data, mode }: Props) {
       <div className="absolute -left-24 -top-24 w-72 h-72 rounded-full" style={{ backgroundColor: t.pinkSoft }} />
       <div className="absolute right-[-70px] bottom-[-90px] w-60 h-60 rounded-full border-[22px]" style={{ borderColor: `${t.pink}22` }} />
 
-      <div className={`relative z-10 ${compact ? 'px-5 py-10' : 'px-8 md:px-10 py-12 md:py-16'}`}>
+      <div className={`relative z-10 ${pad}`}>
         {/* ---- Studio lockup ------------------------------------- */}
         <div data-testid="hero-brand" className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -88,24 +97,27 @@ export default function NailLashHero({ data, mode }: Props) {
             )}
             <span
               data-testid="hero-salon-name"
-              className="text-sm md:text-base font-extrabold tracking-[-0.02em] truncate"
+              className={`${nameSize} font-extrabold tracking-[-0.02em] truncate`}
               style={{ color: t.ink, ...getSalonNameStyle(data) }}
             >
               {heroSalonName(data)}
             </span>
           </div>
+          {showStudioBadge && (
           <span
-            className="hidden md:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.2em]"
+            data-testid="hero-studio-badge"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.2em] shrink-0"
             style={{ backgroundColor: t.card, color: t.pinkDeep }}
           >
             <Sparkles className="w-3.5 h-3.5" style={{ color: t.pink }} /> {H.eyebrow}
           </span>
+          )}
         </div>
 
         {/* ---- Display type -------------------------------------- */}
         <h1
           data-testid="hero-headline"
-          className={`mt-8 font-extrabold leading-[0.86] tracking-[-0.07em] ${compact ? 'text-[2.7rem]' : 'text-5xl md:text-[4.2rem]'}`}
+          className={`mt-8 font-extrabold leading-[0.86] tracking-[-0.07em] ${h1Size}`}
           style={{ color: t.ink }}
         >
           {headline.main}
@@ -114,7 +126,7 @@ export default function NailLashHero({ data, mode }: Props) {
           <span style={{ color: t.pink }}>{headline.accent}</span>
         </h1>
 
-        <div className={`grid gap-6 mt-6 items-start ${compact ? 'grid-cols-1' : 'md:grid-cols-[0.9fr_1.1fr]'}`}>
+        <div className={`grid gap-6 mt-6 items-start ${cols}`}>
           <div>
             <p
               data-testid="hero-description"
@@ -218,7 +230,7 @@ export default function NailLashHero({ data, mode }: Props) {
           </div>
 
           {/* ---- Glam card shelf ---------------------------------- */}
-          <div data-testid="hero-media" className={`grid gap-3 ${compact ? 'grid-cols-2' : 'grid-cols-[1.3fr_1fr]'}`}>
+          <div data-testid="hero-media" className={`grid gap-3 ${mediaCols}`}>
             {/* PHASE 11.3 — look-of-the-week card carries the studio media */}
             <HeroMediaFrame
               themeId="nail_lash_studio"

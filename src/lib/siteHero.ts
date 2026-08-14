@@ -15,6 +15,7 @@
  */
 import type { SalonData, SocialVideo } from '../types';
 import type { SiteHeaderThemeId } from './siteNavigation';
+import type { ViewportMode } from './siteStructure';
 import { resolveSalonStatus, salonNow } from './salonStatus';
 import type { SalonLiveStatus } from './salonStatus';
 import { publicReviews, ratingSummary, reviewBusinessId } from './siteReviews';
@@ -193,18 +194,23 @@ export function heroFocusBadges(
   minMatches = 2,
 ): string[] {
   const list = [...focus];
-  const catalog = (data.services || [])
-    .filter((service) => service.status !== 'inactive' && service.status !== 'archived')
-    .flatMap((service) => [service.category || '', service.name || ''])
-    .join(' ')
-    .toLowerCase();
-  if (!catalog.trim()) return list;
   const tokenize = (label: string) =>
     label.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((part) => part.length > 2);
+
+  // PHASE 11.4 — match WHOLE WORDS, never substrings. A single "Haircut"
+  // service used to substring-match the hair studio's "Cut & Styling" and
+  // "Hair Treatments", silently hiding Colour and Balayage from that hero.
+  const catalogWords = new Set(
+    (data.services || [])
+      .filter((service) => service.status !== 'inactive' && service.status !== 'archived')
+      .flatMap((service) => [...tokenize(service.category || ''), ...tokenize(service.name || '')]),
+  );
+  if (catalogWords.size === 0) return list;
+
   const matched = list.filter((label) => {
     const tokens = tokenize(label);
     if (tokens.length === 0) return false;
-    return tokens.some((token) => catalog.includes(token));
+    return tokens.some((token) => catalogWords.has(token));
   });
   return matched.length >= minMatches ? matched : list;
 }
@@ -264,4 +270,29 @@ export function heroCtaOptions(data: SalonData): HeroCtaOptions {
     whatsApp: canWhatsApp(data) ? { href: salonWhatsAppHref(data) } : null,
     gallery: hasGallery ? { targetId: 'section-gallery' } : null,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* PHASE 11.4 — frame-accurate responsive values.                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Resolves a value from the renderer's `mode` instead of a CSS breakpoint.
+ *
+ * The themed website renders inside a FIXED-WIDTH preview frame (desktop
+ * 950px / tablet 768px / mobile 390px), but Tailwind's `md:` prefix keys off
+ * the real browser viewport. Inside a wide browser every frame — including
+ * the 390px phone — matched `md:`, so tablet rendered at desktop scale and
+ * `hidden md:inline-flex` elements appeared on the mobile hero.
+ *
+ * Phase 10.3 already established mode-based resolution (`siteGrid`); heroes
+ * now use the same rule so what the frame shows is what a real device shows.
+ */
+export function heroModeValue<T>(
+  mode: ViewportMode,
+  values: { desktop: T; tablet: T; mobile: T },
+): T {
+  if (mode === 'mobile') return values.mobile;
+  if (mode === 'tablet') return values.tablet;
+  return values.desktop;
 }

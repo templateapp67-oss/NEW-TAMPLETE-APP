@@ -6,6 +6,34 @@
 
 ## Current repository state
 
+- **PHASE 11 COMPLETE — Phase 11.4 hero Desktop + Tablet + Mobile QA passed
+  for all five themes (971 Phase 11 tests green).**
+  - QA-only phase; the hero was not redesigned. Two REAL defects were found
+    and fixed at the root cause:
+    1. **Tablet rendered at desktop scale, and `hidden md:inline-flex`
+       inverted on mobile.** The heroes mixed frame-based `mode` (fixed
+       preview widths 950/768/390) with Tailwind `md:` classes that key off
+       the BROWSER viewport, so `md:` matched even inside the 390px phone
+       frame. Fixed with `heroModeValue(mode, {desktop,tablet,mobile})` in
+       `src/lib/siteHero.ts`; all 28 `md:` classes across the five heroes are
+       now frame-accurate, and the nail studio badge is desktop-only by mode.
+       Guarded by a test asserting zero viewport-breakpoint classes in any
+       hero on any frame.
+    2. **Owner catalog silently deleted focus badges.** `heroFocusBadges()`
+       matched substrings, so one `Haircut` service matched the hair studio's
+       "Cut & Styling" + "Hair Treatments" and hid Colour/Balayage. Now
+       matches whole words against a tokenised catalog set.
+  - Verified per theme × desktop/tablet/mobile: media fit, no cropping, no
+    horizontal overflow, readable headline/description, visible 44px CTAs,
+    Book Appointment opening the existing flow, Explore Services targeting
+    `#section-services`, mobile-optimized sources (w=640/q=70), video and
+    image fallbacks preserving the aspect ratio, no layout shift, light/dark,
+    EN/HI, and per-frame theme isolation.
+  - Validation: `npm run test:phase-11.4` = 369/369; 11.1 215/215,
+    11.2 138/138, 11.3 249/249, `test:phase-10` 1259/1259; lint, build and
+    25-screen verification green.
+    Details: `docs/phase-11.4-hero-responsive-qa.md`.
+
 - **Phase 11.3 — HERO MEDIA & CALL-TO-ACTION: COMPLETE for all five themes.**
   - New `src/lib/siteHeroMedia.ts` + `src/components/heroes/HeroMediaFrame.tsx`
     give every theme its own hero media slot inside its EXISTING 11.1 layout
@@ -648,6 +676,8 @@ npm run test:phase-10      # every Phase 10 suite (1259 tests)
 npm run test:phase-11.1    # unique hero design across all five themes (215 tests)
 npm run test:phase-11.2    # hero headline & content, EN + HI (138 tests)
 npm run test:phase-11.3    # hero media & CTA across all five themes (249 tests)
+npm run test:phase-11.4    # hero desktop+tablet+mobile QA (369 tests)
+npm run test:phase-11      # every Phase 11 suite (971 tests)
 npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
@@ -664,6 +694,8 @@ Expected output:
 - `test:phase-11.1`: 215/215 passed (unique hero design, all five themes)
 - `test:phase-11.2`: 138/138 passed (hero headline & content, EN + HI)
 - `test:phase-11.3`: 249/249 passed (hero media & CTA, all five themes)
+- `test:phase-11.4`: 369/369 passed (hero desktop + tablet + mobile QA)
+- `test:phase-11`: 971 tests, all green
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

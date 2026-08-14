@@ -19,7 +19,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { FAMILY_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -44,6 +44,12 @@ export default function FamilyHero({ data, mode }: Props) {
   const plan = heroMediaPlan('family_full_service', data, reducedMotion);
   const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
+  // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
+  const pad = heroModeValue(mode, { desktop: 'px-10 py-16', tablet: 'px-8 py-12', mobile: 'px-5 py-10' });
+  const cols = heroModeValue(mode, { desktop: 'grid-cols-[1.05fr_0.95fr]', tablet: 'grid-cols-[1fr_1fr]', mobile: 'grid-cols-1' });
+  const nameSize = heroModeValue(mode, { desktop: 'text-base', tablet: 'text-sm', mobile: 'text-sm' });
+  const h1Size = heroModeValue(mode, { desktop: 'text-[3.3rem]', tablet: 'text-4xl', mobile: 'text-[2.5rem]' });
+  const cardPad = heroModeValue(mode, { desktop: 'p-5', tablet: 'p-4', mobile: 'p-4' });
 
   const tealBtn: CSSProperties = { backgroundColor: t.teal, color: '#ffffff' };
 
@@ -61,8 +67,8 @@ export default function FamilyHero({ data, mode }: Props) {
       <div className="absolute -right-24 -top-28 w-72 h-72 rounded-full" style={{ backgroundColor: t.skyDeep, opacity: 0.55 }} />
       <div className="absolute left-[-60px] bottom-[-80px] w-56 h-56 rounded-full border-[20px]" style={{ borderColor: 'rgba(7,159,154,0.14)' }} />
 
-      <div className={`relative z-10 ${compact ? 'px-5 py-10' : 'px-8 md:px-10 py-12 md:py-16'}`}>
-        <div className={`grid gap-8 items-center ${compact ? 'grid-cols-1' : 'md:grid-cols-[1.05fr_0.95fr]'}`}>
+      <div className={`relative z-10 ${pad}`}>
+        <div className={`grid gap-8 items-center ${cols}`}>
           {/* ---- Copy + quick-access action card ------------------- */}
           <div>
             <div data-testid="hero-brand" className="flex items-center gap-3">
@@ -84,7 +90,7 @@ export default function FamilyHero({ data, mode }: Props) {
               )}
               <span
                 data-testid="hero-salon-name"
-                className="text-sm md:text-base font-extrabold tracking-[-0.02em]"
+                className={`${nameSize} font-extrabold tracking-[-0.02em]`}
                 style={{ color: t.heading, ...getSalonNameStyle(data) }}
               >
                 {heroSalonName(data)}
@@ -93,7 +99,7 @@ export default function FamilyHero({ data, mode }: Props) {
 
             <h1
               data-testid="hero-headline"
-              className={`mt-6 font-extrabold leading-[0.98] tracking-[-0.05em] ${compact ? 'text-[2.5rem]' : 'text-4xl md:text-[3.3rem]'}`}
+              className={`mt-6 font-extrabold leading-[0.98] tracking-[-0.05em] ${h1Size}`}
               style={{ color: t.heading }}
             >
               {headline.main}
@@ -134,7 +140,7 @@ export default function FamilyHero({ data, mode }: Props) {
 
             {/* Easy-access CTA block */}
             <div
-              className="mt-7 rounded-3xl border p-4 md:p-5 shadow-lg"
+              className={`mt-7 rounded-3xl border ${cardPad} shadow-lg`}
               style={{ backgroundColor: t.card, borderColor: t.line }}
             >
               <span className="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.18em]" style={{ color: t.blue }}>

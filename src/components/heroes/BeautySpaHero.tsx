@@ -18,7 +18,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BEAUTY_SPA_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -43,6 +43,13 @@ export default function BeautySpaHero({ data, mode }: Props) {
   const plan = heroMediaPlan('beauty_skin_spa', data, reducedMotion);
   const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
+  // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
+  const pad = heroModeValue(mode, { desktop: 'px-12 py-20', tablet: 'px-8 py-16', mobile: 'px-6 py-12' });
+  const cols = heroModeValue(mode, { desktop: 'grid-cols-[0.92fr_1.08fr]', tablet: 'grid-cols-[1fr_1fr]', mobile: 'grid-cols-1' });
+  const cardOffset = heroModeValue(mode, { desktop: 'bottom-6', tablet: 'bottom-4', mobile: 'bottom-2' });
+  const nameSize = heroModeValue(mode, { desktop: 'text-base', tablet: 'text-sm', mobile: 'text-sm' });
+  const h1Size = heroModeValue(mode, { desktop: 'text-[3.2rem]', tablet: 'text-4xl', mobile: 'text-[2.3rem]' });
+  const bodySize = heroModeValue(mode, { desktop: 'text-sm', tablet: 'text-xs', mobile: 'text-xs' });
 
   const emeraldBtn: CSSProperties = { backgroundColor: t.emerald, color: '#ffffff' };
   const capsule: CSSProperties = { backgroundColor: t.card, color: t.text, borderColor: t.line };
@@ -62,8 +69,8 @@ export default function BeautySpaHero({ data, mode }: Props) {
       <div className="absolute -top-20 -left-16 w-72 h-72 rounded-full opacity-60 pointer-events-none" style={{ backgroundColor: t.sage }} />
       <div className="absolute -bottom-24 -right-12 w-80 h-80 rounded-full opacity-60 pointer-events-none" style={{ backgroundColor: t.blush }} />
 
-      <div className={`relative z-10 ${compact ? 'px-6 py-12' : 'px-8 md:px-12 py-16 md:py-20'}`}>
-        <div className={`grid gap-10 items-center ${compact ? 'grid-cols-1' : 'md:grid-cols-[0.92fr_1.08fr]'}`}>
+      <div className={`relative z-10 ${pad}`}>
+        <div className={`grid gap-10 items-center ${cols}`}>
           {/* ---- The arch ----------------------------------------- */}
           <div data-testid="hero-media" className="relative order-1">
             <div
@@ -82,7 +89,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
             />
             {/* Overlapping ritual card */}
             <div
-              className="absolute -left-1 bottom-2 md:bottom-6 rounded-[1.6rem] px-4 py-3 shadow-lg border max-w-[62%]"
+              className={`absolute -left-1 ${cardOffset} rounded-[1.6rem] px-4 py-3 shadow-lg border max-w-[62%]`}
               style={{ backgroundColor: t.card, borderColor: t.line }}
             >
               <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold" style={{ color: t.emerald }}>
@@ -129,7 +136,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
               )}
               <span
                 data-testid="hero-salon-name"
-                className="text-sm md:text-base font-serif"
+                className={`${nameSize} font-serif`}
                 style={{ color: t.textStrong, ...getSalonNameStyle(data) }}
               >
                 {heroSalonName(data)}
@@ -145,7 +152,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
 
             <h1
               data-testid="hero-headline"
-              className={`mt-5 font-serif leading-[1.08] ${compact ? 'text-[2.3rem]' : 'text-4xl md:text-[3.2rem]'}`}
+              className={`mt-5 font-serif leading-[1.08] ${h1Size}`}
               style={{ color: t.textStrong }}
             >
               {headline.main} <span style={{ color: t.emerald }}>{headline.accent}</span>
@@ -153,7 +160,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
 
             <p
               data-testid="hero-description"
-              className={`mt-5 text-xs md:text-sm leading-[1.9] ${compact ? 'mx-auto' : ''} max-w-md`}
+              className={`mt-5 ${bodySize} leading-[1.9] ${compact ? 'mx-auto' : ''} max-w-md`}
               style={{ color: t.muted }}
             >
               {heroDescription(data, H.description)}

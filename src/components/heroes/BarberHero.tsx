@@ -22,7 +22,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BARBER_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName } from '../../lib/siteHero';
+import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroModeValue, heroSalonName } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion, withHeroPoster } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
@@ -50,6 +50,12 @@ export default function BarberHero({ data, mode }: Props) {
   const plan = withHeroPoster(basePlan, media.support[0]?.url || basePlan.posterUrl);
   const cta = heroCtaOptions(data);
   const compact = mode === 'mobile';
+  // PHASE 11.4 — resolve from the renderer mode, not the browser viewport.
+  const pad = heroModeValue(mode, { desktop: 'px-12 py-24', tablet: 'px-8 py-16', mobile: 'px-5 py-12' });
+  const cols = heroModeValue(mode, { desktop: 'grid-cols-[1.25fr_0.75fr]', tablet: 'grid-cols-[1.15fr_0.85fr]', mobile: 'grid-cols-1' });
+  const nameSize = heroModeValue(mode, { desktop: 'text-base', tablet: 'text-sm', mobile: 'text-sm' });
+  const h1Size = heroModeValue(mode, { desktop: 'text-6xl', tablet: 'text-4xl', mobile: 'text-[2.35rem]' });
+  const bodySize = heroModeValue(mode, { desktop: 'text-sm', tablet: 'text-xs', mobile: 'text-xs' });
 
   const goldBtn: CSSProperties = { backgroundColor: t.gold, color: '#141414' };
 
@@ -85,8 +91,8 @@ export default function BarberHero({ data, mode }: Props) {
       {/* Hard gold rule down the left edge — barber-pole anchor. */}
       <div className="absolute left-0 top-0 bottom-0 w-[6px]" style={{ backgroundColor: t.gold }} />
 
-      <div className={`relative z-10 ${compact ? 'px-5 py-12' : 'px-8 md:px-12 py-16 md:py-24'}`}>
-        <div className={`grid gap-10 items-center ${compact ? 'grid-cols-1' : 'md:grid-cols-[1.25fr_0.75fr]'}`}>
+      <div className={`relative z-10 ${pad}`}>
+        <div className={`grid gap-10 items-center ${cols}`}>
           {/* ---- Type column ------------------------------------- */}
           <div>
             {/* Brand lockup */}
@@ -110,7 +116,7 @@ export default function BarberHero({ data, mode }: Props) {
               )}
               <span
                 data-testid="hero-salon-name"
-                className="text-sm md:text-base font-black uppercase tracking-[0.32em]"
+                className={`${nameSize} font-black uppercase tracking-[0.32em]`}
                 style={{ color: t.textStrong, ...getSalonNameStyle(data) }}
               >
                 {heroSalonName(data)}
@@ -126,7 +132,7 @@ export default function BarberHero({ data, mode }: Props) {
 
             <h1
               data-testid="hero-headline"
-              className={`mt-4 font-black uppercase leading-[0.92] tracking-[0.02em] ${compact ? 'text-[2.35rem]' : 'text-5xl md:text-6xl'}`}
+              className={`mt-4 font-black uppercase leading-[0.92] tracking-[0.02em] ${h1Size}`}
               style={{ color: t.textStrong }}
             >
               {headline.main}
@@ -137,7 +143,7 @@ export default function BarberHero({ data, mode }: Props) {
 
             <p
               data-testid="hero-description"
-              className="mt-6 max-w-xl text-xs md:text-sm leading-relaxed"
+              className={`mt-6 max-w-xl ${bodySize} leading-relaxed`}
               style={{ color: t.muted }}
             >
               {heroDescription(data, H.description)}
