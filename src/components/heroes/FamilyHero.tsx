@@ -18,7 +18,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { FAMILY_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
@@ -35,15 +35,13 @@ export default function FamilyHero({ data, mode }: Props) {
   const t = surfacesOf(FAMILY_SURFACES, appearance);
   const H = heroText('family_full_service', locale);
   const headline = heroHeadline(data, H);
+  const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('family_full_service', data);
   const meta = heroMeta('family_full_service', data);
   const video = heroVideo('family_full_service', data);
   const compact = mode === 'mobile';
 
   const tealBtn: CSSProperties = { backgroundColor: t.teal, color: '#ffffff' };
-  const audience = [H.eyebrow.split('·')[0], H.eyebrow.split('·')[1], H.eyebrow.split('·')[2]]
-    .map((part) => (part || '').trim())
-    .filter(Boolean);
 
   return (
     <section
@@ -95,21 +93,31 @@ export default function FamilyHero({ data, mode }: Props) {
               style={{ color: t.heading }}
             >
               {headline.main}
+              {' '}
               <br />
               <span style={{ color: t.teal }}>{headline.accent}</span>
             </h1>
 
-            {/* Who is it for — instant self-select */}
-            <div className="flex flex-wrap gap-2 mt-5">
-              {audience.map((label) => (
-                <span
-                  key={label}
-                  className="rounded-full px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.16em] border"
-                  style={{ borderColor: t.skyDeep, color: t.blue, backgroundColor: t.card }}
-                >
-                  {label}
-                </span>
-              ))}
+            {/* PHASE 11.2 — who it is for + what we do, as instant self-select pills */}
+            <div data-testid="hero-focus" className="mt-5">
+              <span className="text-[9px] font-extrabold uppercase tracking-[0.2em]" style={{ color: t.blue }}>
+                {H.focusLabel}
+              </span>
+              <div className="flex flex-wrap gap-2 mt-2.5">
+                {focus.map((label) => (
+                  <span
+                    key={label}
+                    data-hero-focus-item={label}
+                    className="rounded-full px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.16em] border"
+                    style={{ borderColor: t.skyDeep, color: t.blue, backgroundColor: t.card }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <p data-testid="hero-audience" className="mt-3 text-[10px] font-bold" style={{ color: t.muted }}>
+                {H.audience}
+              </p>
             </div>
 
             <p

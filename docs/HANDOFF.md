@@ -6,6 +6,27 @@
 
 ## Current repository state
 
+- **Phase 11.2 — HERO HEADLINE & CONTENT: COMPLETE for all five themes.**
+  - Mandated headlines render exactly: barber "Sharp Cuts. Classic Grooming.
+    Modern Confidence.", hair "Luxury Hair. Signature Style. Beautifully You.",
+    spa "Relax. Refresh. Reveal Your Natural Glow.", family "Beauty & Grooming
+    for the Whole Family.", nail "Nails, Lashes & Beauty Made to Stand Out."
+  - Each theme also gained a unique short description, theme-specific primary +
+    secondary CTA text, service-focus badges (barber haircuts/beard/shave/
+    grooming · hair cut/colour/balayage/treatments · spa facial/skin/spa/
+    wellness/makeup · family men/women/kids/haircare/combos · nail
+    art/gel/lash/brow/mani-pedi) and a target-audience line — rendered in each
+    theme's EXISTING 11.1 layout, no layout recreated.
+  - All copy lives in `src/lib/siteHeroI18n.ts` and flows through the existing
+    Phase 10.2 language system; every Hindi string is a real Devanagari
+    translation. New `heroFocusBadges()` in `src/lib/siteHero.ts` narrows the
+    badges to the owner's active catalog (archived/inactive ignored).
+  - Owner content still wins: `tagline` → `<h1>`, `about` → description,
+    `services` → badges. No database, migration or service change.
+  - Validation: `npm run test:phase-11.2` = 138/138, `test:phase-11.1`
+    215/215, `test:phase-10` 1259/1259, lint/build/25-screens green.
+    Details: `docs/phase-11.2-hero-headline-content.md`.
+
 - **Phase 11.1 — UNIQUE HERO DESIGN: COMPLETE for all five themes.**
   - Five genuinely separate hero components in `src/components/heroes/`
     (`BarberHero`, `HairStudioHero`, `BeautySpaHero`, `FamilyHero`,
@@ -602,6 +623,8 @@ npm run test:phase-10.6    # Book Appointment entry flow (102 tests)
 npm run test:phase-10.7    # Advance payment & booking confirmation (66 tests)
 npm run test:phase-10      # every Phase 10 suite (1259 tests)
 npm run test:phase-11.1    # unique hero design across all five themes (215 tests)
+npm run test:phase-11.2    # hero headline & content, EN + HI (138 tests)
+npm run test:phase-11      # both Phase 11 suites
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -615,6 +638,7 @@ Expected output:
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
 - `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
 - `test:phase-11.1`: 215/215 passed (unique hero design, all five themes)
+- `test:phase-11.2`: 138/138 passed (hero headline & content, EN + HI)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

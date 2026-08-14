@@ -69,6 +69,8 @@ npm run test:phase-10.7     # Advance payment & booking confirmation
 npm run test:phase-10.8     # Reviews, ratings & social / latest-work feed
 npm run test:phase-10       # all Phase 10 suites
 npm run test:phase-11.1     # unique hero design across all five themes
+npm run test:phase-11.2     # hero headline & content (EN + HI) across all five themes
+npm run test:phase-11       # both Phase 11 suites
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```

@@ -18,7 +18,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { HAIR_STUDIO_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
@@ -36,6 +36,7 @@ export default function HairStudioHero({ data, mode }: Props) {
   const isDark = appearance === 'dark';
   const H = heroText('hair_studio_color_bar', locale);
   const headline = heroHeadline(data, H);
+  const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('hair_studio_color_bar', data);
   const meta = heroMeta('hair_studio_color_bar', data);
   const video = heroVideo('hair_studio_color_bar', data);
@@ -104,6 +105,7 @@ export default function HairStudioHero({ data, mode }: Props) {
               style={{ color: t.ink }}
             >
               {headline.main}
+              {' '}
               <br />
               <em className="not-italic" style={{ color: t.roseDeep }}>{headline.accent}</em>
             </h1>
@@ -115,6 +117,26 @@ export default function HairStudioHero({ data, mode }: Props) {
             >
               {heroDescription(data, H.description)}
             </p>
+
+            {/* PHASE 11.2 — colour-bar index, typeset as a printed contents list */}
+            <div data-testid="hero-focus" className="mt-7 border-t pt-4" style={{ borderColor: t.line }}>
+              <span className="text-[9px] uppercase tracking-[0.36em] font-semibold" style={{ color: t.roseDeep }}>
+                {H.focusLabel}
+              </span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                {focus.map((label, index) => (
+                  <span key={label} data-hero-focus-item={label} className="flex items-center gap-4">
+                    {index > 0 && <span className="h-3 w-px" style={{ backgroundColor: t.line }} />}
+                    <span className="text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: t.ink }}>
+                      <span style={{ color: t.rose }}>{String(index + 1).padStart(2, '0')}</span> {label}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <p data-testid="hero-audience" className="mt-3 text-[10px] italic" style={{ color: t.muted }}>
+                {H.audience}
+              </p>
+            </div>
 
             <div className="flex flex-wrap items-center gap-6 mt-9">
               <button

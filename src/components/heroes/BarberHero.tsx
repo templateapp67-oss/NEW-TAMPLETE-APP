@@ -21,7 +21,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BARBER_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
@@ -38,6 +38,7 @@ export default function BarberHero({ data, mode }: Props) {
   const t = surfacesOf(BARBER_SURFACES, appearance);
   const H = heroText('barber_mens_grooming', locale);
   const headline = heroHeadline(data, H);
+  const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('barber_mens_grooming', data);
   const meta = heroMeta('barber_mens_grooming', data);
   const video = heroVideo('barber_mens_grooming', data);
@@ -122,6 +123,7 @@ export default function BarberHero({ data, mode }: Props) {
               style={{ color: t.textStrong }}
             >
               {headline.main}
+              {' '}
               <br />
               <span style={{ color: t.gold }}>{headline.accent}</span>
             </h1>
@@ -133,6 +135,28 @@ export default function BarberHero({ data, mode }: Props) {
             >
               {heroDescription(data, H.description)}
             </p>
+
+            {/* PHASE 11.2 — grooming focus, set as a hard-edged stencil row */}
+            <div data-testid="hero-focus" className="mt-7">
+              <span className="text-[9px] font-bold uppercase tracking-[0.32em]" style={{ color: t.muted }}>
+                {H.focusLabel}
+              </span>
+              <div className="flex flex-wrap gap-2 mt-2.5">
+                {focus.map((label) => (
+                  <span
+                    key={label}
+                    data-hero-focus-item={label}
+                    className="px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] border"
+                    style={{ borderColor: t.gold, color: t.accentText, backgroundColor: 'transparent' }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <p data-testid="hero-audience" className="mt-3 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: t.muted }}>
+                {H.audience}
+              </p>
+            </div>
 
             {/* Sharp slab CTAs */}
             <div className="flex flex-wrap gap-3 mt-9">

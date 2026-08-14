@@ -18,7 +18,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { NAIL_LASH_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
@@ -35,6 +35,7 @@ export default function NailLashHero({ data, mode }: Props) {
   const t = surfacesOf(NAIL_LASH_SURFACES, appearance);
   const H = heroText('nail_lash_studio', locale);
   const headline = heroHeadline(data, H);
+  const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('nail_lash_studio', data);
   const meta = heroMeta('nail_lash_studio', data);
   const video = heroVideo('nail_lash_studio', data);
@@ -104,6 +105,7 @@ export default function NailLashHero({ data, mode }: Props) {
           style={{ color: t.ink }}
         >
           {headline.main}
+          {' '}
           <br />
           <span style={{ color: t.pink }}>{headline.accent}</span>
         </h1>
@@ -117,6 +119,32 @@ export default function NailLashHero({ data, mode }: Props) {
             >
               {heroDescription(data, H.description)}
             </p>
+
+            {/* PHASE 11.2 — studio specialities, as glossy neon tags */}
+            <div data-testid="hero-focus" className="mt-6">
+              <span className="text-[9px] font-extrabold uppercase tracking-[0.2em]" style={{ color: t.pinkDeep }}>
+                {H.focusLabel}
+              </span>
+              <div className="flex flex-wrap gap-2 mt-2.5">
+                {focus.map((label, index) => (
+                  <span
+                    key={label}
+                    data-hero-focus-item={label}
+                    className="rounded-full px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.14em]"
+                    style={
+                      index === 0
+                        ? { backgroundColor: t.pink, color: '#ffffff', boxShadow: `0 6px 16px -8px ${t.pink}` }
+                        : { backgroundColor: t.card, color: t.pinkDeep, border: `1px solid ${t.line}` }
+                    }
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <p data-testid="hero-audience" className="mt-3 text-[10px]" style={{ color: t.muted }}>
+                {H.audience}
+              </p>
+            </div>
 
             <div className="flex flex-wrap gap-3 mt-6">
               <button

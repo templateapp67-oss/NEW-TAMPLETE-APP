@@ -173,6 +173,41 @@ export function heroDescription(data: SalonData, fallback: string): string {
   return about || fallback;
 }
 
+/**
+ * PHASE 11.2 — hero focus badges.
+ *
+ * The badge list is the theme's own curated focus (Barber: Haircuts / Beard /
+ * Shave / Men's Grooming, Hair Studio: Haircuts / Colour / Balayage /
+ * Treatments, …) so a theme can never advertise another theme's speciality.
+ *
+ * It stays connected to the EXISTING service data system: when the owner's
+ * active catalog clearly covers only part of that focus, the hero narrows to
+ * what the salon actually offers. If the match is too thin to be useful (or
+ * the owner has not added services yet) the full theme focus is shown.
+ * No new storage, schema or service architecture is introduced.
+ */
+export function heroFocusBadges(
+  data: SalonData,
+  focus: readonly string[],
+  minMatches = 2,
+): string[] {
+  const list = [...focus];
+  const catalog = (data.services || [])
+    .filter((service) => service.status !== 'inactive' && service.status !== 'archived')
+    .flatMap((service) => [service.category || '', service.name || ''])
+    .join(' ')
+    .toLowerCase();
+  if (!catalog.trim()) return list;
+  const tokenize = (label: string) =>
+    label.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((part) => part.length > 2);
+  const matched = list.filter((label) => {
+    const tokens = tokenize(label);
+    if (tokens.length === 0) return false;
+    return tokens.some((token) => catalog.includes(token));
+  });
+  return matched.length >= minMatches ? matched : list;
+}
+
 /** Salon display name used by every hero lockup. */
 export function heroSalonName(data: SalonData, fallback = 'Your Salon'): string {
   return (data.salonName || '').trim() || fallback;

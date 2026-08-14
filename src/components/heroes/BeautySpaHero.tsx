@@ -17,7 +17,7 @@ import { useSiteLocale, useThemeAppearance } from '../SiteHeader';
 import { getSalonNameStyle } from '../../lib/brandIdentity';
 import { BEAUTY_SPA_SURFACES, surfacesOf } from '../../lib/themeSurfaces';
 import { heroText } from '../../lib/siteHeroI18n';
-import { heroDescription, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
+import { heroDescription, heroFocusBadges, heroHeadline, heroLogoInitials, heroMedia, heroMeta, heroSalonName, heroVideo } from '../../lib/siteHero';
 import { openSiteBooking } from '../../lib/siteBooking';
 import { scrollToSiteSection } from '../../lib/siteNavigation';
 import type { ViewportMode } from '../../lib/siteStructure';
@@ -34,6 +34,7 @@ export default function BeautySpaHero({ data, mode }: Props) {
   const t = surfacesOf(BEAUTY_SPA_SURFACES, appearance);
   const H = heroText('beauty_skin_spa', locale);
   const headline = heroHeadline(data, H);
+  const focus = heroFocusBadges(data, H.focus);
   const media = heroMedia('beauty_skin_spa', data);
   const meta = heroMeta('beauty_skin_spa', data);
   const video = heroVideo('beauty_skin_spa', data);
@@ -156,6 +157,28 @@ export default function BeautySpaHero({ data, mode }: Props) {
             >
               {heroDescription(data, H.description)}
             </p>
+
+            {/* PHASE 11.2 — ritual focus, as soft rounded petals */}
+            <div data-testid="hero-focus" className="mt-7">
+              <span className="text-[9px] uppercase tracking-[0.32em] font-semibold" style={{ color: t.emerald }}>
+                {H.focusLabel}
+              </span>
+              <div className={`flex flex-wrap gap-2 mt-3 ${compact ? 'justify-center' : ''}`}>
+                {focus.map((label) => (
+                  <span
+                    key={label}
+                    data-hero-focus-item={label}
+                    className="rounded-full px-3.5 py-1.5 text-[9px] font-semibold tracking-[0.14em]"
+                    style={{ backgroundColor: t.card, color: t.emerald, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <p data-testid="hero-audience" className="mt-3 text-[10px] leading-relaxed" style={{ color: t.muted }}>
+                {H.audience}
+              </p>
+            </div>
 
             <div className={`flex flex-wrap gap-3 mt-8 ${compact ? 'justify-center' : ''}`}>
               <button
