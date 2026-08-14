@@ -178,6 +178,15 @@ export interface GalleryImage {
   serviceId?: string | null;
   displayOrder?: number;
   status?: 'active' | 'inactive';
+  /**
+   * PHASE 14.7 — moderation state. Absent means "grandfathered approved", so
+   * existing saved galleries stay visible; new uploads start `pending`.
+   */
+  moderation?: 'pending' | 'approved' | 'rejected';
+  /** PHASE 14.7 — human-readable rejection reason (set on reject). */
+  rejectionReason?: string;
+  /** PHASE 14.7 — ISO timestamp of the last approve/reject review. */
+  reviewedAt?: string;
 }
 
 export interface SocialProfiles {

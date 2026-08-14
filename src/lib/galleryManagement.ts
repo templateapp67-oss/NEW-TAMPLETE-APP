@@ -26,6 +26,7 @@ import type { GalleryImage, SalonData, Service } from '../types';
 import { directoryServicesForTheme } from './siteServiceDirectory';
 import { isSafeMediaUrl } from './siteHero';
 import { ownerGalleryItemBelongsToTheme, mapOwnerGalleryCategory } from './siteGallery';
+import { isCustomerVisibleGalleryItem } from './galleryModeration';
 import { isSiteHeaderTheme, SITE_HEADER_THEME_IDS } from './siteNavigation';
 import type { SiteHeaderThemeId } from './siteNavigation';
 import { THEME_LABELS } from './themeServices';
@@ -216,7 +217,9 @@ export function nextGalleryDisplayOrder(items: readonly GalleryImage[]): number 
  */
 export function customerGalleryForTheme(data: SalonData, themeId: SiteHeaderThemeId): GalleryImage[] {
   return sortGalleryByDisplayOrder(
-    activeGalleryItems(data.gallery || [])
+    (data.gallery || [])
+      // PHASE 14.7 — approved + active only (pending/rejected/unpublished hidden).
+      .filter((item) => isCustomerVisibleGalleryItem(item))
       .filter((item) => ownerGalleryItemBelongsToTheme(item, themeId))
       .filter((item) => isSafeMediaUrl(item.url)),
   );

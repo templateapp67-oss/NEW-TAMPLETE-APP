@@ -122,9 +122,28 @@
   - Safety: authorization via existing auth/ownership (no invented salon/theme
     ids, no service-role/private credentials in the frontend); broken uploads
     never create incomplete records; existing valid gallery data is preserved.
-  - Validation: `test:phase-14` **162/162** (55 + 37 + 22 + 22 + 26); lint 0;
-    build + 25-screen verification green. Details:
+  - Validation: `test:phase-14` **180/180** (55 + 37 + 22 + 22 + 26 + 18);
+    lint 0; build + 25-screen verification green. Details:
     `docs/phase-14.6-gallery-management.md`.
+
+- **PHASE 14.7 — OWNER/ADMIN GALLERY APPROVAL: COMPLETE for all five themes (18 tests).**
+  - Moderation state machine on the existing gallery: Upload → Pending →
+    Approve/Reject → Published/Rejected.
+  - `src/lib/galleryModeration.ts` — approve/reject/unpublish/reactivate
+    transitions, `validateGalleryItemForPublish` (invalid mapping is refused),
+    `isCustomerVisibleGalleryItem` (approved + active only), and a
+    `canModerateGallery` gate reusing the existing ownership resolution.
+  - `types.ts` — additive `moderation` / `rejectionReason` / `reviewedAt`;
+    absent moderation = grandfathered approved, so existing galleries stay
+    public. `siteGallery.ts` + `galleryManagement.ts` now hide pending/
+    rejected/unpublished content from the customer projection.
+  - `src/components/GalleryModerationPanel.tsx` — approval UI (thumbnail,
+    theme, category, linked service, status, Approve/Reject/Unpublish/
+    Reactivate, rejection reason, locked for unauthorized); `StepPhotos` starts
+    new uploads as `pending` and renders the panel.
+  - Validation: `test:phase-14` **180/180** (55 + 37 + 22 + 22 + 26 + 18);
+    lint 0; build + 25-screen verification green. Details:
+    `docs/phase-14.7-gallery-approval.md`.
 
 - **PHASE 12.7 — SERVICE IMAGES & VISUALS: COMPLETE for all five themes (60 tests).**
   - Service cards (directory) + the Service Detail modal now render a visual
@@ -1077,7 +1096,8 @@ npm run test:phase-14.3    # gallery viewer (advanced lightbox) across all five 
 npm run test:phase-14.4    # gallery final validation across all five themes (22 tests)
 npm run test:phase-14.5    # gallery conversion & final polish (22 tests)
 npm run test:phase-14.6    # owner/admin gallery management (26 tests)
-npm run test:phase-14      # every Phase 14 suite (162 tests)
+npm run test:phase-14.7    # owner/admin gallery approval / moderation (18 tests)
+npm run test:phase-14      # every Phase 14 suite (180 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1111,7 +1131,8 @@ Expected output:
 - `test:phase-14.4`: 22/22 passed (gallery final validation)
 - `test:phase-14.5`: 22/22 passed (gallery conversion & final polish)
 - `test:phase-14.6`: 26/26 passed (owner/admin gallery management)
-- `test:phase-14`: 162/162 passed (Phase 14 complete)
+- `test:phase-14.7`: 18/18 passed (owner/admin gallery approval / moderation)
+- `test:phase-14`: 180/180 passed (Phase 14 complete)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

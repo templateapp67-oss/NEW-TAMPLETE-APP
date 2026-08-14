@@ -26,6 +26,7 @@ import type { SiteHeaderThemeId } from './siteNavigation';
 import { directoryServicesForTheme } from './siteServiceDirectory';
 import { serviceVisuals } from './siteServiceVisuals';
 import { isSafeMediaUrl, safeMediaUrl } from './siteHero';
+import { isCustomerVisibleGalleryItem } from './galleryModeration';
 
 /* ------------------------------------------------------------------ */
 /* Normalised gallery item                                             */
@@ -374,8 +375,9 @@ export function ownerGalleryItemForTheme(
 ): GalleryItem | null {
   if (!item || typeof item !== 'object') return null;
   if (!ownerGalleryItemBelongsToTheme(item, themeId)) return null;
-  // PHASE 14.6 — deactivated owner items are hidden from the customer gallery.
-  if (item.status === 'inactive') return null;
+  // PHASE 14.6 + 14.7 — deactivated / pending / rejected owner items are
+  // hidden from the customer gallery (only approved + active is public).
+  if (!isCustomerVisibleGalleryItem(item)) return null;
   const src = safeMediaUrl(item.url);
   if (!src) return null;
 

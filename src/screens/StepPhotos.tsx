@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { SalonData, GalleryImage } from '../types';
 import PreviewPane from '../components/PreviewPane';
+import GalleryModerationPanel from '../components/GalleryModerationPanel';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useRef, DragEvent, useEffect } from 'react';
 import {
@@ -193,6 +194,8 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
         title: entry.file.name.replace(/\.[^/.]+$/, ''),
         displayOrder: start + idx,
         status: 'active',
+        // PHASE 14.7 — new uploads enter moderation as pending.
+        moderation: 'pending',
       }));
       setData({ ...data, gallery: [...currentGallery, ...newItems] });
       showFeedback(`Added ${newItems.length} photo(s) to gallery`);
@@ -710,6 +713,16 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                               Inactive
                             </span>
                           )}
+                          {img.moderation === 'pending' && (
+                            <span data-testid="gallery-thumb-pending" className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block">
+                              Pending
+                            </span>
+                          )}
+                          {img.moderation === 'rejected' && (
+                            <span data-testid="gallery-thumb-rejected" className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block">
+                              Rejected
+                            </span>
+                          )}
                         </div>
                       </div>
                     </motion.div>
@@ -728,6 +741,16 @@ export default function StepPhotos({ data, setData, onNext, onPrev, onSave }: Pr
                   <span className="text-[11px] font-bold">Add Photo</span>
                 </button>
               </div>
+            </div>
+
+            {/* SECTION 3B: GALLERY APPROVAL (PHASE 14.7 moderation) */}
+            <div className="bg-white rounded-2xl p-5 md:p-6 border border-[#eeeeee] shadow-2xs space-y-4">
+              <GalleryModerationPanel
+                data={data}
+                setData={setData}
+                onSave={onSave}
+                canModerate={!permissionDenied}
+              />
             </div>
 
             {/* SECTION 4: DEMO STOCK PHOTOS OPTION */}
