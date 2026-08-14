@@ -35,6 +35,14 @@
   min-width: 44px;
 }
 
+/* PHASE 14.3 — gallery viewer safe-area spacing (notch / home indicator). */
+.site-gallery-lightbox-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 /* PHASE 11.5 — hero CTA interaction states.
    Scoped to the hero only (`.site-hero-cta`) so Phase 10 controls are
    untouched. Uses the theme's own accent via `currentColor`, so each hero

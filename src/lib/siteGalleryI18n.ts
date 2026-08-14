@@ -15,6 +15,7 @@ export interface GalleryChromeCopy {
   before: string;
   after: string;
   dragHint: string;
+  swipeHint: string;
   viewLarger: string;
   close: string;
   previous: string;
@@ -33,6 +34,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'Before',
       after: 'After',
       dragHint: 'Drag to compare',
+      swipeHint: 'Swipe left or right to browse',
       viewLarger: 'View larger',
       close: 'Close gallery',
       previous: 'Previous image',
@@ -48,6 +50,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'पहले',
       after: 'बाद',
       dragHint: 'तुलना करने के लिए खींचें',
+      swipeHint: 'देखने के लिए बाएँ या दाएँ स्वाइप करें',
       viewLarger: 'बड़ा देखें',
       close: 'गैलरी बंद करें',
       previous: 'पिछली तस्वीर',
@@ -66,6 +69,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'Before',
       after: 'After',
       dragHint: 'Drag to compare',
+      swipeHint: 'Swipe left or right to browse',
       viewLarger: 'View larger',
       close: 'Close gallery',
       previous: 'Previous image',
@@ -81,6 +85,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'पहले',
       after: 'बाद',
       dragHint: 'तुलना करने के लिए खींचें',
+      swipeHint: 'देखने के लिए बाएँ या दाएँ स्वाइप करें',
       viewLarger: 'बड़ा देखें',
       close: 'गैलरी बंद करें',
       previous: 'पिछली तस्वीर',
@@ -99,6 +104,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'Before',
       after: 'After',
       dragHint: 'Drag to compare',
+      swipeHint: 'Swipe left or right to browse',
       viewLarger: 'View larger',
       close: 'Close gallery',
       previous: 'Previous image',
@@ -114,6 +120,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'पहले',
       after: 'बाद',
       dragHint: 'तुलना करने के लिए खींचें',
+      swipeHint: 'देखने के लिए बाएँ या दाएँ स्वाइप करें',
       viewLarger: 'बड़ा देखें',
       close: 'गैलरी बंद करें',
       previous: 'पिछली तस्वीर',
@@ -132,6 +139,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'Before',
       after: 'After',
       dragHint: 'Drag to compare',
+      swipeHint: 'Swipe left or right to browse',
       viewLarger: 'View larger',
       close: 'Close gallery',
       previous: 'Previous photo',
@@ -147,6 +155,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'पहले',
       after: 'बाद',
       dragHint: 'तुलना करने के लिए खींचें',
+      swipeHint: 'देखने के लिए बाएँ या दाएँ स्वाइप करें',
       viewLarger: 'बड़ा देखें',
       close: 'गैलरी बंद करें',
       previous: 'पिछली तस्वीर',
@@ -165,6 +174,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'Before',
       after: 'After',
       dragHint: 'Drag to compare',
+      swipeHint: 'Swipe left or right to browse',
       viewLarger: 'View larger',
       close: 'Close gallery',
       previous: 'Previous look',
@@ -180,6 +190,7 @@ const GALLERY_CHROME: Record<SiteHeaderThemeId, Record<AppLocale, GalleryChromeC
       before: 'पहले',
       after: 'बाद',
       dragHint: 'तुलना करने के लिए खींचें',
+      swipeHint: 'देखने के लिए बाएँ या दाएँ स्वाइप करें',
       viewLarger: 'बड़ा देखें',
       close: 'गैलरी बंद करें',
       previous: 'पिछला लुक',

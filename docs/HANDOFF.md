@@ -49,6 +49,27 @@
     `test:service-saving` assert a stale migration count (24 vs the 26
     M01–M26 files).
 
+- **PHASE 14.3 — GALLERY VIEWER: COMPLETE for all five themes (37 tests).**
+  - The shared 14.1 lightbox is upgraded into an advanced full-screen viewer —
+    no second viewer system.
+  - Mobile: swipe left/right (40px threshold, horizontal dominance), touch
+    targets (`site-touch` 44px), safe-area spacing via
+    `.site-gallery-lightbox-safe` (`env(safe-area-inset-*)`), `touch-action:
+    pan-y` and body scroll lock so the page never scrolls horizontally.
+  - Before/After: slider stays interactive inside the viewer; swipes that start
+    on the slider are ignored so the handle is never hijacked.
+  - Media safety: existing gallery data only; broken image → `SiteImage`
+    fallback; skeleton while the full-size loads; only the active full-size
+    image is mounted (adjacent-only preload); lazy + srcSet kept from 10.12.
+  - Theme isolation: viewer renders only the active theme's media; theme/data
+    switch closes/resets the viewer and drops previous media.
+  - Accessibility: Arrow/ESC keyboard nav, focus to close on open + restore to
+    trigger on close, focus trap (Tab/Shift+Tab), aria-labels, localised
+    `swipeHint` (EN/HI).
+  - Validation: `test:phase-14.3` **37/37**; `test:phase-14.1` 55/55 (no
+    regression); lint 0 errors; build + 25-screen verification green.
+    Details: `docs/phase-14.3-gallery-viewer.md`.
+
 - **PHASE 12.7 — SERVICE IMAGES & VISUALS: COMPLETE for all five themes (60 tests).**
   - Service cards (directory) + the Service Detail modal now render a visual
     from configured media only: Service Image (image → banner → icon),
