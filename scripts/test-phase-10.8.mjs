@@ -347,8 +347,8 @@ section('UI — five themes render reviews + social feed');
       assert.ok(utils.container.textContent.includes(`Approved note for ${theme.id} only.`));
       const feed = utils.getByTestId('site-social-feed');
       assert.equal(feed.dataset.theme, theme.id);
-      assert.ok(utils.getByTestId('site-social-item'));
-      assert.ok(utils.getByTestId('site-social-view'));
+      assert.ok(utils.container.querySelector('[data-testid="site-social-item"]'));
+      assert.ok(utils.container.querySelector('[data-testid="site-social-view"]'));
       assert.ok(utils.getByTestId('site-social-source-instagram'));
       const S = siteText(theme.id, 'en');
       assert.ok(utils.container.textContent.includes(S.reviewsTitle || S.testimonialsTitle));
@@ -356,15 +356,20 @@ section('UI — five themes render reviews + social feed');
     });
   }
 
-  await test('empty salon: no fake reviews or fake social posts', () => {
+  await test('empty salon: no fake reviews (theme video catalog may fill videos)', () => {
     setCleanState();
     const data = richData('barber_mens_grooming', { socialVideos: [], socialProfiles: {} });
     const utils = render(React.createElement(Barber, { data, mode: 'desktop' }));
     assert.equal(utils.container.querySelectorAll('[data-testid="site-review-card"]').length, 0);
     assert.equal(utils.container.textContent.includes('Arjun Mehta'), false);
     assert.equal(utils.container.textContent.includes('Rohit Khanna'), false);
-    assert.ok(utils.container.querySelectorAll('[data-testid="section-state-empty"]').length >= 2);
-    assert.equal(utils.container.querySelectorAll('[data-testid="site-social-item"]').length, 0);
+    // Reviews stay empty; PHASE 15.3 may fill videos from the theme catalog
+    // (configured presentation media, never invented review quotes).
+    assert.ok(utils.container.querySelectorAll('[data-testid="section-state-empty"]').length >= 1);
+    const socialItems = utils.container.querySelectorAll('[data-testid="site-social-item"]');
+    for (const el of socialItems) {
+      assert.equal(el.getAttribute('data-video-origin'), 'theme');
+    }
     cleanup();
   });
 
@@ -452,7 +457,9 @@ section('UI — social feed reuses videos section, no duplicate system');
       }],
     });
     const utils = render(React.createElement(Family, { data, mode: 'desktop' }));
-    fireEvent.click(utils.getByTestId('site-social-view'));
+    const viewBtn = utils.container.querySelector('[data-social-id="fam-1"] [data-testid="site-social-view"]');
+    assert.ok(viewBtn, 'owner view button missing');
+    fireEvent.click(viewBtn);
     assert.equal(opened, 'https://instagram.com/reel/FamilyReal01');
     dom.window.open = orig;
     cleanup();
@@ -468,9 +475,12 @@ section('UI — social feed reuses videos section, no duplicate system');
       }],
     });
     const utils = render(React.createElement(NailLash, { data, mode: 'desktop' }));
-    const item = utils.getByTestId('site-social-item');
+    const item = utils.container.querySelector('[data-social-id="yt-1"]');
+    assert.ok(item, 'owner youtube card missing');
     assert.equal(item.getAttribute('data-embed-kind'), 'youtube');
-    await act(async () => { fireEvent.click(utils.getByTestId('site-social-play')); });
+    const playBtn = item.querySelector('[data-testid="site-social-play"]');
+    assert.ok(playBtn);
+    await act(async () => { fireEvent.click(playBtn); });
     const embed = utils.getByTestId('site-social-embed');
     assert.ok(embed.querySelector('iframe').getAttribute('src').includes('youtube.com/embed/dQw4w9WgXcQ'));
     cleanup();

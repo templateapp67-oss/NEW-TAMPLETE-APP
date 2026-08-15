@@ -16,7 +16,7 @@ import SiteAnnouncementBar from './SiteAnnouncementBar';
 import FamilyHero from './heroes/FamilyHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
-import SiteSocialFeed from './SiteSocialFeed';
+import SiteVideoGallery from './SiteVideoGallery';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
@@ -441,7 +441,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
         {/* Gallery — PHASE 14.1: theme-scoped portfolio (featured, filter, lightbox, before/after) */}
         <SiteGallery themeId="family_full_service" data={data} mode={mode} />
 
-        <SiteSocialFeed themeId="family_full_service" data={data} mode={mode} />
+        <SiteVideoGallery themeId="family_full_service" data={data} mode={mode} />
 
         {/* About */}
         <section {...sectionProps('about', aboutState)} className="site-section px-5 md:px-8 py-12" style={{ backgroundColor: t.well }}>

@@ -17,7 +17,7 @@ import SiteAnnouncementBar from './SiteAnnouncementBar';
 import NailLashHero from './heroes/NailLashHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
-import SiteSocialFeed from './SiteSocialFeed';
+import SiteVideoGallery from './SiteVideoGallery';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
@@ -275,7 +275,7 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
         <SiteGallery themeId="nail_lash_studio" data={data} mode={mode} />
 
 
-        <SiteSocialFeed themeId="nail_lash_studio" data={data} mode={mode} />
+        <SiteVideoGallery themeId="nail_lash_studio" data={data} mode={mode} />
 
         {/* About Studio */}
         <section {...sectionProps('about', aboutState)} className="px-5 md:px-8 py-12" style={{ backgroundColor: sand }}><div className="grid md:grid-cols-[1fr_1fr] gap-8 items-center"><div className="relative min-h-[275px]"><div className="absolute left-3 right-3 top-3 bottom-[-8px] rounded-[2rem] rotate-3" style={{ backgroundColor: pink }} /><img src={studioImage} alt="Inside the Nail & Lash Studio" className="relative w-full h-[275px] object-cover rounded-[2rem] border-4 border-white shadow-xl -rotate-2" /><div className="absolute left-[-5px] top-10 rounded-2xl px-3 py-2.5 shadow-lg border" style={{ borderColor: line, backgroundColor: t.card }}><Award className="w-4 h-4" style={{ color: pink }} /><p className="text-[9px] font-extrabold mt-1" style={{ color: ink }}>{S.aboutBadge1}<br />{S.aboutBadge2}</p></div></div><div><SectionTitle eyebrow={S.aboutEyebrow} title={S.aboutTitle} body={data.about || S.aboutFallbackBody} t={t} /><div className="grid gap-2 grid-cols-2 md:grid-cols-3 mt-7">{[{ value: '01', label: S.aboutStat1Label }, { value: '∞', label: S.aboutStat2Label }, { value: '5★', label: S.aboutStat3Label }].map((stat) => <div key={stat.label} className="rounded-2xl p-3 border" style={{ borderColor: line, backgroundColor: t.card }}><p className="text-xl font-extrabold" style={{ color: pinkDeep }}>{stat.value}</p><p className="text-[8px] uppercase tracking-[0.12em] font-bold mt-1" style={{ color: muted }}>{stat.label}</p></div>)}</div></div></div></section>

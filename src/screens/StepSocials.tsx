@@ -1,11 +1,28 @@
-import { 
-  ArrowLeft, ArrowRight, Plus, Trash2, X, Share2, Camera, ThumbsUp, PlayCircle, 
-  Video as VideoIcon, CheckCircle2, Check, Monitor, Edit2, Sparkles, Link, ExternalLink
+import {
+  ArrowLeft, ArrowRight, Plus, Trash2, X, Share2, Camera, ThumbsUp, PlayCircle,
+  Video as VideoIcon, CheckCircle2, Check, Monitor, Edit2, Sparkles, Link, ExternalLink,
+  Loader2, AlertCircle
 } from 'lucide-react';
 import { SalonData, SocialVideo } from '../types';
 import PreviewPane from '../components/PreviewPane';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent, type FC } from 'react';
+import {
+  fetchVideoMetadata,
+  mergePlatformMetadataIntoForm,
+  parseVideoUrl,
+  partialMetadataNotice,
+  platformMetadataIsComplete,
+  socialVideoFromPasteAndMetadata,
+  VIDEO_METADATA_DEBOUNCE_MS,
+  type VideoPlatformMetadata,
+} from '../lib/videoUrlMetadata';
+import { resolveVideoKind } from '../lib/siteVideoGallery';
+import {
+  filterDeletableOwnerVideos,
+  isDeleteBlockedForVideoId,
+  isProtectedThemeMockVideo,
+} from '../lib/siteVideoCatalog';
 
 interface Props {
   data: SalonData;
@@ -15,56 +32,86 @@ interface Props {
   onSave?: () => void;
 }
 
-const STOCK_VIDEO_THUMBNAILS = [
-  {
-    title: 'Hair transformation ✨',
-    platform: 'instagram' as const,
-    url: 'https://instagram.com/reel/12345',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=600&auto=format&fit=crop',
-    likesCount: '1.2k',
-    dateAdded: 'Today'
-  },
-  {
-    title: 'Summer chop ✂️',
-    platform: 'youtube' as const,
-    url: 'https://youtube.com/shorts/67890',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&auto=format&fit=crop',
-    likesCount: '856',
-    dateAdded: 'Yesterday'
-  },
-  {
-    title: 'Dimensional Blonde Balayage 👱‍♀️',
-    platform: 'instagram' as const,
-    url: 'https://instagram.com/reel/34567',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1562322140-8baeececf3df?q=80&w=600&auto=format&fit=crop',
-    likesCount: '2.4k',
-    dateAdded: '3 days ago'
-  },
-  {
-    title: 'Precision Beard Sculpting 💈',
-    platform: 'tiktok' as const,
-    url: 'https://tiktok.com/@royal/video/98765',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=600&auto=format&fit=crop',
-    likesCount: '3.1k',
-    dateAdded: '4 days ago'
-  }
-];
+type FetchStatus = 'idle' | 'loading' | 'success' | 'error' | 'partial';
 
+/**
+ * PHASE 15.4 — paste-only add flow.
+ * Owner pastes a YouTube URL; Phase 15.2 `fetchVideoMetadata` auto-fills
+ * thumbnail, title, description, channel and canonical URL. No second fetch
+ * system. Manual edits are allowed but never overwrite platform metadata
+ * unnecessarily (see `mergePlatformMetadataIntoForm`).
+ */
 export default function StepSocials({ data, setData, onNext, onPrev, onSave }: Props) {
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
   const [isAddingVideo, setIsAddingVideo] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Form states for adding a social video
+  // Form states for adding a social video (start empty — paste fills them).
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [newVideoTitle, setNewVideoTitle] = useState('');
-  const [newVideoPlatform, setNewVideoPlatform] = useState<'instagram' | 'youtube' | 'facebook' | 'tiktok'>('instagram');
-  const [newVideoThumbnail, setNewVideoThumbnail] = useState(STOCK_VIDEO_THUMBNAILS[0].thumbnailUrl);
+  const [newVideoPlatform, setNewVideoPlatform] = useState<'instagram' | 'youtube' | 'facebook' | 'tiktok'>('youtube');
+  const [newVideoThumbnail, setNewVideoThumbnail] = useState('');
+  const [newVideoDescription, setNewVideoDescription] = useState('');
+  const [newVideoChannel, setNewVideoChannel] = useState('');
+  const [newExternalVideoId, setNewExternalVideoId] = useState<string | null>(null);
+  /** Kind detected from the ORIGINAL paste (before canonical rewrite). */
+  const [detectedKind, setDetectedKind] = useState<'short' | 'long' | null>(null);
+
+  const [titleManual, setTitleManual] = useState(false);
+  const [descriptionManual, setDescriptionManual] = useState(false);
+  const [channelManual, setChannelManual] = useState(false);
+  const [thumbnailManual, setThumbnailManual] = useState(false);
+  const [thumbBroken, setThumbBroken] = useState(false);
+
+  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('idle');
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchNotice, setFetchNotice] = useState<string | null>(null);
+  const [fetchedMeta, setFetchedMeta] = useState<VideoPlatformMetadata | null>(null);
+
+  const fetchAbortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousMetaRef = useRef<VideoPlatformMetadata | null>(null);
+  /** Suppresses re-fetch when we rewrite the URL to the canonical form. */
+  const skipNextFetchRef = useRef(false);
 
   const showFeedback = (msg: string) => {
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 2500);
   };
+
+  const resetAddForm = () => {
+    setNewVideoUrl('');
+    setNewVideoTitle('');
+    setNewVideoPlatform('youtube');
+    setNewVideoThumbnail('');
+    setNewVideoDescription('');
+    setNewVideoChannel('');
+    setNewExternalVideoId(null);
+    setDetectedKind(null);
+    setTitleManual(false);
+    setDescriptionManual(false);
+    setChannelManual(false);
+    setThumbnailManual(false);
+    setThumbBroken(false);
+    setFetchStatus('idle');
+    setFetchError(null);
+    setFetchNotice(null);
+    setFetchedMeta(null);
+    previousMetaRef.current = null;
+    skipNextFetchRef.current = false;
+    if (fetchAbortRef.current) fetchAbortRef.current.abort();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  };
+
+  const closeAddModal = () => {
+    setIsAddingVideo(false);
+    resetAddForm();
+  };
+
+  const activeThemeId =
+    data.templateId && data.templateId !== 'hair' && data.templateId !== 'family-salon'
+      ? data.templateId
+      : null;
 
   // Social profiles handlers
   const profiles = data.socialProfiles || {
@@ -83,52 +130,219 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
   // Videos list
   const videoList = data.socialVideos || [];
 
-  const handleAddVideo = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newVideoTitle.trim()) {
-      showFeedback('Please enter a caption or video title');
+  /**
+   * PHASE 15.4 — paste URL → Phase 15.2 fetchVideoMetadata → merge into form.
+   * Shorts/Long kind is captured from the original paste so a canonical
+   * watch-URL rewrite never flips a Short into a Long.
+   */
+  useEffect(() => {
+    if (!isAddingVideo) return;
+    const url = newVideoUrl.trim();
+
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
       return;
     }
 
-    const newVideo: SocialVideo = {
-      id: 'v-' + Date.now(),
-      title: newVideoTitle.trim(),
-      platform: newVideoPlatform,
-      url: newVideoUrl.trim() || `https://${newVideoPlatform}.com/reel/${Date.now()}`,
-      thumbnailUrl: newVideoThumbnail,
-      dateAdded: 'Today',
-      likesCount: Math.floor(Math.random() * 900 + 100) + ' likes'
+    if (!url) {
+      setFetchStatus('idle');
+      setFetchError(null);
+      setFetchNotice(null);
+      setFetchedMeta(null);
+      setNewExternalVideoId(null);
+      setDetectedKind(null);
+      return;
+    }
+
+    // Capture kind from the paste BEFORE any canonical rewrite.
+    const kindFromPaste = resolveVideoKind({ url, platform: newVideoPlatform });
+    setDetectedKind(kindFromPaste);
+
+    const parsed = parseVideoUrl(url);
+    if (parsed.ok === false) {
+      const looksComplete = /^https?:\/\//i.test(url) || (url.includes('.') && url.length > 12);
+      if (looksComplete && parsed.code !== 'empty') {
+        setFetchStatus('error');
+        setFetchError(parsed.message);
+        setFetchNotice(null);
+        setFetchedMeta(null);
+        setNewExternalVideoId(null);
+      } else {
+        setFetchStatus('idle');
+        setFetchError(null);
+        setFetchNotice(null);
+      }
+      return;
+    }
+
+    setFetchStatus('loading');
+    setFetchError(null);
+    setFetchNotice(null);
+    setThumbBroken(false);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      if (fetchAbortRef.current) fetchAbortRef.current.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+
+      // Reuse Phase 15.2 — no second/fake fetching system.
+      const result = await fetchVideoMetadata(url, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+
+      if (result.ok === false) {
+        setFetchStatus('error');
+        setFetchError(result.message);
+        setFetchNotice(null);
+        setFetchedMeta(null);
+        setNewExternalVideoId(null);
+        return;
+      }
+
+      const meta = result.metadata;
+      const merged = mergePlatformMetadataIntoForm(
+        {
+          title: newVideoTitle,
+          description: newVideoDescription,
+          channelName: newVideoChannel,
+          thumbnailUrl: newVideoThumbnail,
+          url: newVideoUrl,
+          platform: newVideoPlatform,
+          externalVideoId: newExternalVideoId,
+        },
+        meta,
+        {
+          titleManual,
+          descriptionManual,
+          channelManual,
+          thumbnailManual,
+        },
+        previousMetaRef.current,
+      );
+
+      previousMetaRef.current = meta;
+      setFetchedMeta(meta);
+      setNewVideoPlatform(merged.platform);
+      setNewExternalVideoId(merged.externalVideoId);
+      setNewVideoTitle(merged.title);
+      setNewVideoDescription(merged.description);
+      setNewVideoChannel(merged.channelName);
+      setNewVideoThumbnail(merged.thumbnailUrl);
+      setThumbBroken(false);
+
+      // Keep the original shorts URL when kind is short so type is retained;
+      // otherwise accept the canonical watch URL from metadata.
+      if (kindFromPaste === 'short' && meta.externalVideoId) {
+        const shortsUrl = `https://www.youtube.com/shorts/${meta.externalVideoId}`;
+        if (newVideoUrl.trim() !== shortsUrl) {
+          skipNextFetchRef.current = true;
+          setNewVideoUrl(shortsUrl);
+        }
+      } else if (meta.url && meta.url !== newVideoUrl.trim()) {
+        skipNextFetchRef.current = true;
+        setNewVideoUrl(meta.url);
+      }
+
+      const notice = partialMetadataNotice(meta);
+      setFetchNotice(notice);
+      setFetchError(null);
+      setFetchStatus(platformMetadataIsComplete(meta) ? 'success' : 'partial');
+    }, VIDEO_METADATA_DEBOUNCE_MS);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+    // Manual flags / form values are read at apply time inside the timeout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newVideoUrl, isAddingVideo]);
+
+  const handleAddVideo = (e: FormEvent) => {
+    e.preventDefault();
+
+    const url = newVideoUrl.trim();
+    if (!url) {
+      setFetchError('Paste a video URL to continue.');
+      setFetchStatus('error');
+      return;
+    }
+
+    if (fetchStatus === 'error') {
+      showFeedback(fetchError || 'Fix the video link before saving.');
+      return;
+    }
+
+    if (fetchStatus === 'loading') {
+      showFeedback('Still loading video details…');
+      return;
+    }
+
+    // Prefer Phase 15.2 snapshot; otherwise re-validate the URL.
+    let meta = fetchedMeta;
+    if (!meta) {
+      const parsed = parseVideoUrl(url);
+      if (parsed.ok === false) {
+        setFetchError(parsed.message);
+        setFetchStatus('error');
+        showFeedback(parsed.message);
+        return;
+      }
+    }
+
+    const kind =
+      detectedKind ||
+      resolveVideoKind({
+        videoKind: null,
+        url,
+        platform: newVideoPlatform,
+      });
+
+    const newVideo = socialVideoFromPasteAndMetadata({
+      metadata: meta,
+      form: {
+        title: newVideoTitle,
+        description: newVideoDescription,
+        channelName: newVideoChannel,
+        thumbnailUrl: thumbBroken ? '' : newVideoThumbnail,
+        url,
+        platform: newVideoPlatform,
+        externalVideoId: newExternalVideoId,
+      },
+      videoKind: kind,
+      themeId: activeThemeId,
+      id: 'v-' + Date.now(),
+    });
+
+    if (!newVideo.title.trim()) {
+      showFeedback('Title could not be loaded — add a title to save this video.');
+      setFetchNotice('Title is required when platform metadata is incomplete.');
+      return;
+    }
 
     setData({
       ...data,
-      socialVideos: [newVideo, ...videoList]
+      socialVideos: [newVideo, ...videoList],
     });
 
-    setIsAddingVideo(false);
-    setNewVideoUrl('');
-    setNewVideoTitle('');
-    showFeedback('Added social video successfully!');
+    closeAddModal();
+    showFeedback(
+      platformMetadataIsComplete(meta)
+        ? 'Video added with auto-filled title, thumbnail and channel.'
+        : 'Video added.',
+    );
     if (onSave) onSave();
   };
 
   const handleDeleteVideo = (id: string) => {
-    const updated = videoList.filter(v => v.id !== id);
+    // PHASE 15.5 — protected theme mock/default records cannot be permanently
+    // deleted. filterDeletableOwnerVideos retains them; the public gallery
+    // would re-fill them from the catalog anyway.
+    if (isDeleteBlockedForVideoId(videoList, id) || isProtectedThemeMockVideo(videoList.find((v) => v.id === id))) {
+      showFeedback('Theme showcase videos cannot be permanently deleted.');
+      return;
+    }
+    const updated = filterDeletableOwnerVideos(videoList, id);
     setData({ ...data, socialVideos: updated });
     showFeedback('Social video removed');
-    if (onSave) onSave();
-  };
-
-  const handleQuickAddPreset = (preset: typeof STOCK_VIDEO_THUMBNAILS[0]) => {
-    const newVideo: SocialVideo = {
-      id: 'v-' + Date.now(),
-      ...preset
-    };
-    setData({
-      ...data,
-      socialVideos: [newVideo, ...videoList]
-    });
-    showFeedback(`Added "${preset.title}"`);
     if (onSave) onSave();
   };
 
@@ -305,13 +519,17 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
                     <span className="w-2 h-2 rounded-full bg-[#ac0053]"></span> Show your work
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Paste links to your existing Reels, Shorts or TikTok videos.
+                    Paste a YouTube URL only — thumbnail, title, description and channel fill in automatically.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setIsAddingVideo(true)}
+                  data-testid="add-social-video-open"
+                  onClick={() => {
+                    resetAddForm();
+                    setIsAddingVideo(true);
+                  }}
                   className="bg-[#ffd9e1] text-[#ac0053] hover:bg-[#ac0053] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs shrink-0"
                 >
                   <Plus className="w-4 h-4" /> Add Social Video
@@ -322,46 +540,11 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
               <div className="space-y-3">
                 <AnimatePresence>
                   {videoList.map((video) => (
-                    <motion.div
+                    <OwnerVideoCard
                       key={video.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="flex items-center gap-3.5 p-3 border border-gray-200 rounded-xl bg-[#f9f9f9] hover:bg-white hover:shadow-xs transition-all group"
-                    >
-                      <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-900 shrink-0 border border-gray-200">
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute bottom-1 right-1 bg-white/90 backdrop-blur-xs rounded-full p-1 text-[#ac0053] shadow-xs">
-                          {video.platform === 'youtube' ? (
-                            <PlayCircle className="w-3.5 h-3.5 text-red-600" />
-                          ) : video.platform === 'tiktok' ? (
-                            <VideoIcon className="w-3.5 h-3.5 text-black" />
-                          ) : (
-                            <Camera className="w-3.5 h-3.5 text-pink-600" />
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-900 truncate">{video.title}</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5 capitalize">
-                          {video.platform} Reel • {video.dateAdded || 'Recently Added'}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteVideo(video.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-80 group-hover:opacity-100"
-                        title="Delete video"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </motion.div>
+                      video={video}
+                      onDelete={() => handleDeleteVideo(video.id)}
+                    />
                   ))}
                 </AnimatePresence>
 
@@ -369,28 +552,9 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
                   <div className="p-8 border-2 border-dashed border-gray-200 rounded-2xl text-center space-y-2">
                     <VideoIcon className="w-8 h-8 text-gray-300 mx-auto" />
                     <p className="text-xs font-bold text-gray-600">No social videos added yet</p>
-                    <p className="text-[11px] text-gray-400">Add reels or shorts to showcase your salon work in live preview.</p>
+                    <p className="text-[11px] text-gray-400">Paste a YouTube link — only the URL is required.</p>
                   </div>
                 )}
-              </div>
-
-              {/* Quick Add Presets */}
-              <div className="pt-2 border-t border-gray-100">
-                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-2">
-                  Quick Add Sample Reels
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {STOCK_VIDEO_THUMBNAILS.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleQuickAddPreset(preset)}
-                      className="px-2.5 py-1.5 bg-gray-100 hover:bg-[#ffd9e1]/40 hover:text-[#ac0053] border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" /> {preset.title.split(' ')[0]} {preset.title.split(' ')[1]}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -425,98 +589,278 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
       {/* MODAL: ADD SOCIAL VIDEO */}
       <AnimatePresence>
         {isAddingVideo && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+            data-testid="add-social-video-modal"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-md border border-gray-200 shadow-xl space-y-4"
+              className="bg-white rounded-2xl p-6 w-full max-w-md border border-gray-200 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                 <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
                   <VideoIcon className="w-5 h-5 text-[#ac0053]" /> Add Social Video
                 </h3>
                 <button
-                  onClick={() => setIsAddingVideo(false)}
+                  type="button"
+                  onClick={closeAddModal}
                   className="text-gray-400 hover:text-black p-1"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleAddVideo} className="space-y-4">
+              <form onSubmit={handleAddVideo} className="space-y-4" data-testid="video-paste-form">
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">Platform</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['instagram', 'youtube', 'facebook', 'tiktok'] as const).map((plat) => (
-                      <button
-                        key={plat}
-                        type="button"
-                        onClick={() => setNewVideoPlatform(plat)}
-                        className={`py-2 px-1 rounded-xl text-xs font-bold capitalize border transition-all text-center ${
-                          newVideoPlatform === plat
-                            ? 'bg-[#ac0053] text-white border-[#ac0053]'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                        }`}
-                      >
-                        {plat}
-                      </button>
-                    ))}
+                  <label className="block text-xs font-bold text-gray-800 mb-1" htmlFor="video-url-input">
+                    Paste YouTube URL
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="video-url-input"
+                      data-testid="video-url-input"
+                      type="url"
+                      inputMode="url"
+                      autoComplete="off"
+                      value={newVideoUrl}
+                      onChange={e => setNewVideoUrl(e.target.value)}
+                      placeholder="https://youtube.com/watch?v=…  or  /shorts/…  or  youtu.be/…"
+                      className={`w-full px-3 py-2.5 bg-gray-50 border rounded-xl text-xs outline-none focus:bg-white pr-10 ${
+                        fetchStatus === 'error'
+                          ? 'border-red-400 focus:border-red-500'
+                          : fetchStatus === 'success' || fetchStatus === 'partial'
+                            ? 'border-emerald-400 focus:border-emerald-500'
+                            : 'border-gray-200 focus:border-[#ac0053]'
+                      }`}
+                      autoFocus
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {fetchStatus === 'loading' && (
+                        <Loader2
+                          data-testid="video-meta-loading"
+                          className="w-4 h-4 text-[#ac0053] animate-spin"
+                          aria-label="Fetching video details"
+                        />
+                      )}
+                      {(fetchStatus === 'success' || fetchStatus === 'partial') && (
+                        <CheckCircle2
+                          data-testid="video-meta-success"
+                          className="w-4 h-4 text-emerald-600"
+                          aria-label="Video details loaded"
+                        />
+                      )}
+                      {fetchStatus === 'error' && (
+                        <AlertCircle
+                          data-testid="video-meta-error-icon"
+                          className="w-4 h-4 text-red-500"
+                          aria-label="Video link error"
+                        />
+                      )}
+                    </span>
                   </div>
+                  <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    Only the URL is required. Title, thumbnail, description and channel fill in automatically.
+                  </p>
+                  {fetchError && (
+                    <p
+                      data-testid="video-meta-error"
+                      role="alert"
+                      className="mt-1.5 text-[11px] font-semibold text-red-600 flex items-start gap-1.5"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{fetchError}</span>
+                    </p>
+                  )}
+                  {fetchNotice && !fetchError && (
+                    <p
+                      data-testid="video-meta-notice"
+                      className="mt-1.5 text-[11px] font-semibold text-amber-700 flex items-start gap-1.5"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{fetchNotice}</span>
+                    </p>
+                  )}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">Video Link / URL</label>
-                  <input
-                    type="text"
-                    value={newVideoUrl}
-                    onChange={e => setNewVideoUrl(e.target.value)}
-                    placeholder="e.g. https://instagram.com/reel/C3x91..."
-                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053] focus:bg-white"
-                  />
-                </div>
+                {/* Auto-filled preview — PHASE 15.4 */}
+                {(fetchStatus === 'success' || fetchStatus === 'partial') && fetchedMeta && (
+                  <div
+                    data-testid="video-meta-preview"
+                    data-meta-source={fetchedMeta.source}
+                    data-video-kind={detectedKind || ''}
+                    className="flex items-start gap-3 p-3 rounded-xl border border-emerald-100 bg-emerald-50/60"
+                  >
+                    {!thumbBroken && newVideoThumbnail ? (
+                      <img
+                        src={newVideoThumbnail}
+                        alt=""
+                        data-testid="video-meta-thumb"
+                        className="w-20 h-14 rounded-lg object-cover border border-gray-200 shrink-0 bg-gray-100"
+                        onError={() => setThumbBroken(true)}
+                      />
+                    ) : (
+                      <div
+                        data-testid="video-meta-thumb-fallback"
+                        className="w-20 h-14 rounded-lg bg-gray-200 flex flex-col items-center justify-center shrink-0 gap-0.5"
+                      >
+                        <PlayCircle className="w-5 h-5 text-gray-400" />
+                        <span className="text-[8px] font-bold text-gray-500 uppercase">No thumb</span>
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                        Auto-filled from {fetchedMeta.platform}
+                        {detectedKind ? ` · ${detectedKind === 'short' ? 'Short' : 'Long'}` : ''}
+                      </p>
+                      {newVideoTitle && (
+                        <p data-testid="video-meta-title" className="text-xs font-bold text-gray-900 line-clamp-2">
+                          {newVideoTitle}
+                        </p>
+                      )}
+                      {newVideoChannel && (
+                        <p data-testid="video-meta-channel" className="text-[11px] text-gray-600 truncate">
+                          {newVideoChannel}
+                        </p>
+                      )}
+                      {newExternalVideoId && (
+                        <p data-testid="video-meta-id" className="text-[10px] text-gray-400 font-mono">
+                          ID: {newExternalVideoId}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">Caption / Title</label>
+                  <label className="block text-xs font-bold text-gray-800 mb-1" htmlFor="video-title-input">
+                    Title
+                    {(fetchStatus === 'success' || fetchStatus === 'partial') && !titleManual && newVideoTitle ? (
+                      <span className="ml-1.5 text-[10px] font-semibold text-emerald-600 normal-case">auto-filled</span>
+                    ) : null}
+                  </label>
                   <input
+                    id="video-title-input"
+                    data-testid="video-title-input"
                     type="text"
                     value={newVideoTitle}
-                    onChange={e => setNewVideoTitle(e.target.value)}
-                    placeholder="e.g. Summer Haircut & Styling Process ✨"
+                    onChange={e => {
+                      setTitleManual(true);
+                      setNewVideoTitle(e.target.value);
+                    }}
+                    placeholder={fetchStatus === 'loading' ? 'Loading title…' : 'Fills automatically from YouTube'}
                     className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053] focus:bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1.5">Select Thumbnail</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {STOCK_VIDEO_THUMBNAILS.map((thumb, idx) => (
+                  <label className="block text-xs font-bold text-gray-800 mb-1" htmlFor="video-channel-input">
+                    Channel / Source
+                    {(fetchStatus === 'success' || fetchStatus === 'partial') && !channelManual && newVideoChannel ? (
+                      <span className="ml-1.5 text-[10px] font-semibold text-emerald-600 normal-case">auto-filled</span>
+                    ) : null}
+                  </label>
+                  <input
+                    id="video-channel-input"
+                    data-testid="video-channel-field"
+                    type="text"
+                    value={newVideoChannel}
+                    onChange={e => {
+                      setChannelManual(true);
+                      setNewVideoChannel(e.target.value);
+                    }}
+                    placeholder="Fills automatically from YouTube"
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053] focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-800 mb-1" htmlFor="video-description-input">
+                    Description
+                    {(fetchStatus === 'success' || fetchStatus === 'partial') && !descriptionManual && newVideoDescription ? (
+                      <span className="ml-1.5 text-[10px] font-semibold text-emerald-600 normal-case">auto-filled</span>
+                    ) : null}
+                  </label>
+                  <textarea
+                    id="video-description-input"
+                    data-testid="video-description-field"
+                    value={newVideoDescription}
+                    onChange={e => {
+                      setDescriptionManual(true);
+                      setNewVideoDescription(e.target.value);
+                    }}
+                    rows={3}
+                    placeholder="Fills automatically when available"
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#ac0053] focus:bg-white resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-800 mb-1.5">
+                    Thumbnail
+                    {(fetchStatus === 'success' || fetchStatus === 'partial') && fetchedMeta?.thumbnailUrl && !thumbnailManual ? (
+                      <span className="ml-1.5 text-[10px] font-semibold text-emerald-600 normal-case">from YouTube</span>
+                    ) : null}
+                  </label>
+                  <div className="flex items-center gap-3" data-testid="video-thumb-selected-wrap">
+                    {!thumbBroken && newVideoThumbnail ? (
+                      <img
+                        src={newVideoThumbnail}
+                        alt="Selected thumbnail"
+                        data-testid="video-thumb-selected"
+                        className="w-24 h-16 rounded-lg object-cover border-2 border-[#ac0053] bg-gray-100"
+                        onError={() => setThumbBroken(true)}
+                      />
+                    ) : (
                       <div
-                        key={idx}
-                        onClick={() => setNewVideoThumbnail(thumb.thumbnailUrl)}
-                        className={`aspect-square rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
-                          newVideoThumbnail === thumb.thumbnailUrl ? 'border-[#ac0053] scale-105 shadow-xs' : 'border-gray-200 opacity-60 hover:opacity-100'
-                        }`}
+                        data-testid="video-thumb-fallback"
+                        className="w-24 h-16 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-0.5"
                       >
-                        <img src={thumb.thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                        <VideoIcon className="w-5 h-5 text-gray-400" />
+                        <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wide">Unavailable</span>
                       </div>
-                    ))}
+                    )}
+                    <p className="text-[11px] text-gray-500 flex-1">
+                      {newVideoThumbnail && !thumbBroken
+                        ? 'Pulled automatically from the video. You can still edit the title above.'
+                        : 'Thumbnail will appear once the link is recognised. A placeholder is used if it cannot load.'}
+                    </p>
                   </div>
                 </div>
+
+                {detectedKind && (
+                  <p data-testid="video-detected-kind" className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    Detected type: {detectedKind === 'short' ? 'Short' : 'Long video'}
+                    {activeThemeId ? ` · theme ${activeThemeId}` : ''}
+                  </p>
+                )}
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                   <button
                     type="button"
-                    onClick={() => setIsAddingVideo(false)}
+                    onClick={closeAddModal}
                     className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs bg-[#ac0053] text-white font-bold rounded-xl hover:bg-[#ba005b] shadow-xs"
+                    data-testid="video-add-submit"
+                    disabled={fetchStatus === 'loading' || !newVideoUrl.trim()}
+                    className="px-5 py-2 text-xs bg-[#ac0053] text-white font-bold rounded-xl hover:bg-[#ba005b] shadow-xs disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                   >
-                    Add Video
+                    {fetchStatus === 'loading' ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Fetching…
+                      </>
+                    ) : (
+                      <>
+                        <Link className="w-3.5 h-3.5" /> Add Video
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -527,3 +871,71 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
     </div>
   );
 }
+
+/** Owner list card with broken-thumbnail fallback (never shows a broken image). */
+const OwnerVideoCard: FC<{ video: SocialVideo; onDelete: () => void }> = ({ video, onDelete }) => {
+  const [broken, setBroken] = useState(false);
+  const kind = video.videoKind || resolveVideoKind(video);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      data-testid="owner-social-video-card"
+      data-external-id={video.externalVideoId || ''}
+      data-video-kind={kind || ''}
+      data-theme-id={video.themeId || ''}
+      className="flex items-center gap-3.5 p-3 border border-gray-200 rounded-xl bg-[#f9f9f9] hover:bg-white hover:shadow-xs transition-all group"
+    >
+      <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-200 shrink-0 border border-gray-200">
+        {video.thumbnailUrl && !broken ? (
+          <img
+            src={video.thumbnailUrl}
+            alt={video.title}
+            data-testid="owner-video-thumb"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setBroken(true)}
+          />
+        ) : (
+          <div
+            data-testid="owner-video-thumb-fallback"
+            className="w-full h-full flex flex-col items-center justify-center bg-gray-100 gap-0.5"
+          >
+            <VideoIcon className="w-5 h-5 text-gray-400" />
+            <span className="text-[7px] font-bold text-gray-500 uppercase">No image</span>
+          </div>
+        )}
+        <div className="absolute bottom-1 right-1 bg-white/90 backdrop-blur-xs rounded-full p-1 text-[#ac0053] shadow-xs">
+          {video.platform === 'youtube' ? (
+            <PlayCircle className="w-3.5 h-3.5 text-red-600" />
+          ) : video.platform === 'tiktok' ? (
+            <VideoIcon className="w-3.5 h-3.5 text-black" />
+          ) : (
+            <Camera className="w-3.5 h-3.5 text-pink-600" />
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-gray-900 truncate">{video.title || 'Untitled video'}</p>
+        <p className="text-[11px] text-gray-500 mt-0.5 capitalize">
+          {video.platform}
+          {kind ? ` · ${kind === 'short' ? 'Short' : 'Long'}` : ''}
+          {video.channelName ? ` · ${video.channelName}` : ''}
+        </p>
+        {video.description && (
+          <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{video.description}</p>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onDelete}
+        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-80 group-hover:opacity-100"
+        title="Delete video"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </motion.div>
+  );
+};
