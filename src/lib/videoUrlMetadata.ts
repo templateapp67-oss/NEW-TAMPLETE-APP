@@ -65,8 +65,10 @@ export type VideoUrlParseOutcome = VideoUrlParseResult | VideoUrlParseError;
 export interface VideoPlatformMetadata {
   platform: VideoMetadataPlatform;
   externalVideoId: string;
-  /** Original / canonical watch URL. */
+  /** Canonical storage URL retained for Phase 15.2–15.6 compatibility. */
   url: string;
+  /** PHASE 15.7 exact URL supplied by the owner; never rewritten. */
+  originalPlatformUrl: string;
   title: string;
   description: string;
   /** Channel / page / author name. */
@@ -287,7 +289,10 @@ export function derivedYoutubeMetadata(
   return {
     platform: 'youtube',
     externalVideoId: videoId,
-    url: originalUrl && /^https?:\/\//i.test(originalUrl) ? originalUrl.trim() : youtubeCanonicalUrl(videoId),
+    url: youtubeCanonicalUrl(videoId),
+    originalPlatformUrl: originalUrl && /^https?:\/\//i.test(originalUrl)
+      ? originalUrl.trim()
+      : youtubeCanonicalUrl(videoId),
     title: '',
     description: '',
     channelName: '',
@@ -367,7 +372,7 @@ export async function fetchVideoMetadata(
       if (parsed.platform === 'youtube') {
         return {
           ok: true,
-          metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.canonicalUrl),
+          metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.originalUrl),
         };
       }
       return { ok: false, code: 'fetch_failed', message: videoMetadataErrorMessage('fetch_failed') };
@@ -391,7 +396,9 @@ export async function fetchVideoMetadata(
     const metadata: VideoPlatformMetadata = {
       platform: parsed.platform,
       externalVideoId: (body.externalVideoId || parsed.externalVideoId).trim(),
-      url: (body.url || parsed.canonicalUrl || parsed.originalUrl).trim(),
+      url: (body.url || parsed.canonicalUrl).trim(),
+      // External navigation always uses this untouched destination, never url.
+      originalPlatformUrl: parsed.originalUrl.trim(),
       title: typeof body.title === 'string' ? body.title.trim() : '',
       description: typeof body.description === 'string' ? body.description.trim() : '',
       channelName: typeof body.channelName === 'string' ? body.channelName.trim() : '',
@@ -417,7 +424,7 @@ export async function fetchVideoMetadata(
     if (parsed.platform === 'youtube') {
       return {
         ok: true,
-        metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.canonicalUrl),
+        metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.originalUrl),
       };
     }
     return { ok: false, code: 'network', message: videoMetadataErrorMessage('network') };
@@ -441,6 +448,7 @@ export function socialVideoDraftFromMetadata(
   | 'title'
   | 'platform'
   | 'url'
+  | 'originalPlatformUrl'
   | 'thumbnailUrl'
   | 'externalVideoId'
   | 'description'
@@ -453,6 +461,7 @@ export function socialVideoDraftFromMetadata(
     title: metadata.title,
     platform: metadata.platform,
     url: metadata.url,
+    originalPlatformUrl: metadata.originalPlatformUrl || metadata.url,
     thumbnailUrl: metadata.thumbnailUrl,
     externalVideoId: metadata.externalVideoId,
     description: metadata.description || undefined,
@@ -604,16 +613,14 @@ export function socialVideoFromPasteAndMetadata(options: {
   const externalVideoId =
     form.externalVideoId || metadata?.externalVideoId || null;
 
-  // Prefer a shorts URL when kind is short and we have an id, so type is retained.
+  // Keep the Phase 15.4 canonical storage shape while retaining the untouched
+  // paste separately. Only originalPlatformUrl is ever used as a redirect.
+  const originalPlatformUrl = (form.url || metadata?.originalPlatformUrl || url).trim();
   let finalUrl = url;
-  if (videoKind === 'short' && externalVideoId && platform === 'youtube') {
-    if (!/\/shorts\//i.test(finalUrl)) {
-      finalUrl = `https://www.youtube.com/shorts/${externalVideoId}`;
-    }
+  if (videoKind === 'short' && externalVideoId && platform === 'youtube' && !/\/shorts\//i.test(finalUrl)) {
+    finalUrl = `https://www.youtube.com/shorts/${externalVideoId}`;
   } else if (videoKind === 'long' && externalVideoId && platform === 'youtube') {
-    if (!/watch\?v=/i.test(finalUrl) && !/\/shorts\//i.test(finalUrl)) {
-      finalUrl = youtubeCanonicalUrl(externalVideoId);
-    }
+    if (!/watch\?v=/i.test(finalUrl) && !/\/shorts\//i.test(finalUrl)) finalUrl = youtubeCanonicalUrl(externalVideoId);
   }
 
   return {
@@ -621,6 +628,7 @@ export function socialVideoFromPasteAndMetadata(options: {
     title,
     platform,
     url: finalUrl,
+    originalPlatformUrl,
     thumbnailUrl,
     externalVideoId,
     description: description || undefined,

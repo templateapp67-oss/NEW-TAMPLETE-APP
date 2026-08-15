@@ -61,11 +61,13 @@ function ytWatch(id: string): string {
 
 function seedToSocial(themeId: SiteHeaderThemeId, seed: ThemeVideoSeed): SocialVideo {
   const isShort = seed.kind === 'short';
+  const originalPlatformUrl = isShort ? ytShort(seed.externalVideoId) : ytWatch(seed.externalVideoId);
   return {
     id: seed.id,
     title: seed.title,
     platform: 'youtube',
-    url: isShort ? ytShort(seed.externalVideoId) : ytWatch(seed.externalVideoId),
+    url: originalPlatformUrl,
+    originalPlatformUrl,
     thumbnailUrl: youtubeThumbUrl(seed.externalVideoId),
     externalVideoId: seed.externalVideoId,
     description: seed.description,

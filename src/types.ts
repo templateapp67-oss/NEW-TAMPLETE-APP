@@ -202,6 +202,12 @@ export interface SocialVideo {
   platform: 'instagram' | 'youtube' | 'facebook' | 'tiktok';
   /** External video URL only — Nexora never stores social video files. */
   url: string;
+  /**
+   * PHASE 15.7 — the exact platform URL supplied for this record. This is
+   * never rewritten into a canonical, embed, channel, or tracking URL. Older
+   * records fall back to `url` when read; every newly saved record sets both.
+   */
+  originalPlatformUrl?: string;
   thumbnailUrl: string;
   dateAdded?: string;
   likesCount?: string;

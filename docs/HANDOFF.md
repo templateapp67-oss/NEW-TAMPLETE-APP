@@ -1201,6 +1201,8 @@ npm run test:phase-15.2    # YouTube/platform URL auto-fetch (18 tests)
 npm run test:phase-15.3    # 5 shorts + 5 long videos per theme (21 tests)
 npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
 npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
+npm run test:phase-15.6    # owner/admin video management (34 tests)
+npm run test:phase-15.7    # exact original-platform video player/redirect (11 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
