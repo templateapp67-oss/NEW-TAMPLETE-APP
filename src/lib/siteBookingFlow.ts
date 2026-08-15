@@ -37,13 +37,69 @@ import {
 /* Steps + holds                                                       */
 /* ------------------------------------------------------------------ */
 
-export type BookingStepId = 'service' | 'date' | 'time' | 'details' | 'summary';
-export const BOOKING_STEP_IDS: BookingStepId[] = ['service', 'date', 'time', 'details', 'summary'];
+/**
+ * PHASE 16.1 — the flow gains a leading `salon` confirmation step:
+ *   Salon → Service → Date → Time → Customer Details → Booking Summary.
+ * The salon step never lets the visitor pick a different salon — it
+ * confirms the ACTIVE salon (the one whose website is open) so every
+ * later selection stays isolated to that salon + theme.
+ */
+export type BookingStepId = 'salon' | 'service' | 'date' | 'time' | 'details' | 'summary';
+export const BOOKING_STEP_IDS: BookingStepId[] = ['salon', 'service', 'date', 'time', 'details', 'summary'];
 
 export const BOOKING_HOLDS_KEY = 'nexora_site_booking_holds';
 export const BOOKING_BROWSER_KEY = 'nexora_site_booking_browser';
 export const BOOKING_HOLD_EVENT = 'nexora:booking-holds';
 export const BOOKING_HOLD_MINUTES = 15;
+
+/* ------------------------------------------------------------------ */
+/* PHASE 16.1 — salon context (step 1 of the flow)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tenant id for the salon whose website is open. Resolution reuses the
+ * EXISTING Phase 10.7 rule (the payment engine's tenant ownership):
+ * provenance on the salon's own service rows first, then an explicit
+ * `businessId` on the data payload, then the shared public-site
+ * fallback. No salon id is ever invented, hardcoded or user-supplied.
+ */
+export function bookingBusinessId(data: SalonData): string {
+  const fromServices = (data.services || [])
+    .map((service) => (service as Service & { businessId?: string }).businessId)
+    .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  if (fromServices) return fromServices;
+  const explicit = (data as SalonData & { businessId?: string }).businessId;
+  if (typeof explicit === 'string' && explicit.trim().length > 0) return explicit;
+  return 'public-site';
+}
+
+export interface BookingSalonContext {
+  /** Tenant that owns every record this flow produces. */
+  businessId: string;
+  /** Active theme — bookings stay isolated to this salon + theme. */
+  themeId: string;
+  salonName: string;
+  address: string;
+  phone: string;
+  /** Whether the active theme has at least one bookable service. */
+  hasServices: boolean;
+}
+
+/**
+ * The salon the visitor is booking at — ALWAYS the salon whose website
+ * is open, derived from existing data only (never a picker over foreign
+ * salons, never an invented id). The salon confirmation step renders it.
+ */
+export function bookingSalonContext(data: SalonData, themeId: string): BookingSalonContext {
+  return {
+    businessId: bookingBusinessId(data),
+    themeId,
+    salonName: (data.salonName || '').trim(),
+    address: (data.address?.fullAddress || '').trim(),
+    phone: (data.phone || '').trim(),
+    hasServices: bookingServicesForTheme(data, themeId).length > 0,
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Theme-isolated service list                                         */

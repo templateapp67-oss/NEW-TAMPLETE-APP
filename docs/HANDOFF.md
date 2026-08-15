@@ -1,10 +1,53 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-15** (session `arena/01a006bc-new-tamplete-app`).
+> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.1 — BOOKING FOUNDATION: COMPLETE (55 tests).**
+  - The public-site booking flow gains its foundation shape:
+    **Salon → Service → Date → Time → Customer Details → Booking Summary**
+    — still exactly ONE booking architecture (the Phase 10.6/10.7 flow was
+    extended, not rebuilt).
+  - New leading **Salon confirmation step** (all five themes, themed): the
+    ACTIVE salon only — name + live status chip, address, phone, theme label,
+    bookable-service count, no-services empty state. Never a salon picker;
+    context comes from `bookingSalonContext(data, themeId)` over existing
+    data (no invented salon/user ids, no DB reads).
+  - `bookingBusinessId(data)` is now the single tenant-resolution rule
+    (service-row provenance → explicit payload id → `public-site` fallback),
+    shared by the entry flow and the 10.7 orchestrator (which previously
+    inlined the same logic).
+  - **`src/lib/siteBookingDraft.ts`** — salon+theme-scoped booking drafts:
+    ONE row per (business, theme, `bookingBrowserId()`), idempotent upsert,
+    versioned localStorage store (`nexora_site_booking_drafts`), 24h
+    staleness, `nexora:booking-draft` event, test injection. Tracks
+    `in_progress` → `summary_ready`; reopening the flow resumes the
+    visitor's own draft (localized resume notice); the 10.7 confirmation
+    clears it. Later phases attach here: 16.2+ slot verification, advance
+    payment converting a `summary_ready` draft into the existing
+    `PaymentRecord`, confirmation clearing it — no rebuild needed.
+  - Phase 12.3 service prefill opens on the Service step (salon implicit)
+    but Back reaches the salon step — one flow. Sitting on the salon step
+    writes nothing, so plain open/close is side-effect free.
+  - States: no-services / no-address / broken- or disabled-localStorage /
+    corrupted store all degrade gracefully. Desktop/tablet/mobile (same
+    mobile-first grid + sticky bar), EN/HI (`salon.*` keys), light/dark via
+    existing `bookingSurfaces`.
+  - Explicitly NOT in 16.1: server time slots, 25% advance logic, payment
+    changes, notifications, booking management, WhatsApp/Call protection,
+    any database execution (M01–M27 stay unapplied drafts; no new tables).
+  - Test updates for the 6-step structure: `test:phase-10.6` → 107/107
+    (salon-first assertions added; every original behaviour kept),
+    `test:phase-10.7` walk updated (66/66).
+  - Validation: `test:phase-16.1` **55/55**; Phase 10 all green (10.6 107,
+    10.7 66, 10.13 339, 10.12 178, …); Phase 11 2398; Phase 12 582;
+    Phase 13 220; Phase 14 180; Phase 15 244; 9.1 9/9;
+    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
+    verify-22-screens 25/25. Details:
+    `docs/phase-16.1-booking-foundation.md`.
 
 - **PHASE 15.10 — FINAL 5-THEME VIDEO ACCEPTANCE: COMPLETE (73 tests).**
   - Full acceptance gate over the entire Phase 15 video system across all
@@ -1272,6 +1315,7 @@ npm run test:phase-15.7    # exact original-platform video player/redirect (11 t
 npm run test:phase-15.8    # likes + weekly most-liked videos (24 tests)
 npm run test:phase-15.10   # final 5-theme video acceptance (73 tests)
 npm run test:phase-15      # every Phase 15 suite (244 tests)
+npm run test:phase-16.1    # booking foundation: Salon → Service → Date → Time → Details → Summary (55 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1283,7 +1327,7 @@ Expected output:
 - `test:phase-9.1`: 9/9 passed across all five themes
 - `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
-- `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
+- `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 107/107 (6 steps since 16.1)
 - `test:phase-11.1`: 215/215 passed (unique hero design, all five themes)
 - `test:phase-11.2`: 138/138 passed (hero headline & content, EN + HI)
 - `test:phase-11.3`: 249/249 passed (hero media & CTA, all five themes)
@@ -1317,6 +1361,8 @@ Expected output:
 - `test:phase-15.8`: 24/24 passed (likes + weekly most-liked videos)
 - `test:phase-15.10`: 73/73 passed (final 5-theme video acceptance)
 - `test:phase-15`: 244 tests, all green — PHASE 15 ACCEPTED
+- `test:phase-16.1`: 55/55 passed (booking foundation, all five themes)
+- `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

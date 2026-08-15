@@ -4,7 +4,8 @@ import SiteBookingFlow from './SiteBookingFlow';
 import SiteBookingPaymentFlow from './SiteBookingPaymentFlow';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { closeSiteBooking } from '../lib/siteBooking';
-import { releaseBookingSlot, bookingSlotKey } from '../lib/siteBookingFlow';
+import { releaseBookingSlot, bookingSlotKey, bookingBusinessId } from '../lib/siteBookingFlow';
+import { clearBookingDraft } from '../lib/siteBookingDraft';
 import type { PaymentRecord } from '../lib/siteBookingPayment';
 import { findPaymentRecord, readPaymentRecordsForBusiness } from '../lib/siteBookingPayment';
 
@@ -55,8 +56,11 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     setPhase('entry');
   }, []);
 
-  const handleBookingConfirmed = useCallback((_record: PaymentRecord) => {
-    // The payment flow now drives confirmation; nothing to do here.
+  const handleBookingConfirmed = useCallback((record: PaymentRecord) => {
+    // PHASE 16.1 — the entry-flow draft has served its purpose once the
+    // existing Phase 10.7 confirmation owns the record; drop it so a
+    // later plain open starts fresh instead of resuming stale progress.
+    clearBookingDraft(record.businessId, record.themeId);
   }, []);
 
   const handleStartNewBooking = useCallback(() => {
@@ -64,7 +68,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     setPhase('entry');
   }, []);
 
-  const businessId = ((data.services?.[0]?.businessId as string) || (data as unknown as { businessId?: string }).businessId) || 'public-site';
+  // PHASE 16.1 — single tenant-resolution rule shared with the entry flow.
+  const businessId = bookingBusinessId(data);
   // Resume a confirmed booking for the same business+theme so a refresh
   // during confirmation does not lose the user's confirmed row. The
   // most-recent confirmed/pay_at_salon record for this business+theme

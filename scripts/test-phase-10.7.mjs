@@ -882,6 +882,10 @@ section('UI — refresh / retry never creates a duplicate booking');
       window.dispatchEvent(new Event(SITE_BOOKING_EVENT));
     });
     const entryFlow = utils1.getByTestId('booking-flow');
+    // PHASE 16.1 — confirm the salon first (new leading step).
+    assert.equal(entryFlow.dataset.step, 'salon');
+    await act(async () => { fireEvent.click(utils1.getByTestId('booking-continue')); });
+    assert.equal(entryFlow.dataset.step, 'service');
     // Pick the first service (already selected by default).
     await act(async () => { fireEvent.click(utils1.getByTestId('booking-continue')); });
     assert.equal(entryFlow.dataset.step, 'date');

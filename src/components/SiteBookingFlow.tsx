@@ -12,6 +12,7 @@ import {
   CreditCard,
   Leaf,
   Mail,
+  MapPin,
   MessageSquare,
   Phone,
   Scissors,
@@ -36,6 +37,7 @@ import {
   BOOKING_HOLD_EVENT,
   BOOKING_STEP_IDS,
   bookingDayList,
+  bookingSalonContext,
   bookingServicesByCategory,
   bookingServicesForTheme,
   bookingSlotIsStillAvailable,
@@ -44,6 +46,8 @@ import {
   reserveBookingSlot,
   validateBookingCustomer,
 } from '../lib/siteBookingFlow';
+import { readBookingDraft, saveBookingDraft } from '../lib/siteBookingDraft';
+import { THEME_LABELS } from '../lib/themeServices';
 import type { BookingDayInfo, BookingSlot, BookingStepId } from '../lib/siteBookingFlow';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 
@@ -235,18 +239,38 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   }, [data, themeId, initialPrefill]);
   const categories = useMemo(() => bookingServicesByCategory(services), [services]);
 
+  /* ---------- PHASE 16.1 · salon context + resumable draft ---------- */
+  // The salon is ALWAYS the one whose website is open — derived from the
+  // existing data, never picked from a list, never an invented id.
+  const salonContext = useMemo(() => bookingSalonContext(data, themeId), [data, themeId]);
+  // One draft per (business, theme, browser). Restored once on mount so a
+  // closed/reopened flow keeps the visitor's selections; foreign-tenant or
+  // foreign-theme drafts can never be read here (keyed lookups only).
+  const [initialDraft] = useState(() => readBookingDraft(salonContext.businessId, themeId));
+
   /* ---------- wizard state (preserved while moving between steps) ---------- */
-  const [step, setStep] = useState<BookingStepId>('service');
+  // A service-specific "Book Now" (Phase 12.3 prefill) arrives from inside
+  // this salon's own website, so the salon confirmation is already implicit
+  // and the flow opens on the service step. A plain open starts on `salon`.
+  const [step, setStep] = useState<BookingStepId>(initialPrefill ? 'service' : 'salon');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
-    initialPrefill?.id ?? services[0]?.id ?? null,
-  );
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(() => {
+    if (initialPrefill) return initialPrefill.id;
+    if (initialDraft?.serviceId && services.some((item) => item.id === initialDraft.serviceId)) {
+      return initialDraft.serviceId;
+    }
+    return services[0]?.id ?? null;
+  });
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [selectedSlotMinutes, setSelectedSlotMinutes] = useState<number | null>(null);
   const [holdKey, setHoldKey] = useState<string | null>(null);
   const [holdsVersion, setHoldsVersion] = useState(0);
-  const [customer, setCustomer] = useState({ name: '', mobile: '', email: '', notes: '' });
+  const [customer, setCustomer] = useState(
+    () => initialDraft?.customer ?? { name: '', mobile: '', email: '', notes: '' },
+  );
   const [formTouched, setFormTouched] = useState(false);
+  const draftResumed = !initialPrefill && !!initialDraft
+    && !!(initialDraft.serviceId || initialDraft.customer?.name || initialDraft.customer?.mobile);
 
   const selectedService = services.find((item) => item.id === selectedServiceId) || null;
   const selectedDate = selectedDateKey ? new Date(`${selectedDateKey}T12:00:00`) : null;
@@ -274,6 +298,36 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     window.addEventListener(BOOKING_HOLD_EVENT, bump);
     return () => window.removeEventListener(BOOKING_HOLD_EVENT, bump);
   }, []);
+
+  /* PHASE 16.1 — keep the salon+theme-scoped draft in sync with progress.
+   * Idempotent upsert (one row per business/theme/browser), so refreshes
+   * and re-renders never duplicate anything. Later phases convert a
+   * `summary_ready` draft into the real payment/confirmation records. */
+  useEffect(() => {
+    // Sitting on the salon confirmation card is not progress yet — only
+    // steps after it write the draft (keeps a plain open/close side-effect free).
+    if (step === 'salon') return;
+    const draftService = services.find((item) => item.id === selectedServiceId) || null;
+    const pricing = draftService ? serviceDisplayPrice(draftService, data.offers) : null;
+    saveBookingDraft({
+      businessId: salonContext.businessId,
+      themeId,
+      status: step === 'summary' ? 'summary_ready' : 'in_progress',
+      step,
+      serviceId: draftService?.id ?? null,
+      serviceName: draftService?.name ?? null,
+      servicePrice: pricing?.finalPrice ?? null,
+      serviceDurationMinutes: draftService?.duration ?? null,
+      dateKey: selectedDateKey,
+      startMinutes: selectedSlotMinutes,
+      endMinutes:
+        selectedSlotMinutes != null && draftService
+          ? selectedSlotMinutes + Math.max(draftService.duration || 30, 1)
+          : null,
+      customer,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selectedServiceId, selectedDateKey, selectedSlotMinutes, customer, salonContext.businessId, themeId]);
 
   /* ---------- slot picking + double-booking guard ---------- */
   const pickSlot = useCallback(
@@ -345,6 +399,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   const stepIndex = BOOKING_STEP_IDS.indexOf(step);
 
   const canContinue = (() => {
+    if (step === 'salon') return salonContext.hasServices;
     if (step === 'service') return !!selectedService;
     if (step === 'date') {
       const day = days.find((item) => item.dateKey === selectedDateKey);
@@ -357,6 +412,10 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
 
   const goNext = () => {
     if (!canContinue) return;
+    if (step === 'salon') {
+      setStep('service');
+      return;
+    }
     if (step === 'service' && selectedService) {
       if (!selectedDateKey) {
         const firstOpen = days.find((day) => day.selectable);
@@ -402,6 +461,10 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     }
     if (step === 'date') {
       setStep('service');
+      return;
+    }
+    if (step === 'service') {
+      setStep('salon');
       return;
     }
   };
@@ -539,7 +602,103 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
           data-testid="booking-body"
           className="max-w-5xl mx-auto w-full px-4 md:px-6 py-5 md:py-6 grid grid-cols-1 lg:grid-cols-12 gap-5"
         >
-            {/* ===================== STEP 1 · SERVICE ===================== */}
+            {/* ===================== STEP 1 · SALON (PHASE 16.1) ===================== */}
+            {step === 'salon' && (
+              <motion.div
+                key="step-salon"
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="lg:col-span-12 flex flex-col gap-4"
+              >
+                <div className="flex items-center gap-2.5">
+                  {D.flourish(s)}
+                  <div>
+                    <h1 className={`text-lg md:text-xl ${D.stepTitle}`} style={{ color: s.textStrong }}>
+                      {T['salon.title']}
+                    </h1>
+                    <p className="text-[11px] mt-0.5 font-medium" style={{ color: s.muted }}>
+                      {T['salon.subtitle']}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  data-testid="booking-salon-card"
+                  data-business-id={salonContext.businessId}
+                  data-theme-id={salonContext.themeId}
+                  className={`${D.card} p-4 md:p-5 flex flex-col gap-3`}
+                  style={{ backgroundColor: s.card, borderColor: s.line }}
+                >
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-base md:text-lg font-bold" style={nameStyle}>
+                      {salonName}
+                    </span>
+                    <SiteSalonStatus themeId={themeId} data={data} placement="booking" compact />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="flex items-start gap-2 text-xs font-semibold" style={{ color: s.text }}>
+                      <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.accent }} />
+                      <span>
+                        <span className={`${D.label} block`} style={{ color: s.muted }}>{T['salon.address']}</span>
+                        {salonContext.address || T['salon.addressPending']}
+                      </span>
+                    </span>
+                    {salonContext.phone && (
+                      <span className="flex items-start gap-2 text-xs font-semibold" style={{ color: s.text }}>
+                        <Phone className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.accent }} />
+                        <span>
+                          <span className={`${D.label} block`} style={{ color: s.muted }}>{T['salon.phone']}</span>
+                          {salonContext.phone}
+                        </span>
+                      </span>
+                    )}
+                    <span className="flex items-start gap-2 text-xs font-semibold" style={{ color: s.text }}>
+                      <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.accent }} />
+                      <span>
+                        <span className={`${D.label} block`} style={{ color: s.muted }}>{T['salon.theme']}</span>
+                        {THEME_LABELS[themeId] || themeId}
+                      </span>
+                    </span>
+                  </div>
+
+                  {salonContext.hasServices ? (
+                    <p
+                      data-testid="booking-salon-ready"
+                      className="text-[11px] font-bold flex items-center gap-1.5 mt-1 p-2.5"
+                      style={{ backgroundColor: s.successSoft, color: s.success, borderRadius: 10 }}
+                    >
+                      <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+                      {fillBookingText(T['salon.servicesReady'], { count: services.length })}
+                    </p>
+                  ) : (
+                    <p
+                      data-testid="booking-salon-no-services"
+                      className="text-[11px] font-bold flex items-center gap-1.5 mt-1 p-2.5"
+                      style={{ backgroundColor: s.well, color: s.muted, borderRadius: 10 }}
+                    >
+                      {T['salon.noServices']}
+                    </p>
+                  )}
+
+                  {draftResumed && (
+                    <p
+                      data-testid="booking-draft-resumed"
+                      className="text-[10px] font-semibold p-2.5 border"
+                      style={{ backgroundColor: s.well, borderColor: s.chipLine, color: s.muted, borderRadius: 10 }}
+                    >
+                      {T['salon.resume']}
+                    </p>
+                  )}
+
+                  <p className="text-[10px] font-semibold" style={{ color: s.muted }}>
+                    {T['salon.confirm']}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ===================== STEP 2 · SERVICE ===================== */}
             {step === 'service' && (
               <motion.div
                 key="step-service"
@@ -1116,8 +1275,8 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
           type="button"
           data-testid="booking-back"
           onClick={goBack}
-          disabled={step === 'service'}
-          className={`${D.secondary} px-4 flex items-center gap-1.5 ${step === 'service' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
+          disabled={step === 'salon'}
+          className={`${D.secondary} px-4 flex items-center gap-1.5 ${step === 'salon' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
           style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
