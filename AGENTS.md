@@ -92,7 +92,8 @@ npm run test:phase-15.3    # 5 shorts + 5 long videos per theme (21 tests)
 npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
 npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
 npm run test:phase-15.6    # owner/admin video management (34 tests)
-npm run test:phase-15      # every Phase 15 suite (136 tests)
+npm run test:phase-15.7    # final player + exact original-platform redirect (21 tests)
+npm run test:phase-15      # every Phase 15 suite (157 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```

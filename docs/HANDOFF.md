@@ -1,10 +1,35 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-15** (session `arena/01a003f2-new-tamplete-app`).
+> Last updated: **2026-08-15** (session `arena/01a00455-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 15.7 — VIDEO PLAYER + ORIGINAL PLATFORM REDIRECT: COMPLETE (21 tests).**
+  - Final responsive card/player built on the existing shared
+    `SiteVideoGallery`: lazy 9:16 Shorts / 16:9 Long media, thumbnail/title/
+    exact channel source/type, full-card Play, direct View, EN/HI, and
+    frame-mode desktop/tablet/mobile layouts. On-demand embeds expose loading,
+    ready, unavailable and invalid states; broken thumbnails keep actions
+    usable; Escape/backdrop/focus restore/body-lock are included.
+  - New `videoPlatform.ts` is the single interaction-time gate: exact provider
+    hosts + native single-video path + external-id match + active-theme check;
+    malformed/lookalike/profile/foreign-theme destinations fail closed. Safe
+    opens use `_blank` + `noopener,noreferrer` and pass the exact stored URL
+    unchanged. `SocialVideo.originalUrl` preserves the paste separately from
+    legacy/canonical `url`; `channelUrl` preserves oEmbed `author_url`. Add,
+    replace, catalog, moderation and legacy backfill paths all carry the fields.
+  - Corrected the protected catalog's prior unrelated valid-id redirects: all
+    50 stable slots now point to theme-relevant public videos whose exact title,
+    channel name and channel URL were checked through YouTube oEmbed on
+    2026-08-15. Shorts use real `/shorts/`; Long Videos use `watch?v=`. Stable
+    protected record ids, 5+5 fill, owner overrides and tombstones are retained.
+  - No migration/API key/private credential, likes, weekly ranking, dashboard
+    integration, Phase 15.8 or later work. Validation: 15.7 **21/21**; complete
+    Phase 15 **157/157**; 10.8 **36/36**; 10.12 **178/178**; lint/build and
+    25-screen verification green. Details:
+    `docs/phase-15.7-video-player-original-platform-redirect.md`.
 
 - **PHASE 15.6 — OWNER/ADMIN VIDEO MANAGEMENT: COMPLETE (34 tests).**
   - One management surface (`VideoManagementPanel` in Step 07) over the
@@ -1201,6 +1226,9 @@ npm run test:phase-15.2    # YouTube/platform URL auto-fetch (18 tests)
 npm run test:phase-15.3    # 5 shorts + 5 long videos per theme (21 tests)
 npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
 npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
+npm run test:phase-15.6    # owner/admin video management (34 tests)
+npm run test:phase-15.7    # final player + exact original-platform redirect (21 tests)
+npm run test:phase-15      # all Phase 15 suites (157 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1241,6 +1269,9 @@ Expected output:
 - `test:phase-15.3`: 21/21 passed (5 shorts + 5 long videos per theme)
 - `test:phase-15.4`: 18/18 passed (auto thumbnail + title + description)
 - `test:phase-15.5`: 19/19 passed (theme-wise protected mock video data)
+- `test:phase-15.6`: 34/34 passed (owner/admin video management)
+- `test:phase-15.7`: 21/21 passed (final player + exact original redirect)
+- `test:phase-15`: 157/157 passed (all Phase 15 suites)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

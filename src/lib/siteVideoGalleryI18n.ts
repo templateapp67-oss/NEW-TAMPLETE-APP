@@ -28,6 +28,13 @@ export interface VideoGalleryChromeCopy {
   allTab: string;
   shortBadge: string;
   longBadge: string;
+  /** PHASE 15.7 — final player / destination states. */
+  playerLoading: string;
+  unavailableTitle: string;
+  unavailableBody: string;
+  invalidUrl: string;
+  sourceLabel: string;
+  opensOriginal: string;
   platforms: Record<VideoGalleryPlatform, string>;
 }
 
@@ -51,6 +58,12 @@ const KIND_EN = {
   allTab: 'All',
   shortBadge: 'Short',
   longBadge: 'Long',
+  playerLoading: 'Loading original video…',
+  unavailableTitle: 'Video unavailable',
+  unavailableBody: 'Playback could not load here. You can still try the original platform.',
+  invalidUrl: 'This video link is invalid or unsafe and was not opened.',
+  sourceLabel: 'Source',
+  opensOriginal: 'Opens the exact original platform video',
 };
 
 const KIND_HI = {
@@ -59,6 +72,12 @@ const KIND_HI = {
   allTab: 'सभी',
   shortBadge: 'शॉर्ट',
   longBadge: 'लंबा',
+  playerLoading: 'मूल वीडियो लोड हो रहा है…',
+  unavailableTitle: 'वीडियो उपलब्ध नहीं है',
+  unavailableBody: 'वीडियो यहाँ नहीं चला। आप इसे मूल प्लेटफ़ॉर्म पर खोल सकते हैं।',
+  invalidUrl: 'यह वीडियो लिंक अमान्य या असुरक्षित है और खोला नहीं गया।',
+  sourceLabel: 'स्रोत',
+  opensOriginal: 'ठीक वही मूल प्लेटफ़ॉर्म वीडियो खोलता है',
 };
 
 const CHROME: Record<SiteHeaderThemeId, Record<AppLocale, Omit<VideoGalleryChromeCopy, 'platforms'>>> = {

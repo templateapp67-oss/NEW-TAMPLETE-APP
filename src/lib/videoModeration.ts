@@ -18,6 +18,10 @@
  */
 import type { SocialVideo } from '../types';
 import { isSiteHeaderTheme } from './siteNavigation';
+import {
+  originalPlatformVideoDestination,
+  safePlatformChannelUrl,
+} from './videoPlatform';
 
 /* ------------------------------------------------------------------ */
 /* Local URL safety (mirrors the siteVideoGallery rules)               */
@@ -143,7 +147,8 @@ export function validateSocialVideoForPublish(video: SocialVideo | null | undefi
   const errors: string[] = [];
   if (!video || typeof video !== 'object') return ['Video record is missing.'];
 
-  if (!isSafeExternalVideoUrl(video.url)) errors.push('Video URL is missing or unsafe.');
+  const destination = originalPlatformVideoDestination(video);
+  if (destination.ok === false) errors.push(`Video URL is missing, unsafe, or invalid: ${destination.message}`);
   if (!(video.title || '').trim()) errors.push('Video title is required.');
   if (video.themeId && !isSiteHeaderTheme(video.themeId)) errors.push('Video theme is invalid.');
   if (video.videoKind && video.videoKind !== 'short' && video.videoKind !== 'long') {
@@ -151,6 +156,9 @@ export function validateSocialVideoForPublish(video: SocialVideo | null | undefi
   }
   if (video.thumbnailUrl && !isSafeThumbnailUrl(video.thumbnailUrl)) {
     errors.push('Thumbnail URL is unsafe.');
+  }
+  if (video.channelUrl && !safePlatformChannelUrl(video.channelUrl, video.platform)) {
+    errors.push('Channel/source URL is unsafe or does not match the video platform.');
   }
   return errors;
 }

@@ -160,7 +160,7 @@ app.get('/api/geocode/reverse', async (req, res) => {
 const YT_VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 const VIDEO_META_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const VIDEO_META_MIN_INTERVAL_MS = 350;
-const videoMetaCache = new Map<string, { at: number; body: unknown }>();
+const videoMetaCache = new Map<string, { at: number; body: Record<string, unknown> }>();
 let videoMetaLastAt = 0;
 let videoMetaQueue: Promise<unknown> = Promise.resolve();
 
@@ -260,6 +260,7 @@ function extractMetaContent(html: string, property: string): string {
 async function fetchYoutubeOembed(videoId: string): Promise<{
   title: string;
   channelName: string;
+  channelUrl: string;
   thumbnailUrl: string;
   html: string;
 } | null> {
@@ -279,12 +280,19 @@ async function fetchYoutubeOembed(videoId: string): Promise<{
   const data = (await response.json()) as {
     title?: string;
     author_name?: string;
+    author_url?: string;
     thumbnail_url?: string;
     html?: string;
   };
+  const channelUrl = typeof data.author_url === 'string' ? data.author_url.trim() : '';
   return {
     title: typeof data.title === 'string' ? data.title.trim() : '',
     channelName: typeof data.author_name === 'string' ? data.author_name.trim() : '',
+    // YouTube oEmbed is the source of truth. Keep only an exact YouTube URL;
+    // never construct a channel from the display name.
+    channelUrl: /^https:\/\/(?:www\.)?youtube\.com\/(?:@|channel\/|c\/|user\/)/i.test(channelUrl)
+      ? channelUrl
+      : '',
     thumbnailUrl:
       typeof data.thumbnail_url === 'string' && /^https?:\/\//i.test(data.thumbnail_url)
         ? data.thumbnail_url.trim()
@@ -372,7 +380,7 @@ app.post('/api/video-metadata', async (req, res) => {
     const cacheKey = `yt:${videoId}`;
     const cached = videoMetaCache.get(cacheKey);
     if (cached && Date.now() - cached.at < VIDEO_META_CACHE_TTL_MS) {
-      return res.json(cached.body);
+      return res.json({ ...cached.body, originalUrl: rawUrl });
     }
 
     try {
@@ -389,9 +397,11 @@ app.post('/api/video-metadata', async (req, res) => {
         platform: 'youtube' as const,
         externalVideoId: videoId,
         url: `https://www.youtube.com/watch?v=${videoId}`,
+        originalUrl: rawUrl,
         title: oembed.title,
         description,
         channelName: oembed.channelName,
+        channelUrl: oembed.channelUrl,
         thumbnailUrl:
           oembed.thumbnailUrl || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
         embedUrl: `https://www.youtube.com/embed/${videoId}`,
@@ -408,9 +418,11 @@ app.post('/api/video-metadata', async (req, res) => {
         platform: 'youtube' as const,
         externalVideoId: videoId,
         url: `https://www.youtube.com/watch?v=${videoId}`,
+        originalUrl: rawUrl,
         title: '',
         description: '',
         channelName: '',
+        channelUrl: '',
         thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
         embedUrl: `https://www.youtube.com/embed/${videoId}`,
         source: 'derived' as const,

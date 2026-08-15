@@ -202,6 +202,12 @@ export interface SocialVideo {
   platform: 'instagram' | 'youtube' | 'facebook' | 'tiktok';
   /** External video URL only — Nexora never stores social video files. */
   url: string;
+  /**
+   * PHASE 15.7 — exact owner/platform URL as originally configured. This is
+   * the authoritative external destination; `url` remains for backwards
+   * compatibility with Phase 15.1–15.6 records and database mapping.
+   */
+  originalUrl?: string;
   thumbnailUrl: string;
   dateAdded?: string;
   likesCount?: string;
@@ -226,6 +232,11 @@ export interface SocialVideo {
    * PHASE 15.2 — channel / page / author name from platform metadata.
    */
   channelName?: string;
+  /**
+   * PHASE 15.7 — exact platform channel/profile URL returned by trusted
+   * oEmbed metadata. Optional for grandfathered records; never fabricated.
+   */
+  channelUrl?: string;
   /**
    * PHASE 15.3 — short vs long discriminator for the video gallery.
    * Additive client field (no new DB column). When absent, kind is inferred
@@ -590,22 +601,32 @@ export const initialData: SalonData = {
   socialVideos: [
     {
       id: 'v1',
-      title: 'Hair Spa & Scalp Massage ✨',
-      platform: 'instagram',
-      url: 'https://instagram.com/reel/12345',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=600&auto=format&fit=crop',
+      title: 'Luxury Image Skincare Spa Facial & Relaxing Arm Massage',
+      platform: 'youtube',
+      url: 'https://www.youtube.com/watch?v=v8htMYxkn_Y',
+      originalUrl: 'https://www.youtube.com/watch?v=v8htMYxkn_Y',
+      thumbnailUrl: 'https://img.youtube.com/vi/v8htMYxkn_Y/hqdefault.jpg',
+      externalVideoId: 'v8htMYxkn_Y',
+      channelName: 'Huyana Beauty',
+      channelUrl: 'https://www.youtube.com/@HuyanaBeauty',
+      themeId: 'beauty_skin_spa',
+      videoKind: 'long',
       dateAdded: 'Today',
-      likesCount: '1.8k'
     },
     {
       id: 'v2',
-      title: 'HD Bridal Glow Makeup 💄',
+      title: 'How To: Babylights & Balayage Hair Salon Color Tutorial | Single Service Transformation!',
       platform: 'youtube',
-      url: 'https://youtube.com/shorts/67890',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&auto=format&fit=crop',
+      url: 'https://www.youtube.com/watch?v=S7ve3Wkaa1I',
+      originalUrl: 'https://www.youtube.com/watch?v=S7ve3Wkaa1I',
+      thumbnailUrl: 'https://img.youtube.com/vi/S7ve3Wkaa1I/hqdefault.jpg',
+      externalVideoId: 'S7ve3Wkaa1I',
+      channelName: 'Daniella Benita',
+      channelUrl: 'https://www.youtube.com/@DaniellaBenita',
+      themeId: 'hair_studio_color_bar',
+      videoKind: 'long',
       dateAdded: 'Yesterday',
-      likesCount: '2.4k'
-    }
+    },
   ],
   services: [
     {
