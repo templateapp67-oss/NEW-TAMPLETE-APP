@@ -48,6 +48,12 @@ No `DROP TABLE` or destructive replacement is allowed.
 | M19 | `20260813000401_m19_theme_catalog_read_rpc.sql` | Phase 7.4 Session 1 mandatory theme-filtered catalog read RPC for the five-theme UI |
 | M20 | `20260813000501_m20_save_predefined_services.sql` | Phase 7.4 Session 2 authenticated, tenant-derived, idempotent Add Selected saving |
 | M21 | `20260813000601_m21_saved_service_management.sql` | Phase 7.4 Session 3 tenant-scoped refresh, edit, activate/deactivate, and saved-row delete RPCs |
+| M22 | `20260813000701_m22_saved_service_management.sql` | Phase 8.1 saved-service management hardening |
+| M23 | `20260813000801_m23_service_security_hardening.sql` | Phase 8.2 validation + security hardening |
+| M24 | `20260813000901_m24_offers_pricing_bundles.sql` | Phase 9.1 offers, promotional pricing and theme-safe bundles |
+| M25 | `20260813001001_m25_localization_search_media.sql` | Phase 9.2 localization, theme-scoped search and service media |
+| M26 | `20260813001101_m26_service_safety_audit.sql` | Phase 9.3 booking safety lock, salon audit trail and integrity helpers |
+| M27 | `20260815000101_m27_social_video_likes_weekly.sql` | Phase 15.8 video likes on the existing `social_videos` + weekly most-liked ranking RPCs |
 
 ### Deliberate decisions
 
@@ -76,6 +82,15 @@ No `DROP TABLE` or destructive replacement is allowed.
   theme/category/predefined provenance. Composite FKs reject wrong-theme or
   wrong-category links without deleting or guessing links for custom services.
   See [`phase-7.2-saved-service-catalog-links.md`](phase-7.2-saved-service-catalog-links.md).
+- M27 reuses the existing `social_videos`, `businesses`/`business_members` and
+  `auth.users` relationships instead of a second video or identity model. It
+  adds two nullable scoping columns (`theme_key`, `video_kind`) plus
+  `social_video_likes`, where a composite `(video_id, business_id, theme_key)`
+  FK makes cross-theme/cross-tenant likes structurally impossible and partial
+  unique indexes make duplicate likes impossible. Anonymous likers reuse the
+  existing `website_events.visitor_token` concept. The weekly ranking is
+  derived from `businesses.timezone` on read — nothing is stored or scheduled.
+  See [`phase-15.8-likes-weekly-most-liked.md`](phase-15.8-likes-weekly-most-liked.md).
 - M18 is generated from `src/lib/themeServices.ts`; it upserts exactly five
   themes, 17 categories, 78 canonical predefined services, and 30 relational
   suggested mappings. See [`phase-7.3-five-theme-seed.md`](phase-7.3-five-theme-seed.md).

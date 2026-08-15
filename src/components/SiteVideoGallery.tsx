@@ -10,14 +10,15 @@
  * ratios differ (9:16 shorts / 16:9 long). Theme isolation is enforced by
  * `videoItemsForTheme` — no cross-theme content.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { AlertTriangle, ExternalLink, Loader2, Play, Video } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Heart, Loader2, Play, Trophy, Video } from 'lucide-react';
 import type { SalonData } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { siteText } from '../lib/siteI18n';
 import { structureText } from '../lib/siteStructureI18n';
 import {
+  injectedSectionStatus,
   resolveSectionState,
   sectionProps,
   siteGrid,
@@ -36,6 +37,18 @@ import { videoGalleryChrome } from '../lib/siteVideoGalleryI18n';
 import type { VideoGalleryChromeCopy } from '../lib/siteVideoGalleryI18n';
 import type { VideoKind } from '../lib/siteVideoCatalog';
 import { openOriginalVideoDestination } from '../lib/originalVideoDestination';
+import {
+  formatLikeCount,
+  toggleVideoLike,
+  videoLikeActor,
+  videoLikeBusinessId,
+  videoLikeSummary,
+  weeklyTopVideos,
+  VIDEO_LIKE_EVENT,
+  type VideoLikeError,
+  type VideoLikeSummary,
+} from '../lib/videoLikes';
+import { useAuth } from '../lib/useAuth';
 import { SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import SiteImage from './SiteImage';
@@ -83,6 +96,12 @@ function renderVideoCard(
     onPlay: (item: VideoGalleryItem) => void;
     onOpen: (item: VideoGalleryItem) => void;
     accent: string;
+    /** PHASE 15.8 — like state for this card. */
+    likes: VideoLikeSummary;
+    likePending: boolean;
+    likeError: VideoLikeError | null;
+    onLike: (item: VideoGalleryItem) => void;
+    likeErrorText: (error: VideoLikeError) => string;
   },
 ) {
   const hasThumb = !!item.thumbnailUrl && !opts.thumbBroken;
@@ -99,6 +118,9 @@ function renderVideoCard(
       data-video-origin={item.origin}
       data-has-thumb={hasThumb ? 'true' : 'false'}
       data-original-platform-url={item.originalPlatformUrl}
+      data-like-count={String(opts.likes.total)}
+      data-weekly-like-count={String(opts.likes.weekly)}
+      data-liked={opts.likes.likedByActor ? 'true' : 'false'}
       role="link"
       tabIndex={0}
       aria-label={`${opts.chrome.openExternal}: ${item.title}`}
@@ -196,7 +218,63 @@ function renderVideoCard(
           >
             <ExternalLink className="w-3 h-3 inline mr-1" /> {opts.chrome.view}
           </button>
+
+          {/* PHASE 15.8 — Like button + live like count on every video. */}
+          <button
+            type="button"
+            data-testid="site-video-like"
+            data-video-id={item.id}
+            data-liked={opts.likes.likedByActor ? 'true' : 'false'}
+            aria-pressed={opts.likes.likedByActor}
+            aria-busy={opts.likePending}
+            disabled={opts.likePending}
+            aria-label={`${opts.likes.likedByActor ? opts.chrome.liked : opts.chrome.like}: ${item.title}`}
+            className={`${opts.viewClass} disabled:opacity-60`}
+            style={
+              opts.likes.likedByActor
+                ? { ...opts.viewStyle, backgroundColor: opts.accent, color: '#141414' }
+                : opts.viewStyle
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              opts.onLike(item);
+            }}
+          >
+            {opts.likePending ? (
+              <Loader2 className="w-3 h-3 inline mr-1 animate-spin" aria-hidden />
+            ) : (
+              <Heart
+                className="w-3 h-3 inline mr-1"
+                aria-hidden
+                fill={opts.likes.likedByActor ? 'currentColor' : 'none'}
+              />
+            )}
+            {opts.likes.likedByActor ? opts.chrome.liked : opts.chrome.like}
+            <span
+              data-testid="site-video-like-count"
+              data-count={String(opts.likes.total)}
+              className="ml-1 font-extrabold"
+            >
+              {formatLikeCount(opts.likes.total)}
+            </span>
+          </button>
         </div>
+
+        {opts.likePending && (
+          <p data-testid="site-video-like-pending" className="text-[9px] opacity-80" aria-live="polite">
+            {opts.chrome.likeSaving}
+          </p>
+        )}
+        {opts.likeError && (
+          <p
+            data-testid="site-video-like-error"
+            data-error={opts.likeError}
+            role="alert"
+            className="text-[9px] font-semibold"
+          >
+            {opts.likeErrorText(opts.likeError)}
+          </p>
+        )}
       </div>
     </article>
   );
@@ -234,6 +312,89 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
   const [destinationError, setDestinationError] = useState(false);
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
 
+  /* -------------------------------------------------------------- */
+  /* PHASE 15.8 — likes + weekly most-liked                          */
+  /* -------------------------------------------------------------- */
+  // Identity comes from the EXISTING Supabase session; signed-out visitors
+  // fall back to the existing per-browser id. Never a client-typed value.
+  const { user, loading: authLoading } = useAuth();
+  const actor = useMemo(() => videoLikeActor(user?.id ?? null), [user?.id]);
+  const businessId = useMemo(() => videoLikeBusinessId(data), [data]);
+  const [likeTick, setLikeTick] = useState(0);
+  const [pendingLikeId, setPendingLikeId] = useState<string | null>(null);
+  const [likeErrors, setLikeErrors] = useState<Record<string, VideoLikeError>>({});
+
+  // Keep counts fresh when another surface (or tab) records a like.
+  useEffect(() => {
+    const sync = () => setLikeTick((n) => n + 1);
+    if (typeof window === 'undefined') return;
+    window.addEventListener(VIDEO_LIKE_EVENT, sync);
+    return () => window.removeEventListener(VIDEO_LIKE_EVENT, sync);
+  }, []);
+
+  const likeSummaries = useMemo(() => {
+    void likeTick;
+    const map: Record<string, VideoLikeSummary> = {};
+    for (const item of items) {
+      map[item.id] = videoLikeSummary(businessId, themeId, item.id, actor);
+    }
+    return map;
+  }, [items, businessId, themeId, actor, likeTick]);
+
+  const weeklyTop = useMemo(() => {
+    void likeTick;
+    return weeklyTopVideos(businessId, themeId, data);
+  }, [businessId, themeId, data, likeTick]);
+
+  /**
+   * Weekly block lifecycle:
+   *   loading — the existing session is still resolving (identity decides
+   *             which entries are "liked by you", so we do not flash a result);
+   *   error   — the section itself is forced into an error state;
+   *   ready   — render the ranking (or its empty state when no likes yet).
+   */
+  const weeklyState: 'loading' | 'error' | 'ready' =
+    injectedSectionStatus('videos') === 'error' ? 'error' : authLoading ? 'loading' : 'ready';
+
+  const likeErrorText = useCallback(
+    (error: VideoLikeError): string => {
+      if (error === 'rate-limited') return chrome.likeErrorRateLimited;
+      if (error === 'unknown-video' || error === 'foreign-theme') return chrome.likeErrorUnknownVideo;
+      return chrome.likeErrorGeneric;
+    },
+    [chrome],
+  );
+
+  const likeVideo = useCallback(
+    (item: VideoGalleryItem) => {
+      if (pendingLikeId) return;
+      setPendingLikeId(item.id);
+      setLikeErrors((prev) => {
+        if (!prev[item.id]) return prev;
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      // The data layer re-validates theme membership, visibility, duplicates
+      // and rate limits — the button alone is never the gate.
+      const result = toggleVideoLike({
+        businessId,
+        themeId,
+        videoId: item.id,
+        data,
+        actor,
+      });
+      setPendingLikeId(null);
+      if (!result.ok && result.error) {
+        const error = result.error;
+        setLikeErrors((prev) => ({ ...prev, [item.id]: error }));
+      }
+      // Successful like → counts + weekly ranking recompute from the store.
+      setLikeTick((n) => n + 1);
+    },
+    [pendingLikeId, businessId, themeId, data, actor],
+  );
+
   const openOriginal = (item: VideoGalleryItem) => {
     setDestinationError(false);
     const opened = openOriginalVideoDestination(
@@ -258,6 +419,9 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
     setDestinationError(false);
     setPlayerStatus('loading');
     setKindFilter('all');
+    // PHASE 15.8 — transient like state never crosses a theme/data switch.
+    setPendingLikeId(null);
+    setLikeErrors({});
   }, [themeId, data]);
 
   const shorts = useMemo(() => items.filter((i) => i.kind === 'short'), [items]);
@@ -421,7 +585,112 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
                   onPlay: playVideo,
                   onOpen: openOriginal,
                   accent: visual.accent,
+                  likes: likeSummaries[item.id] || {
+                    videoId: item.id,
+                    total: 0,
+                    weekly: 0,
+                    likedByActor: false,
+                  },
+                  likePending: pendingLikeId === item.id,
+                  likeError: likeErrors[item.id] || null,
+                  onLike: likeVideo,
+                  likeErrorText,
                 }),
+              )}
+            </div>
+
+            {/* PHASE 15.8 — Weekly Top Videos (theme-scoped, Shorts + Long). */}
+            <div
+              data-testid="site-video-weekly-top"
+              data-theme={themeId}
+              data-weekly-count={String(weeklyTop.length)}
+              data-weekly-state={weeklyState}
+              className={`mt-10 border p-5 ${visual.radius || ''}`}
+              style={{ borderColor: visual.cardLine, backgroundColor: visual.chipBg }}
+            >
+              <div className="text-center mb-5">
+                <span
+                  className={`${visual.eyebrowClass} inline-flex items-center justify-center gap-2`}
+                  style={{ color: visual.accent }}
+                >
+                  <Trophy className="w-3 h-3" aria-hidden /> {chrome.weeklyTitle}
+                </span>
+                <p className="text-xs mt-2" style={{ color: visual.muted }}>
+                  {chrome.weeklyBody}
+                </p>
+              </div>
+
+              {weeklyState === 'loading' ? (
+                <p
+                  data-testid="site-video-weekly-loading"
+                  aria-live="polite"
+                  className="flex items-center justify-center gap-2 text-xs py-4"
+                  style={{ color: visual.muted }}
+                >
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> {chrome.weeklyLoading}
+                </p>
+              ) : weeklyState === 'error' ? (
+                <p
+                  data-testid="site-video-weekly-error"
+                  role="alert"
+                  className="flex items-center justify-center gap-2 text-xs py-4"
+                  style={{ color: visual.textStrong }}
+                >
+                  <AlertTriangle className="w-4 h-4" aria-hidden /> {chrome.weeklyError}
+                </p>
+              ) : weeklyTop.length === 0 ? (
+                <p
+                  data-testid="site-video-weekly-empty"
+                  className="text-center text-xs py-4"
+                  style={{ color: visual.muted }}
+                >
+                  {chrome.weeklyEmpty}
+                </p>
+              ) : (
+                <ol data-testid="site-video-weekly-list" className="space-y-2">
+                  {weeklyTop.map((entry) => (
+                    <li
+                      key={entry.item.id}
+                      data-testid="site-video-weekly-item"
+                      data-video-id={entry.item.id}
+                      data-rank={String(entry.rank)}
+                      data-video-kind={entry.item.kind}
+                      data-weekly-likes={String(entry.weeklyLikes)}
+                      className={`flex items-center gap-3 border px-3 py-2 ${visual.radius || ''}`}
+                      style={{ borderColor: visual.cardLine }}
+                    >
+                      <span
+                        className="text-[11px] font-extrabold w-6 h-6 flex items-center justify-center rounded-full shrink-0"
+                        style={{ backgroundColor: visual.accent, color: '#141414' }}
+                        aria-label={`${chrome.weeklyRank} ${entry.rank}`}
+                      >
+                        {entry.rank}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className="block text-xs font-bold truncate"
+                          style={{ color: visual.textStrong }}
+                        >
+                          {entry.item.title}
+                        </span>
+                        <span className="block text-[10px]" style={{ color: visual.muted }}>
+                          {entry.item.kind === 'short' ? chrome.shortBadge : chrome.longBadge}
+                          {' · '}
+                          {chrome.platforms[entry.item.platform]}
+                        </span>
+                      </span>
+                      <span
+                        data-testid="site-video-weekly-likes"
+                        className="inline-flex items-center gap-1 text-[11px] font-extrabold shrink-0"
+                        style={{ color: visual.textStrong }}
+                      >
+                        <Heart className="w-3 h-3" fill="currentColor" aria-hidden />
+                        {formatLikeCount(entry.weeklyLikes)}
+                        <span className="sr-only"> {chrome.weeklyLikesLabel}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
               )}
             </div>
           </>

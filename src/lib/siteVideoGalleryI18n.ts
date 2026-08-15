@@ -25,6 +25,21 @@ export interface VideoGalleryChromeCopy {
   unavailableVideo: string;
   invalidUrl: string;
   watchOnPlatform: string;
+  /** PHASE 15.8 likes + weekly most-liked chrome. */
+  like: string;
+  liked: string;
+  likeCount: string;
+  likeSaving: string;
+  likeErrorGeneric: string;
+  likeErrorRateLimited: string;
+  likeErrorUnknownVideo: string;
+  weeklyTitle: string;
+  weeklyBody: string;
+  weeklyEmpty: string;
+  weeklyLoading: string;
+  weeklyError: string;
+  weeklyRank: string;
+  weeklyLikesLabel: string;
   /** Shown when the thumbnail URL is missing or fails to load. */
   thumbFallback: string;
   /** PHASE 15.3 — kind tabs / badges. */
@@ -66,9 +81,49 @@ const KIND_HI = {
   longBadge: 'लंबा',
 };
 
+/** PHASE 15.8 — likes + weekly ranking copy (locale-level, theme-agnostic). */
+const LIKES_EN = {
+  like: 'Like',
+  liked: 'Liked',
+  likeCount: 'likes',
+  likeSaving: 'Saving your like…',
+  likeErrorGeneric: 'Your like could not be saved. Please try again.',
+  likeErrorRateLimited: 'Too many likes just now. Please wait a moment.',
+  likeErrorUnknownVideo: 'This video is no longer available to like.',
+  weeklyTitle: 'Weekly Top Videos',
+  weeklyBody: 'The most-liked Shorts and Long Videos of this week.',
+  weeklyEmpty: 'No likes yet this week. Be the first to like a video.',
+  weeklyLoading: 'Loading this week’s top videos…',
+  weeklyError: 'This week’s top videos could not be loaded. Please try again.',
+  weeklyRank: 'Rank',
+  weeklyLikesLabel: 'likes this week',
+};
+
+const LIKES_HI = {
+  like: 'लाइक',
+  liked: 'लाइक किया',
+  likeCount: 'लाइक',
+  likeSaving: 'आपका लाइक सेव हो रहा है…',
+  likeErrorGeneric: 'लाइक सेव नहीं हो सका। कृपया फिर कोशिश करें।',
+  likeErrorRateLimited: 'अभी बहुत ज़्यादा लाइक हुए। कृपया थोड़ा रुकें।',
+  likeErrorUnknownVideo: 'यह वीडियो अब लाइक के लिए उपलब्ध नहीं है।',
+  weeklyTitle: 'इस सप्ताह के टॉप वीडियो',
+  weeklyBody: 'इस सप्ताह सबसे ज़्यादा लाइक किए गए शॉर्ट्स और लंबे वीडियो।',
+  weeklyEmpty: 'इस सप्ताह अभी कोई लाइक नहीं। पहला लाइक आपका हो।',
+  weeklyLoading: 'इस सप्ताह के टॉप वीडियो लोड हो रहे हैं…',
+  weeklyError: 'इस सप्ताह के टॉप वीडियो लोड नहीं हो सके। कृपया फिर कोशिश करें।',
+  weeklyRank: 'रैंक',
+  weeklyLikesLabel: 'लाइक इस सप्ताह',
+};
+
 type ThemedChrome = Omit<
   VideoGalleryChromeCopy,
-  'platforms' | 'loadingVideo' | 'unavailableVideo' | 'invalidUrl' | 'watchOnPlatform'
+  | 'platforms'
+  | 'loadingVideo'
+  | 'unavailableVideo'
+  | 'invalidUrl'
+  | 'watchOnPlatform'
+  | keyof typeof LIKES_EN
 >;
 
 const CHROME: Record<SiteHeaderThemeId, Record<AppLocale, ThemedChrome>> = {
@@ -226,6 +281,7 @@ export function videoGalleryChrome(
   const themed = CHROME[themeId]?.[lang] || CHROME.barber_mens_grooming[lang];
   return {
     ...themed,
+    ...(lang === 'hi' ? LIKES_HI : LIKES_EN),
     platforms: lang === 'hi' ? PLATFORMS_HI : PLATFORMS_EN,
     loadingVideo: lang === 'hi' ? 'मूल वीडियो लोड हो रहा है…' : 'Loading the original video…',
     unavailableVideo: lang === 'hi'

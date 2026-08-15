@@ -1,10 +1,52 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-15** (session `arena/01a003f2-new-tamplete-app`).
+> Last updated: **2026-08-15** (session `arena/01a0065c-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 15.8 — LIKES + WEEKLY MOST-LIKED: COMPLETE (24 tests).**
+  - Every video card (Short + Long, owner + protected showcase, all five
+    themes) gains a **Like** button and a real like count. Counts are derived
+    from actual like rows — the legacy free-text `SocialVideo.likesCount` is
+    still never rendered.
+  - Identity reuses the EXISTING session: `useAuth().user.id` when signed in,
+    else the existing per-browser id (`bookingBrowserId()`, the same anonymous
+    identity booking/reviews already use). One like per
+    (business, theme, video, actor); a repeat like from the same identity
+    toggles off instead of creating a duplicate. Per-actor rate limit blocks
+    flooding.
+  - Current week = Monday 00:00 → Sunday 23:59 on the salon clock, keyed as an
+    ISO week (`2026-W33`). Rolls over on read — no timer or scheduled job.
+  - **Weekly Top Videos** ranks by weekly likes over exactly
+    `videoItemsForTheme(themeId, data)`; Shorts and Long both rank (together or
+    per kind); zero-like videos are never ranked. Theme isolation is absolute —
+    a video or a like from one theme can never enter another theme's ranking,
+    and another tenant's likes never leak in.
+  - Counts, button state and the ranking all update immediately after a
+    successful like; a `nexora:video-likes` event syncs other mounted surfaces.
+    Loading / error / empty states are handled for both the like action and the
+    weekly block (EN + HI).
+  - Security is enforced in the data layer and the database, not the button:
+    unknown / hidden (rejected, unpublished) / foreign-theme videos are refused
+    by `toggleVideoLike`, and **draft migration M27**
+    (`social_video_likes`) repeats the same rules with a composite
+    `(video, business, theme)` FK, partial unique indexes, RLS, and a
+    `security definer` toggle RPC on top of the existing `social_videos`,
+    `businesses`, and `auth.users` relationships. **M27 is NOT applied.**
+  - Out of scope (later phases): main website dashboard integration, 15.9, 15.10.
+  - Validation: `test:phase-15.8` **24/24**; `test:phase-15` **171/171**;
+    `validate:migrations` **27/27 ×2 + 21/21** (new database test **U**);
+    `test:phase-14` 180/180; `test:phase-10.8` 36/36, `10.3` 86/86,
+    `10.12` 178/178; lint 0 errors; build + 25-screen verification green.
+    Details: `docs/phase-15.8-likes-weekly-most-liked.md`.
+
+- **PHASE 15.7 — VIDEO PLAYER + ORIGINAL PLATFORM REDIRECT: COMPLETE (11 tests).**
+  - Cards/Play open the exact validated original platform URL through
+    `src/lib/originalVideoDestination.ts`; embeds keep 9:16 / 16:9 with
+    loading + unavailable states. Details:
+    `docs/phase-15.7-video-player-original-platform.md`.
 
 - **PHASE 15.6 — OWNER/ADMIN VIDEO MANAGEMENT: COMPLETE (34 tests).**
   - One management surface (`VideoManagementPanel` in Step 07) over the
@@ -1203,6 +1245,8 @@ npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
 npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
 npm run test:phase-15.6    # owner/admin video management (34 tests)
 npm run test:phase-15.7    # exact original-platform video player/redirect (11 tests)
+npm run test:phase-15.8    # likes + weekly most-liked videos (24 tests)
+npm run test:phase-15      # every Phase 15 suite (171 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1210,7 +1254,7 @@ Expected output:
 - `lint`: 0 errors
 - `test:auth`: 14/14 passed
 - `verify-22-screens`: 25/25 verified
-- `validate:migrations`: M18 source check + 24/24 applied cleanly x2, 20/20 tests passed
+- `validate:migrations`: M18 source check + 27/27 applied cleanly x2, 21/21 tests passed
 - `test:phase-9.1`: 9/9 passed across all five themes
 - `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
@@ -1243,6 +1287,10 @@ Expected output:
 - `test:phase-15.3`: 21/21 passed (5 shorts + 5 long videos per theme)
 - `test:phase-15.4`: 18/18 passed (auto thumbnail + title + description)
 - `test:phase-15.5`: 19/19 passed (theme-wise protected mock video data)
+- `test:phase-15.6`: 34/34 passed (owner/admin video management)
+- `test:phase-15.7`: 11/11 passed (original-platform player/redirect)
+- `test:phase-15.8`: 24/24 passed (likes + weekly most-liked videos)
+- `test:phase-15`: 171 tests, all green
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green
