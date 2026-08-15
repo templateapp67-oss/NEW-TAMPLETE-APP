@@ -65,7 +65,8 @@ import {
   ImagePlus,
   Trophy,
   Heart,
-  Play
+  Play,
+  Video
 } from 'lucide-react';
 import { weeklyTopVideos, formatLikeCount, videoLikeBusinessId } from '../lib/videoLikes';
 import { openOriginalVideoDestination } from '../lib/originalVideoDestination';

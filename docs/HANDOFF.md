@@ -1,10 +1,34 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-15** (session `arena/01a0065c-new-tamplete-app`).
+> Last updated: **2026-08-15** (session `arena/01a006bc-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 15.10 — FINAL 5-THEME VIDEO ACCEPTANCE: COMPLETE (73 tests).**
+  - Full acceptance gate over the entire Phase 15 video system across all
+    five themes: 5 Shorts + 5 Long per theme (50 unique, zero cross-theme
+    copying); YouTube URL → id → thumbnail → title → description → channel
+    chain; exact original-platform/channel opening; owner salon-scoped
+    add/edit/replace; protected mocks never permanently deletable by owners;
+    admin edit/replace/approve/delete per the capability matrix; duplicate-free
+    likes; current-week Weekly Top Videos; dashboard (Landing overview) weekly
+    block with thumbnails/kind/counts/original-URL clicks + empty state;
+    theme/ownership/kind correctness; desktop/tablet/mobile; EN/HI + Light/Dark;
+    loading/empty/error/broken-thumbnail states; lazy loading/performance;
+    static hygiene scans (no fake URLs, hardcoded ids, private keys,
+    service-role creds, duplicate systems, invented DB fields); Phase 10–14
+    regression matrix.
+  - One real defect found + fixed: `src/screens/Landing.tsx` used the `Video`
+    icon in the Phase 15.9 dashboard block without importing it (lint
+    `TS2304`). One-line import fix; nothing else changed in production code.
+  - Validation: `test:phase-15.10` **73/73**; `test:phase-15` **244/244**;
+    `lint` 0 errors; `build` green; `verify-22-screens` 25/25; Phase 10
+    1259/1259, Phase 11 2398/2398, Phase 12 582/582, Phase 13 220/220,
+    Phase 14 180/180; 8.3 acceptance 66/66; 9.1 9/9; `validate:migrations`
+    M18 source check + 21/21. Details:
+    `docs/phase-15.10-final-acceptance.md`.
 
 - **PHASE 15.8 — LIKES + WEEKLY MOST-LIKED: COMPLETE (24 tests).**
   - Every video card (Short + Long, owner + protected showcase, all five
@@ -1246,7 +1270,8 @@ npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
 npm run test:phase-15.6    # owner/admin video management (34 tests)
 npm run test:phase-15.7    # exact original-platform video player/redirect (11 tests)
 npm run test:phase-15.8    # likes + weekly most-liked videos (24 tests)
-npm run test:phase-15      # every Phase 15 suite (171 tests)
+npm run test:phase-15.10   # final 5-theme video acceptance (73 tests)
+npm run test:phase-15      # every Phase 15 suite (244 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1290,7 +1315,8 @@ Expected output:
 - `test:phase-15.6`: 34/34 passed (owner/admin video management)
 - `test:phase-15.7`: 11/11 passed (original-platform player/redirect)
 - `test:phase-15.8`: 24/24 passed (likes + weekly most-liked videos)
-- `test:phase-15`: 171 tests, all green
+- `test:phase-15.10`: 73/73 passed (final 5-theme video acceptance)
+- `test:phase-15`: 244 tests, all green — PHASE 15 ACCEPTED
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green
