@@ -62,8 +62,17 @@ import {
   Pencil,
   Download,
   Palette,
-  ImagePlus
+  ImagePlus,
+  Trophy,
+  Heart,
+  Play
 } from 'lucide-react';
+import { weeklyTopVideos, formatLikeCount, videoLikeBusinessId } from '../lib/videoLikes';
+import { openOriginalVideoDestination } from '../lib/originalVideoDestination';
+import { normalizeThemeId } from '../lib/themeServices';
+import type { SiteHeaderThemeId } from '../lib/siteNavigation';
+import { videoGalleryChrome } from '../lib/siteVideoGalleryI18n';
+import { useSiteLocale } from '../components/SiteHeader';
 
 interface Props {
   data: SalonData;
@@ -291,6 +300,16 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
     () => TAGLINE_CATEGORIES[taglineCategory]?.[taglineSubcategory] || TAGLINE_CATEGORIES.Salon['Hair Salon'],
     [taglineCategory, taglineSubcategory],
   );
+
+  // PHASE 15.9 — Weekly Top Videos (reuse Phase 15.8 engine, strict theme isolation)
+  const currentThemeId = normalizeThemeId(data.templateId) as SiteHeaderThemeId;
+  const dashboardWeeklyTop = useMemo(() => {
+    const businessId = videoLikeBusinessId(data);
+    return weeklyTopVideos(businessId, currentThemeId, data, { limit: 6 });
+  }, [data, currentThemeId]);
+
+  const locale = useSiteLocale();
+  const chrome = videoGalleryChrome(currentThemeId, locale);
 
   const handleOwnerPhotoFile = async (file: File | undefined) => {
     if (!file) return;
@@ -1542,6 +1561,76 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                           );
                         })}
                       </div>
+                    </div>
+
+                    {/* PHASE 15.9 — Weekly Top Videos (dashboard, reuse 15.8 engine, strict theme isolation) */}
+                    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                            <Trophy className="w-4 h-4 text-[#ac0053]" /> {chrome.weeklyTitle}
+                          </h3>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{chrome.weeklyBody}</p>
+                        </div>
+                        <span className="text-[9px] px-2 py-0.5 rounded bg-[#ffd9e1]/40 text-[#ac0053] font-bold uppercase tracking-wider">This Week</span>
+                      </div>
+
+                      {!dashboardWeeklyTop || dashboardWeeklyTop.length === 0 ? (
+                        <div className="text-center py-8 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                          <Trophy className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+                          <p className="text-xs font-semibold text-gray-500">{chrome.weeklyEmpty}</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {dashboardWeeklyTop.map((entry, idx) => {
+                            const item = entry.item;
+                            const hasThumb = !!item.thumbnailUrl;
+                            const kindLabel = item.kind === 'short' ? chrome.shortBadge : chrome.longBadge;
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => openOriginalVideoDestination(item.originalPlatformUrl, item.platform, item.externalVideoId)}
+                                className="group border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#ac0053]/40 transition-all bg-white flex flex-col"
+                              >
+                                <div className="relative aspect-video bg-gray-100 overflow-hidden">
+                                  {hasThumb ? (
+                                    <img
+                                      src={item.thumbnailUrl}
+                                      alt={item.title}
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                  ) : (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                                      <Video className="w-7 h-7 text-gray-300" />
+                                    </div>
+                                  )}
+                                  <span className="absolute top-1.5 left-1.5 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-[#ac0053] text-white tracking-wider">
+                                    {kindLabel}
+                                  </span>
+                                  <div className="absolute top-1.5 right-1.5 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                                    <Heart className="w-3 h-3" fill="currentColor" /> {formatLikeCount(entry.weeklyLikes)}
+                                  </div>
+                                </div>
+                                <div className="p-3 flex-1 flex flex-col">
+                                  <p className="text-xs font-bold text-gray-900 line-clamp-2 group-hover:text-[#ac0053] transition-colors">{item.title}</p>
+                                  <div className="mt-auto pt-2 flex items-center justify-between text-[10px]">
+                                    <span className="font-semibold text-gray-500">{chrome.platforms[item.platform]}</span>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); openOriginalVideoDestination(item.originalPlatformUrl, item.platform, item.externalVideoId); }}
+                                      className="text-[#ac0053] hover:underline font-bold flex items-center gap-1"
+                                    >
+                                      <Play className="w-3 h-3" /> {chrome.view}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                   </div>
