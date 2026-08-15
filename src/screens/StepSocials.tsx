@@ -17,12 +17,27 @@ import {
   VIDEO_METADATA_DEBOUNCE_MS,
   type VideoPlatformMetadata,
 } from '../lib/videoUrlMetadata';
-import { resolveVideoKind } from '../lib/siteVideoGallery';
+import { resolveVideoKind, isVideoGalleryThemeId } from '../lib/siteVideoGallery';
 import {
   filterDeletableOwnerVideos,
   isDeleteBlockedForVideoId,
   isProtectedThemeMockVideo,
 } from '../lib/siteVideoCatalog';
+// PHASE 15.6 — owner/admin video management (existing auth + ownership only).
+import VideoManagementPanel from '../components/VideoManagementPanel';
+import { useAuth } from '../lib/useAuth';
+import { resolveOwnerSalonId } from '../lib/ownerSalon';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  canAddVideo,
+  canDeleteVideo,
+  hasAdminSessionClaim,
+  resolveVideoActor,
+  videoEditDeniedMessage,
+  type VideoActorContext,
+} from '../lib/videoManagement';
+import { normalizeThemeId } from '../lib/themeServices';
+import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 
 interface Props {
   data: SalonData;
@@ -74,6 +89,55 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
   /** Suppresses re-fetch when we rewrite the URL to the canonical form. */
   const skipNextFetchRef = useRef(false);
 
+  /**
+   * PHASE 15.6 — owner/admin actor for video management. Reuses the EXISTING
+   * auth + salon-ownership resolution (session → organization_members owner →
+   * salons). No salon/user ids are read from the client or invented; the
+   * admin tier additionally requires a server-signed admin claim.
+   */
+  const { user, loading: authLoading } = useAuth();
+  const [videoActor, setVideoActor] = useState<VideoActorContext>(() =>
+    resolveVideoActor({
+      supabaseConfigured: isSupabaseConfigured,
+      userPresent: false,
+      isAdmin: false,
+      resolution: null,
+    }),
+  );
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setVideoActor(
+        resolveVideoActor({ supabaseConfigured: false, userPresent: false, isAdmin: false, resolution: null }),
+      );
+      return;
+    }
+    if (authLoading) return;
+    const isAdmin = hasAdminSessionClaim(user);
+    let cancelled = false;
+    resolveOwnerSalonId()
+      .then((resolution) => {
+        if (cancelled) return;
+        setVideoActor(
+          resolveVideoActor({ supabaseConfigured: true, userPresent: !!user, isAdmin, resolution }),
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setVideoActor(
+          resolveVideoActor({
+            supabaseConfigured: true,
+            userPresent: !!user,
+            isAdmin,
+            resolution: { status: 'error' },
+          }),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, authLoading]);
+  const videoPermissionDenied = videoEditDeniedMessage(videoActor.permission) !== null;
+
   const showFeedback = (msg: string) => {
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 2500);
@@ -112,6 +176,12 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
     data.templateId && data.templateId !== 'hair' && data.templateId !== 'family-salon'
       ? data.templateId
       : null;
+
+  /** PHASE 15.6 — the salon's theme for the management panel's showcase list. */
+  const panelThemeId: SiteHeaderThemeId = (() => {
+    const normalised = normalizeThemeId(data.templateId);
+    return isVideoGalleryThemeId(normalised) ? normalised : 'hair_studio_color_bar';
+  })();
 
   // Social profiles handlers
   const profiles = data.socialProfiles || {
@@ -259,6 +329,13 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
   const handleAddVideo = (e: FormEvent) => {
     e.preventDefault();
 
+    // PHASE 15.6 — data-layer gate: denied sessions can never add, even if a
+    // stale UI somehow shows the form.
+    if (!canAddVideo(videoActor)) {
+      showFeedback(videoEditDeniedMessage(videoActor.permission) || 'You are not allowed to add videos for this salon.');
+      return;
+    }
+
     const url = newVideoUrl.trim();
     if (!url) {
       setFetchError('Paste a video URL to continue.');
@@ -337,6 +414,12 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
     // deleted. filterDeletableOwnerVideos retains them; the public gallery
     // would re-fill them from the catalog anyway.
     if (isDeleteBlockedForVideoId(videoList, id) || isProtectedThemeMockVideo(videoList.find((v) => v.id === id))) {
+      showFeedback('Theme showcase videos cannot be permanently deleted.');
+      return;
+    }
+    // PHASE 15.6 — capability gate (owner: own rows only; admin claim for
+    // protected records). Reuses the session-resolved actor, never a client id.
+    if (!canDeleteVideo(videoActor, videoList.find((v) => v.id === id))) {
       showFeedback('Theme showcase videos cannot be permanently deleted.');
       return;
     }
@@ -526,15 +609,28 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
                 <button
                   type="button"
                   data-testid="add-social-video-open"
+                  disabled={!canAddVideo(videoActor)}
                   onClick={() => {
+                    if (!canAddVideo(videoActor)) return;
                     resetAddForm();
                     setIsAddingVideo(true);
                   }}
-                  className="bg-[#ffd9e1] text-[#ac0053] hover:bg-[#ac0053] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs shrink-0"
+                  className="bg-[#ffd9e1] text-[#ac0053] hover:bg-[#ac0053] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" /> Add Social Video
                 </button>
               </div>
+
+              {/* PHASE 15.6 — permission notice (helpers still hard-refuse). */}
+              {videoPermissionDenied && (
+                <div
+                  data-testid="video-permission-denied"
+                  className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800"
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{videoEditDeniedMessage(videoActor.permission)}</span>
+                </div>
+              )}
 
               {/* Video Cards List */}
               <div className="space-y-3">
@@ -556,6 +652,18 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* SECTION 2B: OWNER/ADMIN VIDEO MANAGEMENT (PHASE 15.6) */}
+            <div className="bg-white rounded-2xl p-5 md:p-6 border border-[#eeeeee] shadow-2xs space-y-4">
+              <VideoManagementPanel
+                data={data}
+                setData={setData}
+                onSave={onSave}
+                actor={videoActor}
+                themeId={panelThemeId}
+                onShowFeedback={showFeedback}
+              />
             </div>
 
             {/* FOOTER NAVIGATION */}

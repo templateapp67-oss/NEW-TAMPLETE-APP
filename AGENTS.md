@@ -86,6 +86,13 @@ npm run test:phase-12.5    # service discovery (search/filter/sort) across all f
 npm run test:phase-12.6    # service detail experience across all five themes (59 tests)
 npm run test:phase-12.7    # service images & visuals across all five themes (60 tests)
 npm run test:phase-14.1    # gallery & visual portfolio across all five themes (55 tests)
+npm run test:phase-15.1    # video gallery foundation (26 tests)
+npm run test:phase-15.2    # YouTube URL auto-fetch (18 tests)
+npm run test:phase-15.3    # 5 shorts + 5 long videos per theme (21 tests)
+npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
+npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
+npm run test:phase-15.6    # owner/admin video management (34 tests)
+npm run test:phase-15      # every Phase 15 suite (136 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```

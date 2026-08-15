@@ -31,6 +31,7 @@ import {
   type SocialPlatform,
 } from './siteSocialFeed';
 import {
+  isDisabledThemeMockId,
   isProtectedThemeMockVideo,
   isThemeMockVideoId,
   themeVideosOfKind,
@@ -39,6 +40,7 @@ import {
   VIDEO_KIND_SHORT,
   type VideoKind,
 } from './siteVideoCatalog';
+import { isCustomerVisibleSocialVideo } from './videoModeration';
 
 // Re-export delete guards so callers can import from the gallery layer.
 export {
@@ -304,7 +306,7 @@ function themeSeedToItem(video: SocialVideo, themeId: SiteHeaderThemeId): VideoG
  */
 export function videoItemsForTheme(
   themeId: SiteHeaderThemeId,
-  data: Pick<SalonData, 'socialVideos'>,
+  data: Pick<SalonData, 'socialVideos' | 'disabledThemeVideoIds'>,
   locale: AppLocale = 'en',
 ): VideoGalleryItem[] {
   const config = videoGalleryThemeConfig(themeId);
@@ -316,6 +318,10 @@ export function videoItemsForTheme(
     // are never treated as owner content. The catalog fill path re-injects
     // them under origin:'theme' so they cannot be permanently deleted.
     if (isProtectedThemeMockVideo(raw) || isThemeMockVideoId(raw?.id)) continue;
+    // PHASE 15.6 — only approved + active owner videos are customer-visible;
+    // pending / rejected / unpublished rows stay in the salon record but the
+    // catalog fill tops the theme up so the 5+5 contract still holds.
+    if (!isCustomerVisibleSocialVideo(raw)) continue;
     const item = ownerVideoForTheme(raw, themeId, locale);
     if (!item) continue;
     if (seen.has(item.id) || seen.has(item.url)) continue;
@@ -335,6 +341,9 @@ export function videoItemsForTheme(
     const extras: VideoGalleryItem[] = [];
     for (const seed of seeds) {
       if (extras.length >= needed) break;
+      // PHASE 15.6 — admin-disabled showcase records are skipped for this
+      // salon (per-salon tombstone; the shared catalog is never mutated).
+      if (isDisabledThemeMockId(data.disabledThemeVideoIds, seed.id)) continue;
       if (seen.has(seed.id) || seen.has(seed.url)) continue;
       if (seed.externalVideoId && seen.has(`ext:${seed.externalVideoId}`)) continue;
       const item = themeSeedToItem(seed, themeId);
@@ -357,7 +366,7 @@ export function videoItemsForTheme(
 /** Items of one kind for the active theme (after fill). */
 export function videoItemsOfKindForTheme(
   themeId: SiteHeaderThemeId,
-  data: Pick<SalonData, 'socialVideos'>,
+  data: Pick<SalonData, 'socialVideos' | 'disabledThemeVideoIds'>,
   kind: VideoKind,
   locale: AppLocale = 'en',
 ): VideoGalleryItem[] {
@@ -367,7 +376,7 @@ export function videoItemsOfKindForTheme(
 /** True when the active theme has zero customer-visible videos (after fill). */
 export function videoGalleryIsEmpty(
   themeId: SiteHeaderThemeId,
-  data: Pick<SalonData, 'socialVideos'>,
+  data: Pick<SalonData, 'socialVideos' | 'disabledThemeVideoIds'>,
 ): boolean {
   return videoItemsForTheme(themeId, data).length === 0;
 }
@@ -378,7 +387,7 @@ export function videoGalleryIsEmpty(
  */
 export function videoIdsForTheme(
   themeId: SiteHeaderThemeId,
-  data: Pick<SalonData, 'socialVideos'>,
+  data: Pick<SalonData, 'socialVideos' | 'disabledThemeVideoIds'>,
 ): string[] {
   return videoItemsForTheme(themeId, data).map((item) => item.id);
 }
@@ -386,7 +395,7 @@ export function videoIdsForTheme(
 /** Counts after fill — used by tests to assert the 5 + 5 contract. */
 export function videoKindCountsForTheme(
   themeId: SiteHeaderThemeId,
-  data: Pick<SalonData, 'socialVideos'> = { socialVideos: [] },
+  data: Pick<SalonData, 'socialVideos' | 'disabledThemeVideoIds'> = { socialVideos: [] },
 ): { short: number; long: number; total: number } {
   const items = videoItemsForTheme(themeId, data);
   const short = items.filter((i) => i.kind === 'short').length;

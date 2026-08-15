@@ -263,6 +263,36 @@ export function isDeleteBlockedForVideoId(
   return isProtectedThemeMockVideo(target);
 }
 
+/* ------------------------------------------------------------------ */
+/* PHASE 15.6 — per-salon admin disable (tombstone) of showcase mocks  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * True when a protected theme mock id has been disabled FOR ONE SALON by an
+ * admin (`SalonData.disabledThemeVideoIds`). The shared catalog is never
+ * mutated — other salons and themes keep their showcase videos.
+ */
+export function isDisabledThemeMockId(
+  disabledIds: readonly string[] | null | undefined,
+  id: unknown,
+): boolean {
+  if (typeof id !== 'string' || !id) return false;
+  if (!Array.isArray(disabledIds)) return false;
+  return disabledIds.includes(id);
+}
+
+/**
+ * The effective showcase catalog for one salon + theme: protected mock rows
+ * with the salon's disabled ids removed. Used by the 15.6-aware gallery fill
+ * and the management panel.
+ */
+export function activeThemeVideoCatalog(
+  themeId: SiteHeaderThemeId,
+  disabledIds?: readonly string[] | null,
+): SocialVideo[] {
+  return themeVideoCatalog(themeId).filter((video) => !isDisabledThemeMockId(disabledIds, video.id));
+}
+
 /**
  * Theme-specific content vocabulary keywords used by acceptance tests to
  * confirm mock copy matches the theme (not copied across themes).
