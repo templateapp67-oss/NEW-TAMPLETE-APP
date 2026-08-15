@@ -44,7 +44,6 @@ import {
   isThemeMockVideoId,
   activeThemeVideoCatalog,
   isDisabledThemeMockId,
-  VIDEO_KIND_SHORT,
   type VideoKind,
 } from './siteVideoCatalog';
 import {
@@ -60,7 +59,6 @@ import {
 } from './videoModeration';
 import {
   parseVideoUrl,
-  youtubeCanonicalUrl,
   type VideoPlatformMetadata,
 } from './videoUrlMetadata';
 import { youtubeThumbUrl } from './siteSocialFeed';
@@ -365,6 +363,7 @@ export function editManagedVideoMetadata(
 
 export interface VideoReplaceResultFields {
   url: string;
+  originalPlatformUrl: string;
   platform: SocialVideo['platform'];
   externalVideoId: string | null;
   thumbnailUrl: string;
@@ -391,13 +390,11 @@ export function buildVideoReplaceFields(
   const pastedKind = resolveVideoKind({ url: parsed.originalUrl, platform: parsed.platform });
   const videoKind: VideoKind = kindOverride === 'short' || kindOverride === 'long' ? kindOverride : pastedKind;
 
-  // Keep a /shorts/ URL for shorts so the type is retained (15.4 rule).
-  const url =
-    parsed.platform === 'youtube' && videoKind === VIDEO_KIND_SHORT
-      ? `https://www.youtube.com/shorts/${parsed.externalVideoId}`
-      : parsed.platform === 'youtube'
-        ? youtubeCanonicalUrl(parsed.externalVideoId)
-        : parsed.canonicalUrl || parsed.originalUrl;
+  // Retain the existing canonical storage field for compatibility, while the
+  // untouched paste below is the only external destination used in 15.7.
+  const url = parsed.platform === 'youtube' && videoKind === 'short'
+    ? `https://www.youtube.com/shorts/${parsed.externalVideoId}`
+    : parsed.canonicalUrl || parsed.originalUrl;
 
   const thumbFromMeta = meta && isSafeMediaUrl(meta.thumbnailUrl) ? meta.thumbnailUrl.trim() : '';
   const derivedThumb =
@@ -412,6 +409,7 @@ export function buildVideoReplaceFields(
     ok: true,
     fields: {
       url,
+      originalPlatformUrl: parsed.originalUrl,
       platform: parsed.platform,
       externalVideoId: parsed.externalVideoId,
       thumbnailUrl: thumbFromMeta || derivedThumb,
@@ -478,6 +476,7 @@ export function replaceManagedVideoUrl(
       replacesMockId: mock.id,
       themeId: mock.themeId ?? null,
       url: fields.url,
+      originalPlatformUrl: fields.originalPlatformUrl,
       platform: fields.platform,
       externalVideoId: fields.externalVideoId,
       thumbnailUrl: fields.thumbnailUrl || mock.thumbnailUrl,
@@ -498,6 +497,7 @@ export function replaceManagedVideoUrl(
     {
       ...existing,
       url: fields.url,
+      originalPlatformUrl: fields.originalPlatformUrl,
       platform: fields.platform,
       externalVideoId: fields.externalVideoId,
       thumbnailUrl: fields.thumbnailUrl || existing.thumbnailUrl,

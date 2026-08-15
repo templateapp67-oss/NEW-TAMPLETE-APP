@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ExternalLink, Play, Video } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Loader2, Play, Video } from 'lucide-react';
 import type { SalonData } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { siteText } from '../lib/siteI18n';
@@ -35,6 +35,7 @@ import {
 import { videoGalleryChrome } from '../lib/siteVideoGalleryI18n';
 import type { VideoGalleryChromeCopy } from '../lib/siteVideoGalleryI18n';
 import type { VideoKind } from '../lib/siteVideoCatalog';
+import { openOriginalVideoDestination } from '../lib/originalVideoDestination';
 import { SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import SiteImage from './SiteImage';
@@ -80,6 +81,7 @@ function renderVideoCard(
     thumbBroken: boolean;
     onThumbError: () => void;
     onPlay: (item: VideoGalleryItem) => void;
+    onOpen: (item: VideoGalleryItem) => void;
     accent: string;
   },
 ) {
@@ -96,8 +98,19 @@ function renderVideoCard(
       data-video-kind={item.kind}
       data-video-origin={item.origin}
       data-has-thumb={hasThumb ? 'true' : 'false'}
-      className={`relative overflow-hidden group min-w-0 border ${opts.radius}`}
+      data-original-platform-url={item.originalPlatformUrl}
+      role="link"
+      tabIndex={0}
+      aria-label={`${opts.chrome.openExternal}: ${item.title}`}
+      className={`relative overflow-hidden group min-w-0 border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${opts.radius}`}
       style={{ borderColor: opts.cardLine, aspectRatio: opts.tileRatio, contain: 'content' }}
+      onClick={() => opts.onOpen(item)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          opts.onOpen(item);
+        }
+      }}
     >
       {hasThumb ? (
         <div className="absolute inset-0" data-testid="site-video-gallery-thumb">
@@ -162,7 +175,10 @@ function renderVideoCard(
               aria-label={`${opts.chrome.play} ${item.title}`}
               className={opts.viewClass}
               style={opts.viewStyle}
-              onClick={() => opts.onPlay(item)}
+              onClick={(event) => {
+                event.stopPropagation();
+                opts.onPlay(item);
+              }}
             >
               <Play className="w-3 h-3 inline mr-1" /> {opts.chrome.play}
             </button>
@@ -173,7 +189,10 @@ function renderVideoCard(
             aria-label={`${opts.chrome.view} ${item.title}`}
             className={opts.viewClass}
             style={opts.viewStyle}
-            onClick={() => openExternal(item.url)}
+            onClick={(event) => {
+              event.stopPropagation();
+              opts.onOpen(item);
+            }}
           >
             <ExternalLink className="w-3 h-3 inline mr-1" /> {opts.chrome.view}
           </button>
@@ -211,12 +230,33 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
   const emptyBody = S.videosEmpty || C.emptyBody || chrome.emptyBody;
 
   const [playing, setPlaying] = useState<VideoGalleryItem | null>(null);
+  const [playerStatus, setPlayerStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [destinationError, setDestinationError] = useState(false);
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+
+  const openOriginal = (item: VideoGalleryItem) => {
+    setDestinationError(false);
+    const opened = openOriginalVideoDestination(
+      item.originalPlatformUrl,
+      item.platform,
+      item.externalVideoId,
+    );
+    if (!opened) setDestinationError(true);
+  };
+
+  const playVideo = (item: VideoGalleryItem) => {
+    setDestinationError(false);
+    setPlayerStatus('loading');
+    if (item.embedUrl) setPlaying(item);
+    else openOriginal(item);
+  };
 
   // Theme / data switch → drop any open embed + reset filter so previous-theme
   // media never stays mounted (theme isolation).
   useEffect(() => {
     setPlaying(null);
+    setDestinationError(false);
+    setPlayerStatus('loading');
     setKindFilter('all');
   }, [themeId, data]);
 
@@ -349,6 +389,18 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
               </button>
             </div>
 
+            {destinationError && (
+              <div
+                data-testid="site-video-invalid-url"
+                role="alert"
+                className={`mb-4 flex items-center justify-center gap-2 border px-3 py-2 text-xs ${visual.radius || ''}`}
+                style={{ borderColor: visual.cardLine, color: visual.textStrong, backgroundColor: visual.chipBg }}
+              >
+                <AlertTriangle className="w-4 h-4" aria-hidden />
+                {chrome.invalidUrl}
+              </div>
+            )}
+
             <div
               data-testid="site-video-gallery-grid"
               data-kind-filter={kindFilter}
@@ -366,7 +418,8 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
                   chrome,
                   thumbBroken: !!broken[item.id],
                   onThumbError: () => mark(item.id),
-                  onPlay: setPlaying,
+                  onPlay: playVideo,
+                  onOpen: openOriginal,
                   accent: visual.accent,
                 }),
               )}
@@ -408,14 +461,57 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
               onClick={(event) => event.stopPropagation()}
               style={{ aspectRatio: playing.kind === 'short' ? '9/16' : '16/9', maxHeight: '85vh' }}
             >
-              <iframe
-                title={playing.title}
-                src={`${playing.embedUrl}${playing.embedUrl.includes('?') ? '&' : '?'}autoplay=1`}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-              />
+              {playerStatus === 'loading' && (
+                <div
+                  data-testid="site-video-player-loading"
+                  className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black text-white"
+                  aria-live="polite"
+                >
+                  <Loader2 className="w-7 h-7 animate-spin" aria-hidden />
+                  <span className="text-xs font-semibold">{chrome.loadingVideo}</span>
+                </div>
+              )}
+              {playerStatus === 'unavailable' ? (
+                <div
+                  data-testid="site-video-player-unavailable"
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black px-8 text-center text-white"
+                  role="alert"
+                >
+                  <AlertTriangle className="w-8 h-8" aria-hidden />
+                  <p className="text-sm">{chrome.unavailableVideo}</p>
+                  <button
+                    type="button"
+                    className="site-touch rounded-full bg-white px-4 py-2 text-xs font-bold text-black"
+                    onClick={() => openOriginal(playing)}
+                  >
+                    <ExternalLink className="mr-1 inline w-3 h-3" /> {chrome.watchOnPlatform}
+                  </button>
+                </div>
+              ) : (
+                <iframe
+                  title={playing.title}
+                  src={`${playing.embedUrl}${playing.embedUrl.includes('?') ? '&' : '?'}autoplay=1`}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  loading="lazy"
+                  onLoad={() => setPlayerStatus('ready')}
+                  onError={() => setPlayerStatus('unavailable')}
+                />
+              )}
+              <a
+                data-testid="site-video-original-destination"
+                href={playing.originalPlatformUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute bottom-2 left-2 z-20 rounded-full bg-black/70 px-3 py-2 text-[10px] font-bold text-white"
+                onClick={(event) => {
+                  event.preventDefault();
+                  openOriginal(playing);
+                }}
+              >
+                <ExternalLink className="mr-1 inline w-3 h-3" /> {chrome.watchOnPlatform}
+              </a>
               <button
                 type="button"
                 data-testid="site-video-gallery-embed-close"

@@ -300,18 +300,8 @@ export default function StepSocials({ data, setData, onNext, onPrev, onSave }: P
       setNewVideoThumbnail(merged.thumbnailUrl);
       setThumbBroken(false);
 
-      // Keep the original shorts URL when kind is short so type is retained;
-      // otherwise accept the canonical watch URL from metadata.
-      if (kindFromPaste === 'short' && meta.externalVideoId) {
-        const shortsUrl = `https://www.youtube.com/shorts/${meta.externalVideoId}`;
-        if (newVideoUrl.trim() !== shortsUrl) {
-          skipNextFetchRef.current = true;
-          setNewVideoUrl(shortsUrl);
-        }
-      } else if (meta.url && meta.url !== newVideoUrl.trim()) {
-        skipNextFetchRef.current = true;
-        setNewVideoUrl(meta.url);
-      }
+      // PHASE 15.7 — do not rewrite the pasted destination. Shorts/Long is a
+      // separate field and the exact platform URL is preserved on save.
 
       const notice = partialMetadataNotice(meta);
       setFetchNotice(notice);

@@ -18,6 +18,7 @@
  */
 import type { SocialVideo } from '../types';
 import { isSiteHeaderTheme } from './siteNavigation';
+import { originalDestinationForVideo } from './originalVideoDestination';
 
 /* ------------------------------------------------------------------ */
 /* Local URL safety (mirrors the siteVideoGallery rules)               */
@@ -143,7 +144,9 @@ export function validateSocialVideoForPublish(video: SocialVideo | null | undefi
   const errors: string[] = [];
   if (!video || typeof video !== 'object') return ['Video record is missing.'];
 
-  if (!isSafeExternalVideoUrl(video.url)) errors.push('Video URL is missing or unsafe.');
+  if (!originalDestinationForVideo(video).ok) {
+    errors.push('Video URL must be a safe single-video link on its stated original platform.');
+  }
   if (!(video.title || '').trim()) errors.push('Video title is required.');
   if (video.themeId && !isSiteHeaderTheme(video.themeId)) errors.push('Video theme is invalid.');
   if (video.videoKind && video.videoKind !== 'short' && video.videoKind !== 'long') {

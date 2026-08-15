@@ -41,6 +41,7 @@ import {
   type VideoKind,
 } from './siteVideoCatalog';
 import { isCustomerVisibleSocialVideo } from './videoModeration';
+import { validateOriginalVideoUrl } from './originalVideoDestination';
 
 // Re-export delete guards so callers can import from the gallery layer.
 export {
@@ -60,8 +61,10 @@ export interface VideoGalleryItem {
   id: string;
   title: string;
   platform: VideoGalleryPlatform;
-  /** External watch / open URL (never a stored video file). */
+  /** Exact validated original watch URL (never a generated redirect). */
   url: string;
+  /** Explicit alias used by the Phase 15.7 external-player interaction. */
+  originalPlatformUrl: string;
   /** Safe thumbnail URL, or '' when none is usable. */
   thumbnailUrl: string;
   /** Provider embed URL when the link can be parsed; otherwise null. */
@@ -246,15 +249,24 @@ export function ownerVideoForTheme(
   if (!video || typeof video !== 'object') return null;
   if (!ownerVideoBelongsToTheme(video, themeId)) return null;
 
-  const url = safeExternalVideoUrl(video.url);
-  if (!url) return null;
+  // PHASE 15.7 — open only the exact, platform-matched original destination.
+  // `url` remains the fallback for records saved before originalPlatformUrl.
+  const destination = validateOriginalVideoUrl(
+    video.originalPlatformUrl || video.url,
+    null,
+    video.externalVideoId,
+  );
+  if (!destination.ok) return null;
+  const url = destination.url;
 
   const id = typeof video.id === 'string' && video.id.trim() ? video.id.trim() : '';
   if (!id) return null;
 
   const titleRaw = typeof video.title === 'string' ? video.title.trim() : '';
-  const platform = normalisePlatform(video.platform);
-  const kind = resolveVideoKind(video);
+  // Legacy records occasionally carried a stale platform label. The validated
+  // host is authoritative, so the card accurately identifies its source.
+  const platform = destination.platform || normalisePlatform(video.platform);
+  const kind = resolveVideoKind({ ...video, platform });
   const title =
     titleRaw ||
     (locale === 'hi'
@@ -276,6 +288,7 @@ export function ownerVideoForTheme(
     title,
     platform,
     url,
+    originalPlatformUrl: url,
     thumbnailUrl,
     embedUrl,
     embedKind,

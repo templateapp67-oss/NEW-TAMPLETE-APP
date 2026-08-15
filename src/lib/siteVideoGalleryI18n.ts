@@ -20,6 +20,11 @@ export interface VideoGalleryChromeCopy {
   errorTitle: string;
   errorBody: string;
   retry: string;
+  /** PHASE 15.7 player / destination states. */
+  loadingVideo: string;
+  unavailableVideo: string;
+  invalidUrl: string;
+  watchOnPlatform: string;
   /** Shown when the thumbnail URL is missing or fails to load. */
   thumbFallback: string;
   /** PHASE 15.3 — kind tabs / badges. */
@@ -61,7 +66,12 @@ const KIND_HI = {
   longBadge: 'लंबा',
 };
 
-const CHROME: Record<SiteHeaderThemeId, Record<AppLocale, Omit<VideoGalleryChromeCopy, 'platforms'>>> = {
+type ThemedChrome = Omit<
+  VideoGalleryChromeCopy,
+  'platforms' | 'loadingVideo' | 'unavailableVideo' | 'invalidUrl' | 'watchOnPlatform'
+>;
+
+const CHROME: Record<SiteHeaderThemeId, Record<AppLocale, ThemedChrome>> = {
   barber_mens_grooming: {
     en: {
       play: 'Play',
@@ -217,5 +227,13 @@ export function videoGalleryChrome(
   return {
     ...themed,
     platforms: lang === 'hi' ? PLATFORMS_HI : PLATFORMS_EN,
+    loadingVideo: lang === 'hi' ? 'मूल वीडियो लोड हो रहा है…' : 'Loading the original video…',
+    unavailableVideo: lang === 'hi'
+      ? 'यह वीडियो यहाँ उपलब्ध नहीं है। इसे मूल प्लेटफ़ॉर्म पर खोलें।'
+      : 'This video is unavailable here. Open it on the original platform instead.',
+    invalidUrl: lang === 'hi'
+      ? 'सुरक्षा के लिए अमान्य या बेमेल वीडियो लिंक नहीं खोला गया।'
+      : 'The invalid or mismatched video link was not opened for your safety.',
+    watchOnPlatform: lang === 'hi' ? 'मूल प्लेटफ़ॉर्म पर देखें' : 'Watch on original platform',
   };
 }
