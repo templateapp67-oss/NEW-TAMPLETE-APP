@@ -15,7 +15,7 @@ import SiteImage from './SiteImage';
 import SiteSkeleton from './SiteSkeleton';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
-import SiteSocialFeed from './SiteSocialFeed';
+import SiteVideoGallery from './SiteVideoGallery';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
@@ -139,7 +139,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
         {/* Gallery — PHASE 14.1: theme-scoped portfolio (featured, filter, lightbox, before/after) */}
         <SiteGallery themeId="barber_mens_grooming" data={data} mode={mode} />
 
-        <SiteSocialFeed themeId="barber_mens_grooming" data={data} mode={mode} />
+        <SiteVideoGallery themeId="barber_mens_grooming" data={data} mode={mode} />
 
         {/* About Salon */}
         <div {...sectionProps('about', aboutState)} className="site-section px-6 py-14" style={{ backgroundColor: charcoal }}>

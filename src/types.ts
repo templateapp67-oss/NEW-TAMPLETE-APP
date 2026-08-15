@@ -200,10 +200,38 @@ export interface SocialVideo {
   id: string;
   title: string;
   platform: 'instagram' | 'youtube' | 'facebook' | 'tiktok';
+  /** External video URL only — Nexora never stores social video files. */
   url: string;
   thumbnailUrl: string;
   dateAdded?: string;
   likesCount?: string;
+  /**
+   * PHASE 15.1 — optional theme scoping. An item scoped to a different theme
+   * is never shown on the active theme's video gallery (theme isolation).
+   * Absent / null means the video is visible on every theme (grandfathered
+   * for existing drafts that pre-date per-theme video collections).
+   */
+  themeId?: string | null;
+  /**
+   * PHASE 15.2 — platform-native video id (YouTube 11-char id, etc.).
+   * Maps to existing `social_videos.external_video_id`. Set by URL auto-fetch.
+   */
+  externalVideoId?: string | null;
+  /**
+   * PHASE 15.2 — optional long description from platform metadata (oEmbed /
+   * Open Graph). Additive client field; not required by the public gallery.
+   */
+  description?: string;
+  /**
+   * PHASE 15.2 — channel / page / author name from platform metadata.
+   */
+  channelName?: string;
+  /**
+   * PHASE 15.3 — short vs long discriminator for the video gallery.
+   * Additive client field (no new DB column). When absent, kind is inferred
+   * from the URL (YouTube Shorts / Instagram Reels → short; else long).
+   */
+  videoKind?: 'short' | 'long' | null;
 }
 
 export interface SalonAddress {

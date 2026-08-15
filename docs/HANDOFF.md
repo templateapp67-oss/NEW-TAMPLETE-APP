@@ -1,10 +1,85 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-14** (session `arena/019ffff5-new-tamplete-app`).
+> Last updated: **2026-08-15** (session `arena/01a0039c-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 15.5 — THEME-WISE PROTECTED MOCK VIDEO DATA: COMPLETE (19 tests).**
+  - Hardened the 15.3 catalog into protected mock/default data: 5 shorts + 5
+    longs per theme (50 unique). Theme-matched copy; real YouTube URLs + CDN
+    thumbs; no cross-theme titles/descriptions/thumbs/ids.
+  - Auto-appear when owner has not configured enough videos (`videoItemsForTheme`
+    fill). Mocks cannot be permanently deleted (`isProtectedThemeMockVideo`,
+    `filterDeletableOwnerVideos`; Step Socials delete blocked). No new DB
+    tables. Files: `siteVideoCatalog.ts`, `siteVideoGallery.ts`,
+    `StepSocials.tsx`, `scripts/test-phase-15.5.mjs`.
+  - Validation: `test:phase-15.5` **19/19**; 15.1–15.4 green; lint 0.
+    Details: `docs/phase-15.5-theme-wise-mock-video-data.md`.
+
+- **PHASE 15.4 — AUTO THUMBNAIL + TITLE + DESCRIPTION: COMPLETE (18 tests).**
+  - Paste-only YouTube add flow in Step 07: reuses Phase 15.2
+    `fetchVideoMetadata` / `/api/video-metadata` (no second fetch system).
+    Auto-fills thumbnail, title, description, channel, canonical URL.
+  - Merge policy (`mergePlatformMetadataIntoForm`) never overwrites manual
+    edits or valid platform metadata unnecessarily. Shorts/Long kind captured
+    from the original paste; `themeId` bound to the active salon theme.
+  - Partial metadata notice + broken-thumbnail fallback (owner list + form +
+    gallery). No new DB fields/API keys. Files: `videoUrlMetadata.ts`,
+    `StepSocials.tsx`, `SiteVideoGallery.tsx`, `scripts/test-phase-15.4.mjs`.
+  - Validation: `test:phase-15.4` **18/18**; 15.1–15.3 green; lint 0.
+    Details: `docs/phase-15.4-auto-thumbnail-title-description.md`.
+
+- **PHASE 15.3 — 5 SHORTS + 5 LONG VIDEOS PER THEME: COMPLETE (21 tests).**
+  - Every theme always shows **5 Shorts + 5 Long Videos** (owner first, then
+    theme catalog fill). Total catalog: **50 unique** theme-specific records —
+    no shared ids/urls/titles across themes.
+  - `src/lib/siteVideoCatalog.ts` — per-theme seeds with real YouTube
+    watch/shorts URLs + `img.youtube.com` thumbs. Additive `SocialVideo.videoKind`
+    (`short` | `long`); inferred from URL when absent. No new DB tables.
+  - Gallery fill in `videoItemsForTheme`: owner-scoped → fill each kind to
+    quota 5 from that theme's catalog only. UI: kind tabs (All/Shorts/Long),
+    kind badges, 9:16 vs 16:9 tiles. Owner save stamps `videoKind` + themeId.
+  - Validation: `test:phase-15.3` **21/21**; 15.1 26/26; 15.2 18/18; 10.8 36/36;
+    lint 0. Details: `docs/phase-15.3-shorts-long-videos-per-theme.md`.
+
+- **PHASE 15.2 — YOUTUBE/PLATFORM URL AUTO-FETCH: COMPLETE (18 tests).**
+  - Owner pastes a YouTube URL in Step 07 → Video ID extracted client-side
+    (watch / youtu.be / shorts / embed / live / m. / music) → server
+    `POST /api/video-metadata` resolves public oEmbed + OG metadata (title,
+    thumbnail, description, channel, canonical URL) with **no API key and no
+    service-role** in the browser.
+  - Auto-fills the add-video form; invalid / channel / non-YouTube URLs show a
+    clear error. Extensible platform detection reserves Instagram / Facebook /
+    TikTok for later. Additive `SocialVideo.externalVideoId` / `description` /
+    `channelName` map onto existing `social_videos.external_video_id` — no new
+    tables. Files: `src/lib/videoUrlMetadata.ts`, `server.ts`,
+    `src/screens/StepSocials.tsx`, `scripts/test-phase-15.2.mjs`.
+  - Validation: `test:phase-15.2` **18/18**; `test:phase-15.1` 26/26; lint 0.
+    Details: `docs/phase-15.2-youtube-url-auto-fetch.md`.
+
+- **PHASE 15.1 — VIDEO GALLERY FOUNDATION: COMPLETE for all five themes (26 tests).**
+  - ONE shared Video Gallery architecture (`src/components/SiteVideoGallery.tsx`
+    + `src/lib/siteVideoGallery.ts` + `src/lib/siteVideoGalleryI18n.ts`) used by
+    all five theme renderers. `SiteSocialFeed` is now a thin re-export so the
+    Phase 10.8 section contract stays intact (no second video system).
+  - Content = owner-configured `SalonData.socialVideos` only (URLs + thumbnails;
+    matches existing `social_videos` table — no video file storage). Additive
+    optional `SocialVideo.themeId` scopes items per theme (same grandfathering
+    rule as gallery: absent = visible on every theme). No new tables/columns.
+  - Theme isolation: foreign-`themeId` videos never leak; theme/data switch
+    closes any open embed; each theme keeps its own grid config via
+    `VIDEO_GALLERY_THEME_CONFIG`.
+  - UI: responsive 9:16 card grid, lazy thumbnails via `SiteImage`
+    (`context="video"`), broken-thumbnail fallback, loading/empty/error via the
+    shared section system, play-on-demand embed (no iframe until click). EN/HI
+    chrome + Light/Dark surfaces via existing `socialVisuals`.
+  - Out of scope (later phases): YouTube auto-fetch, likes UI, weekly videos,
+    admin management, dashboard logic.
+  - Validation: `test:phase-15.1` **26/26**; `test:phase-10.8` 36/36;
+    `test:phase-10.12` 178/178; `test:phase-14.1` 55/55; lint 0 errors.
+    Details: `docs/phase-15.1-video-gallery-foundation.md`.
 
 - **PHASE 14.1 — GALLERY & VISUAL PORTFOLIO: COMPLETE for all five themes (55 tests).**
   - ONE shared gallery architecture (`src/components/SiteGallery.tsx` +
@@ -1098,6 +1173,11 @@ npm run test:phase-14.5    # gallery conversion & final polish (22 tests)
 npm run test:phase-14.6    # owner/admin gallery management (26 tests)
 npm run test:phase-14.7    # owner/admin gallery approval / moderation (18 tests)
 npm run test:phase-14      # every Phase 14 suite (180 tests)
+npm run test:phase-15.1    # video gallery foundation across all five themes (26 tests)
+npm run test:phase-15.2    # YouTube/platform URL auto-fetch (18 tests)
+npm run test:phase-15.3    # 5 shorts + 5 long videos per theme (21 tests)
+npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
+npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1133,6 +1213,11 @@ Expected output:
 - `test:phase-14.6`: 26/26 passed (owner/admin gallery management)
 - `test:phase-14.7`: 18/18 passed (owner/admin gallery approval / moderation)
 - `test:phase-14`: 180/180 passed (Phase 14 complete)
+- `test:phase-15.1`: 26/26 passed (video gallery foundation, all five themes)
+- `test:phase-15.2`: 18/18 passed (YouTube/platform URL auto-fetch)
+- `test:phase-15.3`: 21/21 passed (5 shorts + 5 long videos per theme)
+- `test:phase-15.4`: 18/18 passed (auto thumbnail + title + description)
+- `test:phase-15.5`: 19/19 passed (theme-wise protected mock video data)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

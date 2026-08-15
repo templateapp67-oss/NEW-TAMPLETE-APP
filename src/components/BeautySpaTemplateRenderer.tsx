@@ -15,7 +15,7 @@ import SiteAnnouncementBar from './SiteAnnouncementBar';
 import BeautySpaHero from './heroes/BeautySpaHero';
 import SiteSalonStatus from './SiteSalonStatus';
 import SiteReviews from './SiteReviews';
-import SiteSocialFeed from './SiteSocialFeed';
+import SiteVideoGallery from './SiteVideoGallery';
 import SiteTrust from './SiteTrust';
 import SiteFeaturedServices from './SiteFeaturedServices';
 import SiteOffers from './SiteOffers';
@@ -256,7 +256,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
         {/* Gallery — PHASE 14.1: theme-scoped portfolio (featured, filter, lightbox, before/after) */}
         <SiteGallery themeId="beauty_skin_spa" data={data} mode={mode} />
 
-        <SiteSocialFeed themeId="beauty_skin_spa" data={data} mode={mode} />
+        <SiteVideoGallery themeId="beauty_skin_spa" data={data} mode={mode} />
 
         <div {...sectionProps('about', aboutState)} className="site-section px-5 md:px-8 py-14" style={{ backgroundColor: cream }}>
           <div className="max-w-2xl mx-auto text-center">

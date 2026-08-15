@@ -144,6 +144,288 @@ app.get('/api/geocode/reverse', async (req, res) => {
   }
 });
 
+/* ------------------------------------------------------------------ *
+ * PHASE 15.2 — Video URL metadata (YouTube oEmbed + Open Graph)
+ *
+ * Owner pastes a video URL → server resolves public metadata so the
+ * browser never holds a YouTube Data API key or service-role secret.
+ * Uses only public endpoints (no API key required):
+ *   - https://www.youtube.com/oembed
+ *   - Open Graph tags on the watch page (description fallback)
+ *
+ * Extensible: platform detection is shared with the client module; more
+ * providers can be added here later without changing the response shape.
+ * ------------------------------------------------------------------ */
+
+const YT_VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
+const VIDEO_META_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const VIDEO_META_MIN_INTERVAL_MS = 350;
+const videoMetaCache = new Map<string, { at: number; body: unknown }>();
+let videoMetaLastAt = 0;
+let videoMetaQueue: Promise<unknown> = Promise.resolve();
+
+function videoMetaRateLimited<T>(task: () => Promise<T>): Promise<T> {
+  const run = videoMetaQueue.then(async () => {
+    const waitFor = videoMetaLastAt + VIDEO_META_MIN_INTERVAL_MS - Date.now();
+    if (waitFor > 0) await delay(waitFor);
+    videoMetaLastAt = Date.now();
+    return task();
+  });
+  videoMetaQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+function parseYoutubeIdServer(raw: string): string | null {
+  let value = (raw || '').trim();
+  if (!value) return null;
+  if (/^\/\//.test(value)) value = `https:${value}`;
+  if (!/^https?:\/\//i.test(value) && /^[\w.-]+\.[a-z]{2,}/i.test(value)) {
+    value = `https://${value}`;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/i.test(parsed.protocol)) return null;
+  const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+  if (host === 'youtu.be') {
+    const id = parsed.pathname.split('/').filter(Boolean)[0] || '';
+    return YT_VIDEO_ID_RE.test(id) ? id : null;
+  }
+  if (
+    host === 'youtube.com' ||
+    host === 'm.youtube.com' ||
+    host === 'music.youtube.com' ||
+    host === 'youtube-nocookie.com'
+  ) {
+    const v = parsed.searchParams.get('v') || '';
+    if (YT_VIDEO_ID_RE.test(v)) return v;
+    const match = parsed.pathname.match(/\/(?:shorts|embed|live)\/([a-zA-Z0-9_-]+)/);
+    if (match && YT_VIDEO_ID_RE.test(match[1])) return match[1];
+  }
+  return null;
+}
+
+function detectPlatformServer(raw: string): 'youtube' | 'instagram' | 'facebook' | 'tiktok' | null {
+  let value = (raw || '').trim();
+  if (/^\/\//.test(value)) value = `https:${value}`;
+  if (!/^https?:\/\//i.test(value) && /^[\w.-]+\.[a-z]{2,}/i.test(value)) {
+    value = `https://${value}`;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+  if (
+    host === 'youtube.com' ||
+    host === 'm.youtube.com' ||
+    host === 'music.youtube.com' ||
+    host === 'youtu.be' ||
+    host === 'youtube-nocookie.com'
+  ) {
+    return 'youtube';
+  }
+  if (host.includes('instagram.com')) return 'instagram';
+  if (host.includes('facebook.com') || host === 'fb.watch' || host === 'fb.com') return 'facebook';
+  if (host.includes('tiktok.com')) return 'tiktok';
+  return null;
+}
+
+function extractMetaContent(html: string, property: string): string {
+  // property="og:…" content="…"  OR  content="…" property="og:…"
+  const re1 = new RegExp(
+    `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']*)["']`,
+    'i',
+  );
+  const re2 = new RegExp(
+    `<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${property}["']`,
+    'i',
+  );
+  const m = html.match(re1) || html.match(re2);
+  if (!m) return '';
+  return m[1]
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim();
+}
+
+async function fetchYoutubeOembed(videoId: string): Promise<{
+  title: string;
+  channelName: string;
+  thumbnailUrl: string;
+  html: string;
+} | null> {
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const oembedUrl =
+    `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`;
+  const response = await fetch(oembedUrl, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'NexoraSalonWebsiteBuilder/1.0 (+https://nexorabeauty.com)',
+    },
+  });
+  if (response.status === 404 || response.status === 401) return null;
+  if (!response.ok) {
+    throw new Error(`YouTube oEmbed responded ${response.status}`);
+  }
+  const data = (await response.json()) as {
+    title?: string;
+    author_name?: string;
+    thumbnail_url?: string;
+    html?: string;
+  };
+  return {
+    title: typeof data.title === 'string' ? data.title.trim() : '',
+    channelName: typeof data.author_name === 'string' ? data.author_name.trim() : '',
+    thumbnailUrl:
+      typeof data.thumbnail_url === 'string' && /^https?:\/\//i.test(data.thumbnail_url)
+        ? data.thumbnail_url.trim()
+        : `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    html: typeof data.html === 'string' ? data.html : '',
+  };
+}
+
+async function fetchYoutubeDescription(videoId: string): Promise<string> {
+  // Optional OG scrape for description — best-effort, never fails the request.
+  try {
+    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const response = await fetch(watchUrl, {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent': 'NexoraSalonWebsiteBuilder/1.0 (+https://nexorabeauty.com)',
+      },
+      redirect: 'follow',
+    });
+    if (!response.ok) return '';
+    const html = await response.text();
+    // Bound how much HTML we scan.
+    const slice = html.slice(0, 200_000);
+    return (
+      extractMetaContent(slice, 'og:description') ||
+      extractMetaContent(slice, 'description') ||
+      ''
+    );
+  } catch {
+    return '';
+  }
+}
+
+app.post('/api/video-metadata', async (req, res) => {
+  try {
+    const rawUrl = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+    if (!rawUrl) {
+      return res.status(400).json({
+        code: 'empty',
+        error: 'Paste a video URL to continue.',
+      });
+    }
+
+    const platform = detectPlatformServer(rawUrl);
+    if (!platform) {
+      return res.status(400).json({
+        code: 'unsupported_platform',
+        error:
+          'This platform is not supported for auto-fetch yet. YouTube links work today.',
+      });
+    }
+
+    if (platform !== 'youtube') {
+      // Extensible hook — Instagram/Facebook/TikTok land in later phases.
+      return res.status(400).json({
+        code: 'unsupported_platform',
+        error:
+          'This platform is not supported for auto-fetch yet. YouTube links work today — Instagram, Facebook and TikTok are coming next.',
+      });
+    }
+
+    const videoId = parseYoutubeIdServer(rawUrl);
+    if (!videoId) {
+      // Channel / home vs bad id
+      let hostPath = '';
+      try {
+        const u = new URL(/^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`);
+        hostPath = `${u.hostname}${u.pathname}`;
+      } catch {
+        /* ignore */
+      }
+      if (/youtube\.com\/(@|channel\/|c\/|user\/)|youtube\.com\/?$/i.test(hostPath)) {
+        return res.status(400).json({
+          code: 'not_a_video',
+          error: 'This link is a channel or profile, not a single video. Paste a video URL instead.',
+        });
+      }
+      return res.status(400).json({
+        code: 'invalid_youtube',
+        error:
+          'That is not a valid YouTube video link. Paste a watch, youtu.be, Shorts or embed URL.',
+      });
+    }
+
+    const cacheKey = `yt:${videoId}`;
+    const cached = videoMetaCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < VIDEO_META_CACHE_TTL_MS) {
+      return res.json(cached.body);
+    }
+
+    try {
+      const oembed = await videoMetaRateLimited(() => fetchYoutubeOembed(videoId));
+      if (!oembed) {
+        return res.status(404).json({
+          code: 'not_found',
+          error: 'No video was found at that URL. It may be private or deleted.',
+        });
+      }
+
+      const description = await fetchYoutubeDescription(videoId);
+      const body = {
+        platform: 'youtube' as const,
+        externalVideoId: videoId,
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        title: oembed.title,
+        description,
+        channelName: oembed.channelName,
+        thumbnailUrl:
+          oembed.thumbnailUrl || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        embedUrl: `https://www.youtube.com/embed/${videoId}`,
+        source: oembed.title || oembed.channelName ? 'oembed' : 'partial',
+      };
+
+      videoMetaCache.set(cacheKey, { at: Date.now(), body });
+      return res.json(body);
+    } catch (err: any) {
+      console.error('YouTube metadata fetch failed:', err?.message || err);
+      // Degraded response — still return the derived id + public thumbnail so
+      // the owner form can auto-fill what is available without a Data API key.
+      const degraded = {
+        platform: 'youtube' as const,
+        externalVideoId: videoId,
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        title: '',
+        description: '',
+        channelName: '',
+        thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        embedUrl: `https://www.youtube.com/embed/${videoId}`,
+        source: 'derived' as const,
+      };
+      return res.json(degraded);
+    }
+  } catch (error: any) {
+    console.error('Error in video-metadata route:', error);
+    res.status(500).json({
+      code: 'fetch_failed',
+      error: 'Could not load video details right now. Check the link and try again.',
+    });
+  }
+});
+
 // API route for generating team member bio using Gemini API with offline fallback
 app.post('/api/generate-bio', async (req, res) => {
   try {
