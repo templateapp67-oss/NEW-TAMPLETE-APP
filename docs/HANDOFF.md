@@ -1,10 +1,33 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-15** (session `arena/01a0039c-new-tamplete-app`).
+> Last updated: **2026-08-15** (session `arena/01a003f2-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 15.6 — OWNER/ADMIN VIDEO MANAGEMENT: COMPLETE (34 tests).**
+  - One management surface (`VideoManagementPanel` in Step 07) over the
+    existing 15.1–15.5 video architecture — no duplicate system, no new DB
+    structures. Owner: add (existing flow), replace link (reuses 15.2
+    `/api/video-metadata`), edit metadata, delete own rows, edit protected
+    showcase records via materialised owner overrides (`replacesMockId`);
+    **never** delete protected records. Admin (server-signed admin claim on
+    the session): full add/edit/replace/delete + approve/reject (with reason)
+    /mark pending + per-salon showcase tombstone (`disabledThemeVideoIds`)
+    and restore. `owner_admin` claim does NOT elevate to platform admin.
+  - Permissions re-checked inside every helper (not just hidden buttons);
+    actor resolution reuses `useAuth` + `resolveOwnerSalonId` — no salon ids
+    ever accepted or invented. Customer projection hides pending/rejected/
+    unpublished owner rows and honours tombstones; 5+5 fill kept. Files:
+    `src/lib/videoManagement.ts`, `src/lib/videoModeration.ts`,
+    `src/components/VideoManagementPanel.tsx`, additive touches to
+    `siteVideoGallery.ts` / `siteVideoCatalog.ts` / `types.ts` /
+    `StepSocials.tsx`, `scripts/test-phase-15.6.mjs`.
+  - Validation: `test:phase-15.6` **34/34**; `test:phase-15` **136/136**;
+    10.8 36/36; 10.12 178/178; 14.6 26/26; 14.7 18/18; lint 0; build green;
+    25-screen verification green. Details:
+    `docs/phase-15.6-owner-admin-video-management.md`.
 
 - **PHASE 15.5 — THEME-WISE PROTECTED MOCK VIDEO DATA: COMPLETE (19 tests).**
   - Hardened the 15.3 catalog into protected mock/default data: 5 shorts + 5

@@ -232,6 +232,27 @@ export interface SocialVideo {
    * from the URL (YouTube Shorts / Instagram Reels → short; else long).
    */
   videoKind?: 'short' | 'long' | null;
+  /**
+   * PHASE 15.6 — lifecycle status. 'inactive' unpublishes the video from the
+   * customer gallery without deleting the record. Absent = active.
+   */
+  status?: 'active' | 'inactive';
+  /**
+   * PHASE 15.6 — admin moderation state. Absent = grandfathered approved
+   * (existing saved videos stay public, same rule as Phase 14.7 gallery).
+   */
+  moderation?: 'pending' | 'approved' | 'rejected';
+  /** PHASE 15.6 — human-readable rejection reason (set on reject). */
+  rejectionReason?: string;
+  /** PHASE 15.6 — ISO timestamp of the last approve/reject review. */
+  reviewedAt?: string;
+  /**
+   * PHASE 15.6 — when this owner/admin row customises a protected theme
+   * showcase (mock) video, this holds the protected record id it replaces
+   * (e.g. `theme:barber:s1`). The protected catalog record itself is never
+   * mutated; deleting this row simply restores the showcase default.
+   */
+  replacesMockId?: string | null;
 }
 
 export interface SalonAddress {
@@ -374,6 +395,13 @@ export interface SalonData {
   gallery?: GalleryImage[];
   socialProfiles?: SocialProfiles;
   socialVideos?: SocialVideo[];
+  /**
+   * PHASE 15.6 — ids of protected theme showcase (mock) video records an
+   * admin has removed FOR THIS SALON ONLY. The protected catalog itself is
+   * never mutated; the gallery fill path skips these ids so they stop
+   * auto-appearing for this salon. Owners can never write this list.
+   */
+  disabledThemeVideoIds?: string[];
   address?: SalonAddress;
   openingHours?: SalonOpeningHours;
   /** Dated website announcements (festival / seasonal / important / custom). */
