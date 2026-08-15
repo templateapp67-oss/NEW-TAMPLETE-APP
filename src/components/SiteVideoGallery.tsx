@@ -1,19 +1,21 @@
 /**
- * PHASE 15.1–15.7 — shared, theme-isolated video gallery + player.
+ * PHASE 15.1–15.8 — shared, theme-isolated video gallery + player.
  *
- * Phase 15.7 finalises the card/player interaction without adding a second
- * video system: cards still consume `videoItemsForTheme`, but every play/open
- * action is re-validated against the exact stored original platform URL and
- * the active theme immediately before use. YouTube embeds are loaded only on
- * demand; the external action opens the exact original watch/Short URL.
+ * Phase 15.8 adds event-derived Like controls and a current-week, active-theme
+ * ranking. Production writes/duplicate prevention/counting are delegated to
+ * the existing Supabase session + M28 database RPCs; this component never
+ * creates a user/salon id or trusts a client-side count as authoritative.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   AlertCircle,
   ExternalLink,
+  Heart,
   LoaderCircle,
   Play,
+  RefreshCw,
+  Trophy,
   Video,
   X as CloseIcon,
 } from 'lucide-react';
@@ -44,6 +46,14 @@ import {
   originalVideoDestinationForTheme,
   safePlatformChannelUrl,
 } from '../lib/videoPlatform';
+import {
+  loadVideoLikeState,
+  resolveVideoLikeContext,
+  submitVideoLike,
+  weeklyTopVideos,
+  type VideoLikeSnapshot,
+} from '../lib/videoLikes';
+import { useAuth } from '../lib/useAuth';
 import { SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import SiteImage from './SiteImage';
@@ -57,6 +67,7 @@ interface Props {
 
 type KindFilter = 'all' | VideoKind;
 type PlayerState = 'loading' | 'ready' | 'unavailable' | 'invalid';
+type LikeUiStatus = 'loading' | 'ready' | 'error' | 'unavailable';
 
 function videoSizes(mode: ViewportMode): string {
   if (mode === 'mobile') return '(max-width: 390px) 45vw, 190px';
@@ -94,8 +105,14 @@ function VideoCard({
   onThumbError,
   onActivate,
   onOpenExternal,
+  onLike,
   accent,
   interactionError,
+  likeError,
+  likeSnapshot,
+  likeStatus,
+  likeBusy,
+  likeUnavailableReason,
 }: {
   key?: string;
   item: VideoGalleryItem;
@@ -114,13 +131,22 @@ function VideoCard({
   onThumbError: () => void;
   onActivate: (item: VideoGalleryItem) => void;
   onOpenExternal: (item: VideoGalleryItem) => void;
+  onLike: (item: VideoGalleryItem) => void;
   accent: string;
   interactionError?: string;
+  likeError?: string;
+  likeSnapshot?: VideoLikeSnapshot;
+  likeStatus: LikeUiStatus;
+  likeBusy: boolean;
+  likeUnavailableReason?: string;
 }) {
   const hasThumb = !!item.thumbnailUrl && !thumbBroken;
   const kindLabel = item.kind === 'short' ? chrome.shortBadge : chrome.longBadge;
   const sourceName = item.channelName || chrome.platforms[item.platform];
   const sourceUrl = safePlatformChannelUrl(item.channelUrl, item.platform);
+  const liked = !!likeSnapshot?.likedByViewer;
+  const likeCount = likeSnapshot?.totalLikes || 0;
+  const likeDisabled = likeBusy || likeStatus === 'loading' || likeStatus === 'unavailable' || liked;
 
   return (
     <article
@@ -134,6 +160,8 @@ function VideoCard({
       data-has-thumb={hasThumb ? 'true' : 'false'}
       data-url-state="valid"
       data-original-url={item.originalUrl}
+      data-like-count={String(likeCount)}
+      data-liked-by-viewer={liked ? 'true' : 'false'}
       className={`relative overflow-hidden group min-w-0 border flex flex-col ${radius}`}
       style={{ borderColor: cardLine, backgroundColor: cardBackground, contain: 'content' }}
     >
@@ -234,6 +262,31 @@ function VideoCard({
         <div className="flex flex-wrap items-center gap-1.5 mt-auto">
           <button
             type="button"
+            data-testid="site-video-like"
+            data-video-id={item.id}
+            data-liked={liked ? 'true' : 'false'}
+            aria-label={`${liked ? chrome.liked : chrome.like} ${item.title}. ${likeCount}`}
+            aria-pressed={liked}
+            disabled={likeDisabled}
+            title={likeUnavailableReason || (liked ? chrome.liked : chrome.like)}
+            className={`${viewClass} disabled:cursor-not-allowed disabled:opacity-60`}
+            style={viewStyle}
+            onClick={() => onLike(item)}
+          >
+            {likeBusy || likeStatus === 'loading' ? (
+              <LoaderCircle className="w-3 h-3 inline mr-1 animate-spin" aria-hidden />
+            ) : (
+              <Heart
+                className="w-3 h-3 inline mr-1"
+                fill={liked ? 'currentColor' : 'none'}
+                aria-hidden
+              />
+            )}
+            <span data-testid="site-video-like-label">{liked ? chrome.liked : chrome.like}</span>{' '}
+            <span data-testid="site-video-like-count">{likeStatus === 'loading' ? '…' : likeCount}</span>
+          </button>
+          <button
+            type="button"
             data-testid="site-social-play"
             aria-label={`${chrome.play} ${item.title}`}
             className={viewClass}
@@ -266,6 +319,17 @@ function VideoCard({
             {interactionError}
           </p>
         )}
+        {likeError && (
+          <p
+            role="alert"
+            data-testid="site-video-like-error"
+            className="text-[10px] leading-snug flex gap-1.5"
+            style={{ color: '#dc2626' }}
+          >
+            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" aria-hidden />
+            {likeError}
+          </p>
+        )}
       </div>
     </article>
   );
@@ -273,6 +337,9 @@ function VideoCard({
 
 export default function SiteVideoGallery({ themeId, data, mode }: Props) {
   const locale = useSiteLocale();
+  // Existing Supabase Auth controls the production RPC identity. The service
+  // never accepts the user id; auth.uid() is derived inside the database.
+  const auth = useAuth();
   const appearance = useThemeAppearance(themeId);
   const visual = socialVisuals(themeId, appearance);
   const S = siteText(themeId, locale);
@@ -292,6 +359,7 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
     ),
     [data.socialProfiles],
   );
+  const likeContext = useMemo(() => resolveVideoLikeContext(data), [data]);
   const state = resolveSectionState('videos', items);
 
   const title = S.videosTitle || C.feedTitle;
@@ -303,8 +371,52 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
   const [playerMessage, setPlayerMessage] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [interactionErrors, setInteractionErrors] = useState<Record<string, string>>({});
+  const [likeStatus, setLikeStatus] = useState<LikeUiStatus>('loading');
+  const [likeSnapshots, setLikeSnapshots] = useState<Record<string, VideoLikeSnapshot>>({});
+  const [likeLoadError, setLikeLoadError] = useState('');
+  const [likeErrors, setLikeErrors] = useState<Record<string, string>>({});
+  const [likingIds, setLikingIds] = useState<Record<string, boolean>>({});
+  const [likeWeekStart, setLikeWeekStart] = useState('');
+  const likeRequestRef = useRef(0);
+  const likeMutationGenerationRef = useRef(0);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+
+  const loadLikes = useCallback(async () => {
+    const requestId = ++likeRequestRef.current;
+    if (likeContext.mode === 'unavailable') {
+      setLikeStatus('unavailable');
+      setLikeLoadError(likeContext.reason);
+      setLikeSnapshots({});
+      return;
+    }
+    // Wait for the existing auth client to finish session restoration before a
+    // production RPC. Anonymous mode then uses the existing browser token.
+    if (likeContext.mode === 'database' && auth.loading) {
+      setLikeStatus('loading');
+      return;
+    }
+
+    setLikeStatus('loading');
+    setLikeLoadError('');
+    const result = await loadVideoLikeState({ context: likeContext, themeId, items });
+    if (requestId !== likeRequestRef.current) return;
+    if (result.ok === false) {
+      setLikeStatus(result.code === 'unavailable' ? 'unavailable' : 'error');
+      setLikeLoadError(result.error);
+      return;
+    }
+    setLikeSnapshots(result.snapshots);
+    setLikeWeekStart(result.weekStart);
+    setLikeStatus('ready');
+  }, [auth.loading, auth.session, items, likeContext, themeId]);
+
+  useEffect(() => {
+    void loadLikes();
+    return () => {
+      likeRequestRef.current += 1;
+    };
+  }, [loadLikes]);
 
   // Theme/data switch drops every interaction object so stale media from a
   // previous theme can never remain playable or redirectable.
@@ -314,6 +426,9 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
     setPlayerMessage('');
     setKindFilter('all');
     setInteractionErrors({});
+    setLikeErrors({});
+    setLikingIds({});
+    likeMutationGenerationRef.current += 1;
     resetBroken();
     // resetBroken is intentionally state-local; theme/data are the isolation keys.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,6 +473,10 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
     if (kindFilter === 'long') return longs;
     return items;
   }, [kindFilter, shorts, longs, items]);
+  const weeklyTop = useMemo(
+    () => weeklyTopVideos(items, likeSnapshots, themeId, 5),
+    [items, likeSnapshots, themeId],
+  );
 
   const palette = {
     accent: visual.accent,
@@ -409,6 +528,34 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
     });
   };
 
+  const likeVideo = async (candidate: VideoGalleryItem) => {
+    const item = currentItem(candidate);
+    if (!item) {
+      setLikeErrors((previous) => ({ ...previous, [candidate.id]: chrome.invalidUrl }));
+      return;
+    }
+    if (likeSnapshots[item.id]?.likedByViewer || likingIds[item.id]) return;
+
+    const generation = likeMutationGenerationRef.current;
+    setLikingIds((previous) => ({ ...previous, [item.id]: true }));
+    setLikeErrors((previous) => {
+      if (!previous[item.id]) return previous;
+      const next = { ...previous };
+      delete next[item.id];
+      return next;
+    });
+    const result = await submitVideoLike({ context: likeContext, themeId, item });
+    if (generation !== likeMutationGenerationRef.current) return;
+    setLikingIds((previous) => ({ ...previous, [item.id]: false }));
+    if (result.ok === false) {
+      setLikeErrors((previous) => ({ ...previous, [item.id]: result.error }));
+      return;
+    }
+    setLikeSnapshots((previous) => ({ ...previous, [item.id]: result.snapshot }));
+    setLikeStatus('ready');
+    setLikeLoadError('');
+  };
+
   const activate = (candidate: VideoGalleryItem) => {
     const item = currentItem(candidate);
     triggerRef.current = document.activeElement instanceof HTMLElement
@@ -452,6 +599,8 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
       data-theme={themeId}
       data-appearance={appearance}
       data-kind-filter={kindFilter}
+      data-like-status={likeStatus}
+      data-like-source={likeContext.mode}
       data-short-count={String(shorts.length)}
       data-long-count={String(longs.length)}
       className={`site-section ${sectionSpacing}`}
@@ -545,6 +694,96 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
             </div>
 
             <div
+              data-testid="site-video-weekly-top"
+              data-weekly-state={likeStatus}
+              data-theme={themeId}
+              data-week-start={likeWeekStart}
+              role="region"
+              aria-label={chrome.weeklyTopTitle}
+              className={`mb-7 border p-4 ${visual.radius || ''}`}
+              style={{ backgroundColor: visual.chipBg, borderColor: visual.cardLine, color: visual.textStrong }}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: visual.accent, color: '#141414' }}
+                >
+                  <Trophy className="w-4 h-4" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold" data-testid="site-video-weekly-title">
+                    {chrome.weeklyTopTitle}
+                  </h4>
+                  <p className="text-[10px] mt-0.5" style={{ color: visual.muted }}>
+                    {chrome.weeklyTopBody}
+                  </p>
+                </div>
+              </div>
+
+              {likeStatus === 'loading' ? (
+                <div
+                  data-testid="site-video-likes-loading"
+                  role="status"
+                  className="mt-4 flex items-center gap-2 text-xs"
+                  style={{ color: visual.muted }}
+                >
+                  <LoaderCircle className="w-4 h-4 animate-spin" aria-hidden />
+                  {chrome.loadingLikes}
+                </div>
+              ) : likeStatus === 'error' || likeStatus === 'unavailable' ? (
+                <div data-testid="site-video-likes-error" role="alert" className="mt-4">
+                  <p className="text-xs font-semibold">{chrome.weeklyErrorTitle}</p>
+                  <p className="text-[10px] mt-1" style={{ color: visual.muted }}>{likeLoadError}</p>
+                  {likeStatus === 'error' && (
+                    <button
+                      type="button"
+                      data-testid="site-video-likes-retry"
+                      className={`mt-2 ${visual.viewClass}`}
+                      style={visual.viewStyle}
+                      onClick={() => void loadLikes()}
+                    >
+                      <RefreshCw className="w-3 h-3 inline mr-1" aria-hidden />
+                      {chrome.retryLikes}
+                    </button>
+                  )}
+                </div>
+              ) : weeklyTop.length === 0 ? (
+                <div data-testid="site-video-weekly-empty" className="mt-4">
+                  <p className="text-xs font-semibold">{chrome.weeklyEmptyTitle}</p>
+                  <p className="text-[10px] mt-1" style={{ color: visual.muted }}>{chrome.weeklyEmptyBody}</p>
+                </div>
+              ) : (
+                <div
+                  data-testid="site-video-weekly-list"
+                  className={`grid gap-2 mt-4 ${mode === 'desktop' ? 'grid-cols-5' : mode === 'tablet' ? 'grid-cols-3' : 'grid-cols-1'}`}
+                >
+                  {weeklyTop.map((ranked) => (
+                    <button
+                      key={ranked.item.id}
+                      type="button"
+                      data-testid="site-video-weekly-item"
+                      data-video-id={ranked.item.id}
+                      data-video-kind={ranked.item.kind}
+                      data-rank={String(ranked.rank)}
+                      className={`site-touch min-w-0 p-2 text-left border ${visual.radius || ''}`}
+                      style={{ borderColor: visual.cardLine, backgroundColor: visual.sectionBg, color: visual.textStrong }}
+                      onClick={() => activate(ranked.item)}
+                    >
+                      <span className="text-[9px] font-extrabold" style={{ color: visual.accent }}>
+                        #{ranked.rank} · {ranked.item.kind === 'short' ? chrome.shortBadge : chrome.longBadge}
+                      </span>
+                      <span className="block text-[10px] font-bold line-clamp-2 mt-1">{ranked.item.title}</span>
+                      <span className="inline-flex items-center gap-1 text-[9px] mt-1.5" style={{ color: visual.muted }}>
+                        <Heart className="w-3 h-3" fill="currentColor" aria-hidden />
+                        {ranked.weeklyLikes}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div
               data-testid="site-video-gallery-grid"
               data-kind-filter={kindFilter}
               className={`grid items-start gap-4 ${siteGrid(mode, config.grid)}`}
@@ -568,8 +807,14 @@ export default function SiteVideoGallery({ themeId, data, mode }: Props) {
                   onThumbError={() => mark(item.id)}
                   onActivate={activate}
                   onOpenExternal={openExternal}
+                  onLike={(video) => void likeVideo(video)}
                   accent={visual.accent}
                   interactionError={interactionErrors[item.id]}
+                  likeError={likeErrors[item.id]}
+                  likeSnapshot={likeSnapshots[item.id]}
+                  likeStatus={likeStatus}
+                  likeBusy={!!likingIds[item.id]}
+                  likeUnavailableReason={likeStatus === 'unavailable' ? likeLoadError : undefined}
                 />
               ))}
             </div>

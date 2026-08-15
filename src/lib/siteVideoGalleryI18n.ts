@@ -35,6 +35,16 @@ export interface VideoGalleryChromeCopy {
   invalidUrl: string;
   sourceLabel: string;
   opensOriginal: string;
+  /** PHASE 15.8 — like controls + current-week ranking. */
+  like: string;
+  liked: string;
+  loadingLikes: string;
+  weeklyTopTitle: string;
+  weeklyTopBody: string;
+  weeklyEmptyTitle: string;
+  weeklyEmptyBody: string;
+  weeklyErrorTitle: string;
+  retryLikes: string;
   platforms: Record<VideoGalleryPlatform, string>;
 }
 
@@ -64,6 +74,15 @@ const KIND_EN = {
   invalidUrl: 'This video link is invalid or unsafe and was not opened.',
   sourceLabel: 'Source',
   opensOriginal: 'Opens the exact original platform video',
+  like: 'Like',
+  liked: 'Liked',
+  loadingLikes: 'Loading likes…',
+  weeklyTopTitle: 'Weekly Top Videos',
+  weeklyTopBody: 'Most liked this week in this theme',
+  weeklyEmptyTitle: 'No weekly likes yet',
+  weeklyEmptyBody: 'Be the first to like a video this week.',
+  weeklyErrorTitle: 'Weekly ranking unavailable',
+  retryLikes: 'Try again',
 };
 
 const KIND_HI = {
@@ -78,6 +97,15 @@ const KIND_HI = {
   invalidUrl: 'यह वीडियो लिंक अमान्य या असुरक्षित है और खोला नहीं गया।',
   sourceLabel: 'स्रोत',
   opensOriginal: 'ठीक वही मूल प्लेटफ़ॉर्म वीडियो खोलता है',
+  like: 'पसंद करें',
+  liked: 'पसंद किया',
+  loadingLikes: 'पसंद लोड हो रही हैं…',
+  weeklyTopTitle: 'इस सप्ताह के शीर्ष वीडियो',
+  weeklyTopBody: 'इस थीम में इस सप्ताह सबसे ज़्यादा पसंद किए गए',
+  weeklyEmptyTitle: 'इस सप्ताह अभी कोई पसंद नहीं',
+  weeklyEmptyBody: 'इस सप्ताह किसी वीडियो को सबसे पहले पसंद करें।',
+  weeklyErrorTitle: 'साप्ताहिक रैंकिंग उपलब्ध नहीं है',
+  retryLikes: 'फिर कोशिश करें',
 };
 
 const CHROME: Record<SiteHeaderThemeId, Record<AppLocale, Omit<VideoGalleryChromeCopy, 'platforms'>>> = {

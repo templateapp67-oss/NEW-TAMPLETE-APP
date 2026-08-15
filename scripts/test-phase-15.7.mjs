@@ -397,12 +397,12 @@ await test('theme isolation blocks foreign owner redirects and every catalog des
 
 section('Scope guardrails');
 
-await test('15.7 adds no likes, weekly ranking, dashboard integration, secrets or migration', () => {
-  const player = fs.readFileSync(path.join(root, 'src/components/SiteVideoGallery.tsx'), 'utf8');
+await test('15.7 platform redirect layer remains independent of likes/dashboard/secrets', () => {
+  // Phase 15.8 intentionally enhances SiteVideoGallery later; the 15.7 URL
+  // gate itself must stay free of count/ranking/auth/dashboard coupling.
   const platform = fs.readFileSync(path.join(root, 'src/lib/videoPlatform.ts'), 'utf8');
-  const combined = `${player}\n${platform}`;
-  assert.equal(/likesCount|most-liked|mostLiked|weeklyTop|weeklyMost/i.test(combined), false);
-  assert.equal(/service_role|YOUTUBE_API_KEY|GEMINI_API_KEY/.test(combined), false);
+  assert.equal(/likesCount|most-liked|mostLiked|weeklyTop|weeklyMost|dashboard/i.test(platform), false);
+  assert.equal(/service_role|YOUTUBE_API_KEY|GEMINI_API_KEY/.test(platform), false);
   const migrations = fs.readdirSync(path.join(root, 'supabase/migrations'));
   assert.equal(migrations.some((name) => /15[._-]?7|video.player|original.platform/i.test(name)), false);
 });

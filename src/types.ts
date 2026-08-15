@@ -210,6 +210,7 @@ export interface SocialVideo {
   originalUrl?: string;
   thumbnailUrl: string;
   dateAdded?: string;
+  /** Legacy Phase 10 demo field; Phase 15.8 never trusts or renders it. */
   likesCount?: string;
   /**
    * PHASE 15.1 — optional theme scoping. An item scoped to a different theme
@@ -372,6 +373,8 @@ export interface ReviewedContent {
 export type PublishState = 'draft' | 'publishing' | 'published';
 
 export interface SalonData {
+  /** Existing public.businesses.id when this payload came from the database. */
+  businessId?: string;
   templateId?:
     | 'hair'
     | 'barber_mens_grooming'

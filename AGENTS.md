@@ -46,7 +46,7 @@ npm run start        # run the production build (node dist/server.cjs)
 npm run preview      # vite preview on http://0.0.0.0:4173
 npm run lint         # type-check only: tsc --noEmit
 npm run generate:theme-seed # regenerate M18 from src/lib/themeServices.ts
-npm run validate:migrations # source-check M18 + apply M01–M24 twice + tests A–T
+npm run validate:migrations # source-check M18 + apply M01–M28 twice + tests A–U
 npm run test:theme-catalog # verify five-theme DB/RPC/UI read boundaries
 npm run test:service-saving # verify saved-service CRUD/tenant/persistence flow
 npm run test:service-management # Phase 8.1 management E2E on real PostgreSQL
@@ -93,7 +93,8 @@ npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
 npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
 npm run test:phase-15.6    # owner/admin video management (34 tests)
 npm run test:phase-15.7    # final player + exact original-platform redirect (21 tests)
-npm run test:phase-15      # every Phase 15 suite (157 tests)
+npm run test:phase-15.8    # secure likes + current-week theme ranking (23 tests)
+npm run test:phase-15      # every Phase 15 suite (180 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
@@ -155,8 +156,8 @@ node verify-22-screens.js   # static verification of all 25 screens/features
 
 - `docs/nexora-database-spec.md` — the 90-point Nexora Supabase master
   specification and source for migration order §5.25.
-- `docs/database-migrations-plan.md` + `supabase/migrations/` — **DRAFT** M01–M24.
-  They pass clean replay x2 plus tests A–T in PGlite, but have **not been applied
+- `docs/database-migrations-plan.md` + `supabase/migrations/` — **DRAFT** M01–M28.
+  They pass clean replay x2 plus tests A–U in PGlite, but have **not been applied
   to any database**. M02 is deliberately a fail-closed preflight and must be
   regenerated after read-only live Supabase introspection. Never execute the
   migration set without a separate explicit go-ahead.
@@ -213,7 +214,7 @@ loads). All `.env*` files are gitignored except `.env.example`.
   tuned for agent editing (`DISABLE_HMR` env).
 - **Verification**: after UI/feature changes, run
   `node verify-22-screens.js` and `npm run lint`. After migration changes, also
-  run `npm run validate:migrations` and keep the 24/24 x2 + 20/20 result.
+  run `npm run validate:migrations` and keep the 28/28 x2 + 21/21 result.
 
 ## Git workflow
 

@@ -1,6 +1,6 @@
-# Nexora Database Migrations Plan — M01–M21 (DRAFT)
+# Nexora Database Migrations Plan — M01–M28 (DRAFT)
 
-> **Status (2026-08-13): DRAFT SQL committed and extended through Phase 7.4 Session 3; NOT applied to any database.**
+> **Status (2026-08-15): DRAFT SQL committed through Phase 15.8; NOT applied to any database.**
 >
 > The migrations implement the ordering proposed by the 90-point master
 > specification §5.25. They have been validated on an embedded real PostgreSQL
@@ -48,6 +48,13 @@ No `DROP TABLE` or destructive replacement is allowed.
 | M19 | `20260813000401_m19_theme_catalog_read_rpc.sql` | Phase 7.4 Session 1 mandatory theme-filtered catalog read RPC for the five-theme UI |
 | M20 | `20260813000501_m20_save_predefined_services.sql` | Phase 7.4 Session 2 authenticated, tenant-derived, idempotent Add Selected saving |
 | M21 | `20260813000601_m21_saved_service_management.sql` | Phase 7.4 Session 3 tenant-scoped refresh, edit, activate/deactivate, and saved-row delete RPCs |
+| M22 | `20260813000701_m22_saved_service_management.sql` | Phase 8.1 complete saved-service CRUD/status management |
+| M23 | `20260813000801_m23_service_security_hardening.sql` | Phase 8.2 direct-table provenance/security hardening |
+| M24 | `20260813000901_m24_offers_pricing_bundles.sql` | Phase 9.1 offers, price variants and theme-safe bundles |
+| M25 | `20260813001001_m25_localization_search_media.sql` | Phase 9.2 translations, theme search and service media |
+| M26 | `20260813001101_m26_service_safety_audit.sql` | Phase 9.3 booking safety locks and tenant/theme audit helpers |
+| M27 | `20260815000101_m27_video_like_event_type.sql` | Phase 15.8 commits the `video_like` website-event enum value separately |
+| M28 | `20260815000102_m28_video_likes_weekly.sql` | Phase 15.8 reuses `website_events` for secure deduplicated likes + theme-week RPCs |
 
 ### Deliberate decisions
 
@@ -89,6 +96,15 @@ No `DROP TABLE` or destructive replacement is allowed.
 - M21 completes refresh persistence and mutable saved-service management while
   deriving tenant ownership server-side and never mutating the global catalog.
   See [`phase-7.4-session-3-final-integration.md`](phase-7.4-session-3-final-integration.md).
+- M27–M28 implement Phase 15.8 only after inspecting M06/M10/M12/M14/M16:
+  likes reuse the existing append-only `website_events` interaction log instead
+  of adding a parallel likes table or mutable count column. `social_videos`
+  gains nullable theme/kind provenance matching the existing client model.
+  `like_video` derives `auth.uid()` (or hashes the existing browser-session
+  token), validates business/video/theme, and relies on a unique event index;
+  direct public `video_like` inserts are blocked. Weekly boundaries use the
+  existing business timezone. See
+  [`phase-15.8-likes-weekly-most-liked.md`](phase-15.8-likes-weekly-most-liked.md).
 
 ## Validation performed
 
@@ -102,11 +118,11 @@ The validator uses `@electric-sql/pglite` **0.3.16**, a real PostgreSQL engine
 compiled to WebAssembly, including its `pgcrypto` and `btree_gist` extensions.
 It creates only minimal Supabase-compatible `auth`/`storage` test fixtures.
 
-Result on 2026-08-13:
+Result on 2026-08-15:
 
-- **21/21 migrations applied cleanly on an empty schema**
-- **21/21 migrations applied cleanly a second time** (replay/idempotency)
-- **19/19 functional tests passed**
+- **28/28 migrations applied cleanly on an empty schema**
+- **28/28 migrations applied cleanly a second time** (replay/idempotency)
+- **21/21 functional tests passed**
 
 | Test | Assertion |
 |---|---|
@@ -129,6 +145,8 @@ Result on 2026-08-13:
 | Q | Theme-scoped RPC returns only the requested theme’s categories/services/suggestions |
 | R | Add Selected saves all five themes once with exact tenant/provenance and preserves duplicates/custom rows |
 | S | Refresh, edit/deactivate/delete, switching, global safety, and cross-tenant isolation remain correct |
+| T | Complete Phase 8.1 saved-service management remains valid across all themes |
+| U | Video likes deduplicate by auth/session, block direct forgery/cross-theme targets, and rank current-week Short + Long events |
 
 This validation proves draft consistency on a clean PostgreSQL schema. It does
 **not** replace live-project introspection, Supabase-specific review, staging
@@ -165,12 +183,12 @@ M02 SQL.
    upgrade fixtures and verify data-preserving behavior.
 4. Review the full diff, take a recoverable backup, and obtain explicit
    migration-execution approval.
-5. Apply M01–M21 in order with Supabase CLI migrations (preferred) or carefully
+5. Apply M01–M28 in order with Supabase CLI migrations (preferred) or carefully
    through the SQL editor; stop on the first error and do not skip migrations.
 6. Run acceptance tests A–L from spec P88 plus Phase tests M–S against
    staging/live as approved, including multi-user RLS and browser/server flows.
 7. Generate Supabase TypeScript types (`supabase gen types typescript`) per P72,
    commit them, and wire the service layer/screens to the single source of truth.
 
-**Next step:** live Supabase introspection → regenerate M02 → approved M01–M21
-application → P88 tests A–L + Phase tests M–S → P72 TypeScript types.
+**Next step:** live Supabase introspection → regenerate M02 → approved M01–M28
+application → P88 tests A–L + Phase tests M–U → P72 TypeScript types.

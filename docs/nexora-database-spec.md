@@ -1844,5 +1844,12 @@ Checked against P87 + guardrails: RLS on all business-owned tables ✓ (P48); no
 19. **M19** Phase 7.4 Session 1 mandatory theme-filtered catalog read RPC
 20. **M20** Phase 7.4 Session 2 authenticated, tenant-derived, idempotent predefined-service saving
 21. **M21** Phase 7.4 Session 3 tenant-scoped refresh/edit/status/delete management
+22. **M22** Phase 8.1 complete saved-service CRUD/status management
+23. **M23** Phase 8.2 direct-table provenance and tenant security hardening
+24. **M24** Phase 9.1 offers, price variants and theme-safe bundles
+25. **M25** Phase 9.2 localization, search and service media
+26. **M26** Phase 9.3 booking safety/audit and tenant-theme integrity
+27. **M27** Phase 15.8 committed `video_like` website-event discriminator
+28. **M28** Phase 15.8 event-backed duplicate-safe likes and current-week theme ranking RPCs
 
-**Execution gate:** M01–M21 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.
+**Execution gate:** M01–M28 are checked in as DRAFT ordered files (P81), but M02 is not final. Read-only live Supabase introspection → regenerate M02/adapt downstream files → separate execution approval → ordered apply (P90) → report per P89.

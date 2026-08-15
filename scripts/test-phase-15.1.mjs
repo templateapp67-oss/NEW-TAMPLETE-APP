@@ -691,7 +691,7 @@ await test('SocialVideo themeId field is additive — existing unscoped drafts s
   }
 });
 
-await test('no likes / weekly / admin / auto-fetch surfaces in the foundation UI', () => {
+await test('foundation never trusts legacy likesCount or adds admin/dashboard coupling', () => {
   reset();
   const data = salonData('barber_mens_grooming', {
     socialVideos: [
@@ -706,9 +706,9 @@ await test('no likes / weekly / admin / auto-fetch surfaces in the foundation UI
   });
   const utils = render(React.createElement(Barber, { data, mode: 'desktop' }));
   const feed = flat(utils.getByTestId('site-social-feed'));
-  // Foundation deliberately does not surface likesCount.
-  assert.equal(feed.includes('9.9k'), false, 'likes must not render in 15.1');
-  assert.equal(feed.toLowerCase().includes('weekly'), false);
+  // Phase 15.8 may render event-derived Like/Weekly UI, but the old arbitrary
+  // SocialVideo.likesCount field must still never become authoritative.
+  assert.equal(feed.includes('9.9k'), false, 'legacy likesCount must not render');
   assert.equal(feed.toLowerCase().includes('admin'), false);
   assert.equal(feed.toLowerCase().includes('dashboard'), false);
   reset();
