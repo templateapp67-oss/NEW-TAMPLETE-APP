@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 26, 'expected exactly M01-M26');
+assert.equal(migrationFiles.length, 27, 'expected exactly M01-M27');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/26 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/27 applied cleanly`);
 }
 
 const ids = {
@@ -1589,6 +1589,197 @@ await test('T — Phase 8.1 full saved-service management across all five themes
   assert.deepEqual(legacyCustomAfter.rows, legacyCustomBefore.rows);
 });
 
-assert.equal(passed, 20);
-console.log(`Functional tests: ${passed}/20 passed`);
+await test('U — Phase 15.8 video likes: duplicates, tenancy and theme-aware weekly ranking', async () => {
+  const videoShortA = 'a0000000-0000-4000-8000-0000000000a1';
+  const videoLongA = 'a0000000-0000-4000-8000-0000000000a2';
+  const videoOtherTheme = 'a0000000-0000-4000-8000-0000000000a3';
+  const videoB = 'a0000000-0000-4000-8000-0000000000b1';
+
+  await db.query(
+    `insert into public.social_videos (id, business_id, platform, video_url, theme_key, video_kind, display_order)
+     values
+       ($1, $5, 'youtube', 'https://www.youtube.com/shorts/aaaaaaaaaaa', 'barber_mens_grooming', 'short', 0),
+       ($2, $5, 'youtube', 'https://www.youtube.com/watch?v=bbbbbbbbbbb', 'barber_mens_grooming', 'long', 1),
+       ($3, $5, 'youtube', 'https://www.youtube.com/shorts/ccccccccccc', 'nail_lash_studio', 'short', 2),
+       ($4, $6, 'youtube', 'https://www.youtube.com/shorts/ddddddddddd', 'barber_mens_grooming', 'short', 0)`,
+    [videoShortA, videoLongA, videoOtherTheme, videoB, ids.businessA, ids.businessB],
+  );
+
+  // Existing rows stay valid with NULL theme/kind (additive columns only).
+  await db.query(
+    `insert into public.social_videos (business_id, platform, video_url)
+     values ($1, 'instagram', 'https://www.instagram.com/reel/AbCdEf12345/')`,
+    [ids.businessA],
+  );
+
+  // A like can never point at a video of a different theme/business.
+  await expectReject(
+    () => db.query(
+      `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token)
+       values ($1, $2, 'nail_lash_studio', 'cross-theme')`,
+      [ids.businessA, videoShortA],
+    ),
+    /social_video_likes_video_business_theme_fk|violates foreign key/i,
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token)
+       values ($1, $2, 'barber_mens_grooming', 'cross-tenant')`,
+      [ids.businessB, videoShortA],
+    ),
+    /social_video_likes_video_business_theme_fk|violates foreign key/i,
+  );
+
+  // Exactly one identity per row.
+  await expectReject(
+    () => db.query(
+      `insert into public.social_video_likes (business_id, video_id, theme_key, user_id, visitor_token)
+       values ($1, $2, 'barber_mens_grooming', $3, 'both')`,
+      [ids.businessA, videoShortA, ids.ownerB],
+    ),
+    /social_video_likes_identity_shape/i,
+  );
+
+  // Duplicate likes are impossible for both identity shapes.
+  await db.query(
+    `insert into public.social_video_likes (business_id, video_id, theme_key, user_id)
+     values ($1, $2, 'barber_mens_grooming', $3)`,
+    [ids.businessA, videoShortA, ids.ownerB],
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.social_video_likes (business_id, video_id, theme_key, user_id)
+       values ($1, $2, 'barber_mens_grooming', $3)`,
+      [ids.businessA, videoShortA, ids.ownerB],
+    ),
+    /uq_social_video_likes_user|duplicate key/i,
+  );
+  await db.query(
+    `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token)
+     values ($1, $2, 'barber_mens_grooming', 'visitor-1')`,
+    [ids.businessA, videoShortA],
+  );
+  await expectReject(
+    () => db.query(
+      `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token)
+       values ($1, $2, 'barber_mens_grooming', 'visitor-1')`,
+      [ids.businessA, videoShortA],
+    ),
+    /uq_social_video_likes_visitor|duplicate key/i,
+  );
+
+  // One like on the Long video, and likes on the other theme / other tenant
+  // that must never leak into this theme's ranking.
+  await db.query(
+    `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token)
+     values ($1, $2, 'barber_mens_grooming', 'visitor-2')`,
+    [ids.businessA, videoLongA],
+  );
+  await db.query(
+    `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token)
+     values ($1, $2, 'nail_lash_studio', 'visitor-3'),
+            ($1, $2, 'nail_lash_studio', 'visitor-4'),
+            ($1, $2, 'nail_lash_studio', 'visitor-5')`,
+    [ids.businessA, videoOtherTheme],
+  );
+  await db.query(
+    `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token)
+     values ($1, $2, 'barber_mens_grooming', 'visitor-6'),
+            ($1, $2, 'barber_mens_grooming', 'visitor-7'),
+            ($1, $2, 'barber_mens_grooming', 'visitor-8'),
+            ($1, $2, 'barber_mens_grooming', 'visitor-9')`,
+    [ids.businessB, videoB],
+  );
+
+  // Weekly ranking: theme-aware, kind-aware, Shorts + Long both supported.
+  const weekly = await db.query(
+    'select * from public.get_weekly_top_videos($1, $2, null, 5)',
+    [ids.businessA, 'barber_mens_grooming'],
+  );
+  assert.deepEqual(
+    weekly.rows.map((row) => [row.rank, row.video_id, row.video_kind, row.weekly_likes]),
+    [[1, videoShortA, 'short', 2], [2, videoLongA, 'long', 1]],
+    'only this theme + this tenant rank, ordered by weekly likes',
+  );
+  assert.match(weekly.rows[0].week_key, /^\d{4}-W\d{2}$/);
+
+  const longOnly = await db.query(
+    "select video_id from public.get_weekly_top_videos($1, 'barber_mens_grooming', 'long', 5)",
+    [ids.businessA],
+  );
+  assert.deepEqual(longOnly.rows.map((row) => row.video_id), [videoLongA]);
+
+  const otherTheme = await db.query(
+    "select video_id, weekly_likes from public.get_weekly_top_videos($1, 'nail_lash_studio', null, 5)",
+    [ids.businessA],
+  );
+  assert.deepEqual(
+    otherTheme.rows.map((row) => [row.video_id, row.weekly_likes]),
+    [[videoOtherTheme, 3]],
+    'the other theme ranks only its own video',
+  );
+
+  // Likes from a previous week never count toward the current week.
+  await db.query(
+    `insert into public.social_video_likes (business_id, video_id, theme_key, visitor_token, created_at)
+     values ($1, $2, 'barber_mens_grooming', 'last-week', now() - interval '10 days')`,
+    [ids.businessA, videoLongA],
+  );
+  const afterOld = await db.query(
+    "select weekly_likes, total_likes from public.get_weekly_top_videos($1, 'barber_mens_grooming', 'long', 5)",
+    [ids.businessA],
+  );
+  assert.equal(afterOld.rows[0].weekly_likes, 1, 'last week is excluded');
+  assert.equal(afterOld.rows[0].total_likes, 2, 'all-time still counts it');
+
+  // Toggle RPC: like → unlike from the same session, never a duplicate row.
+  await asRole('authenticated', ids.ownerA, async () => {
+    const first = await db.query('select public.toggle_social_video_like($1) as result', [videoLongA]);
+    assert.equal(first.rows[0].result.liked, true);
+    assert.equal(first.rows[0].result.weekly_likes, 2);
+    const second = await db.query('select public.toggle_social_video_like($1) as result', [videoLongA]);
+    assert.equal(second.rows[0].result.liked, false, 'a repeat like toggles off, never duplicates');
+    assert.equal(second.rows[0].result.weekly_likes, 1);
+  });
+
+  // A caller with neither a user nor a visitor token cannot like anything.
+  await asRole('anon', '', async () => {
+    await expectReject(
+      () => db.query('select public.toggle_social_video_like($1)', [videoLongA]),
+      /session is required/i,
+    );
+  });
+
+  // RLS: an authenticated caller sees only their OWN salon's like rows plus
+  // their own personal likes — never another tenant's visitors.
+  await asRole('authenticated', ids.ownerB, async () => {
+    const visible = await db.query(
+      'select business_id, user_id from public.social_video_likes order by business_id',
+    );
+    const foreign = visible.rows.filter(
+      (row) => row.business_id !== ids.businessB && row.user_id !== ids.ownerB,
+    );
+    assert.equal(foreign.length, 0, 'no foreign-tenant like rows are readable');
+    assert.equal(
+      visible.rows.filter((row) => row.business_id === ids.businessB).length,
+      4,
+      'own salon rows are readable',
+    );
+  });
+
+  // Direct writes cannot forge another identity.
+  await asRole('authenticated', ids.ownerB, async () => {
+    await expectReject(
+      () => db.query(
+        `insert into public.social_video_likes (business_id, video_id, theme_key, user_id)
+         values ($1, $2, 'barber_mens_grooming', $3)`,
+        [ids.businessB, videoB, ids.ownerA],
+      ),
+      /row-level security|violates/i,
+    );
+  });
+});
+
+assert.equal(passed, 21);
+console.log(`Functional tests: ${passed}/21 passed`);
 await db.close();

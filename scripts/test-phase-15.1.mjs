@@ -706,9 +706,12 @@ await test('no likes / weekly / admin / auto-fetch surfaces in the foundation UI
   });
   const utils = render(React.createElement(Barber, { data, mode: 'desktop' }));
   const feed = flat(utils.getByTestId('site-social-feed'));
-  // Foundation deliberately does not surface likesCount.
-  assert.equal(feed.includes('9.9k'), false, 'likes must not render in 15.1');
-  assert.equal(feed.toLowerCase().includes('weekly'), false);
+  // The legacy free-text `likesCount` field is never trusted or rendered —
+  // Phase 15.8 counts are derived from real like rows, not this string.
+  assert.equal(feed.includes('9.9k'), false, 'stale likesCount text must never render');
+  const card = utils.container.querySelector('[data-social-id="likes-check"]');
+  assert.equal(card.getAttribute('data-like-count'), '0', 'counts start from real data only');
+  // Owner/admin management and the main dashboard remain out of this surface.
   assert.equal(feed.toLowerCase().includes('admin'), false);
   assert.equal(feed.toLowerCase().includes('dashboard'), false);
   reset();
