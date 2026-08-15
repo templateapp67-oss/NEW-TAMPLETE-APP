@@ -1,10 +1,45 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`).
+> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`, Phase 16.2).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.2 — SERVICE SELECTION: COMPLETE (55 tests).**
+  - The booking Service step is wired to the EXISTING theme-specific service
+    system and gains **multi-service selection with automatic totals** —
+    same single booking architecture, nothing rebuilt.
+  - Rows show name, category, offer-aware price (`serviceDisplayPrice`) and
+    duration; the list is still `bookingServicesForTheme` (active rows,
+    theme provenance enforced — foreign/inactive rows can never render,
+    resolve or total). No new IDs/tables/columns/prices/fake services.
+  - Engine additions (`siteBookingFlow.ts`, additive): `toggleBookingService`
+    (ordered toggle, cap `BOOKING_MAX_SERVICES` = 6), `bookingSelectedServices`
+    (resolve against the active theme list only), `bookingSelectionSummary`
+    (auto price+duration totals; variant-aware durations),
+    `bookingCombinedSlotService` — the selection acts as ONE sitting for the
+    EXISTING slot/hold engine (stable sorted-id key + summed duration; a
+    single selection collapses to the plain service, so 10.6 hold keys and
+    the 10.7 payment hand-off stay byte-identical).
+  - UI: multi-select service cards (Add/Added), live totals panel (per-line
+    price/duration + Remove, total price/duration, Clear all, limit note),
+    summary line items + totals; selection changes release the held slot and
+    the time step re-holds the new span. Multi-service Confirm stays on the
+    summary with a localized "payment in a later phase" note (the 10.7
+    engine prices exactly one service; no fake hand-off).
+  - Draft store v2 (additive): `services` line items + `totalPrice` +
+    `totalDurationMinutes`; 16.1 fields mirror line 1 + totals; resume
+    restores the whole selection; theme/tenant isolation unchanged.
+  - Loading / error(+Retry) / empty states through the SAME shared section
+    seam the website 'services' section uses. EN/HI + light/dark + the
+    existing responsive structure.
+  - Explicitly NOT in 16.2: time slots (16.3+), payment/advance/confirmation,
+    notifications, management, multi-service payment, database execution.
+  - Validation: `test:phase-16.2` **55/55**; 16.1 55/55; 10.6 107/107;
+    10.7 66/66; Phases 10–15 fully green; 9.1 9/9; `validate:migrations`
+    27/27 ×2 + 21/21; lint 0; build green; verify-22-screens 25/25.
+    Details: `docs/phase-16.2-service-selection.md`.
 
 - **PHASE 16.1 — BOOKING FOUNDATION: COMPLETE (55 tests).**
   - The public-site booking flow gains its foundation shape:
@@ -1316,6 +1351,7 @@ npm run test:phase-15.8    # likes + weekly most-liked videos (24 tests)
 npm run test:phase-15.10   # final 5-theme video acceptance (73 tests)
 npm run test:phase-15      # every Phase 15 suite (244 tests)
 npm run test:phase-16.1    # booking foundation: Salon → Service → Date → Time → Details → Summary (55 tests)
+npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1362,6 +1398,7 @@ Expected output:
 - `test:phase-15.10`: 73/73 passed (final 5-theme video acceptance)
 - `test:phase-15`: 244 tests, all green — PHASE 15 ACCEPTED
 - `test:phase-16.1`: 55/55 passed (booking foundation, all five themes)
+- `test:phase-16.2`: 55/55 passed (multi-service selection + auto totals)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed

@@ -17,8 +17,9 @@
  * later phases. The engine reuses the Phase 10.5 salon clock
  * (`salonStatus.salonNow`) so status and booking agree on "now".
  */
-import type { SalonData, SalonHoliday, SalonOpeningHours, Service } from '../types';
+import type { SalonData, SalonHoliday, SalonOpeningHours, Service, ServiceOffer } from '../types';
 import { digitsOnly } from './siteBooking';
+import { serviceDisplayPrice } from './pricing';
 import { activeCatalogItems } from './siteStructure';
 import type { SiteHeaderThemeId } from './siteNavigation';
 import {
@@ -127,6 +128,131 @@ export function bookingServicesByCategory(services: readonly Service[]): Array<{
     else map.set(category, [service]);
   }
   return Array.from(map.entries()).map(([category, items]) => ({ category, services: items }));
+}
+
+/* ------------------------------------------------------------------ */
+/* PHASE 16.2 — multi-service selection (one appointment, N services)  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Maximum services per single appointment. A guard, not a business rule:
+ * the appointment stays one continuous sitting, so runaway selections
+ * (and absurd total durations) are prevented at the engine level.
+ */
+export const BOOKING_MAX_SERVICES = 6;
+
+export interface BookingSelectionLine {
+  service: Service;
+  /** Offer-aware price actually charged (existing Phase 9.1 pricing). */
+  finalPrice: number;
+  /** Pre-offer price for strikethrough display. */
+  basePrice: number;
+  /** Duration in minutes (active pricing-variant override wins, as in 10.6). */
+  durationMinutes: number;
+}
+
+export interface BookingSelectionSummary {
+  lines: BookingSelectionLine[];
+  /** Sum of offer-aware final prices. */
+  totalPrice: number;
+  /** Sum of pre-offer base prices (>= totalPrice; equal when no offers). */
+  totalBasePrice: number;
+  /** Total appointment length in minutes. */
+  totalDurationMinutes: number;
+  count: number;
+}
+
+/** Duration for one service — active variant override first, as in 10.6. */
+export function bookingServiceDuration(service: Service): number {
+  const variant = service.pricingVariants?.find((v) => v.status === 'active');
+  return Math.max(variant?.duration ?? service.duration ?? 30, 1);
+}
+
+/**
+ * Resolves the ordered id list against the ACTIVE theme's own service list.
+ * Unknown / foreign / stale ids are silently dropped — a selection can never
+ * contain a service the active theme does not itself offer.
+ */
+export function bookingSelectedServices(
+  services: readonly Service[],
+  selectedIds: readonly string[],
+): Service[] {
+  const seen = new Set<string>();
+  const result: Service[] = [];
+  for (const id of selectedIds) {
+    if (seen.has(id)) continue;
+    const service = services.find((item) => item.id === id);
+    if (!service) continue;
+    seen.add(id);
+    result.push(service);
+  }
+  return result;
+}
+
+/**
+ * Toggle one service in the ordered selection. Selecting an already-selected
+ * service removes it; adding beyond `BOOKING_MAX_SERVICES` is refused (the
+ * caller shows the limit note). Never invents ids — the id must exist in the
+ * theme's own list at resolve time (`bookingSelectedServices`).
+ */
+export function toggleBookingService(
+  selectedIds: readonly string[],
+  serviceId: string,
+): { ids: string[]; changed: boolean; reason?: 'limit' } {
+  if (selectedIds.includes(serviceId)) {
+    return { ids: selectedIds.filter((id) => id !== serviceId), changed: true };
+  }
+  if (selectedIds.length >= BOOKING_MAX_SERVICES) {
+    return { ids: selectedIds.slice(), changed: false, reason: 'limit' };
+  }
+  return { ids: [...selectedIds, serviceId], changed: true };
+}
+
+/**
+ * Totals for the selection: offer-aware price (Phase 9.1 `serviceDisplayPrice`,
+ * same function every service card already uses) and variant-aware duration.
+ * Prices and durations are read from the existing rows only — never invented.
+ */
+export function bookingSelectionSummary(
+  selectedServices: readonly Service[],
+  offers: readonly ServiceOffer[] | undefined,
+): BookingSelectionSummary {
+  const lines: BookingSelectionLine[] = selectedServices.map((service) => {
+    const pricing = serviceDisplayPrice(service, (offers || []) as ServiceOffer[]);
+    return {
+      service,
+      finalPrice: pricing.finalPrice,
+      basePrice: pricing.basePrice,
+      durationMinutes: bookingServiceDuration(service),
+    };
+  });
+  return {
+    lines,
+    totalPrice: lines.reduce((sum, line) => sum + line.finalPrice, 0),
+    totalBasePrice: lines.reduce((sum, line) => sum + line.basePrice, 0),
+    totalDurationMinutes: lines.reduce((sum, line) => sum + line.durationMinutes, 0),
+    count: lines.length,
+  };
+}
+
+/**
+ * The combined selection acts as ONE bookable sitting for the existing
+ * slot/hold engine (id = stable joined ids, duration = summed minutes).
+ * Single-service selections collapse to the service itself, so all
+ * pre-16.2 hold keys, tests and behaviours stay byte-identical.
+ */
+export function bookingCombinedSlotService(
+  selectedServices: readonly Service[],
+): Pick<Service, 'id' | 'duration'> | null {
+  if (selectedServices.length === 0) return null;
+  if (selectedServices.length === 1) {
+    return { id: selectedServices[0].id, duration: bookingServiceDuration(selectedServices[0]) };
+  }
+  const ids = selectedServices.map((service) => service.id);
+  return {
+    id: ids.slice().sort().join('+'),
+    duration: selectedServices.reduce((sum, service) => sum + bookingServiceDuration(service), 0),
+  };
 }
 
 /* ------------------------------------------------------------------ */

@@ -24,12 +24,22 @@ import type { BookingCustomerDetails, BookingStepId } from './siteBookingFlow';
 
 export const BOOKING_DRAFT_STORE_KEY = 'nexora_site_booking_drafts';
 export const BOOKING_DRAFT_EVENT = 'nexora:booking-draft';
-/** Bump when the on-disk draft shape changes. */
-export const BOOKING_DRAFT_STORE_VERSION = 1;
+/** Bump when the on-disk draft shape changes (2 = 16.2 multi-service lines). */
+export const BOOKING_DRAFT_STORE_VERSION = 2;
 /** Drafts older than this are dropped on read (stale foundation data). */
 export const BOOKING_DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export type BookingDraftStatus = 'in_progress' | 'summary_ready';
+
+/** PHASE 16.2 — one selected service inside a multi-service draft. */
+export interface BookingDraftServiceLine {
+  serviceId: string;
+  serviceName: string;
+  category: string;
+  /** Offer-aware price actually charged (existing pricing engine). */
+  price: number;
+  durationMinutes: number;
+}
 
 export interface BookingDraftRecord {
   /** Internal row id (browser-local; the server will own real booking ids). */
@@ -42,11 +52,19 @@ export interface BookingDraftRecord {
   status: BookingDraftStatus;
   /** Furthest step the visitor reached. */
   step: BookingStepId;
-  /** Service snapshot — copied so later catalog edits cannot mutate it. */
+  /** Service snapshot — copied so later catalog edits cannot mutate it.
+   * With multiple services these mirror the FIRST line + summed totals so
+   * 16.1 consumers keep working; `services` holds the full line items. */
   serviceId: string | null;
   serviceName: string | null;
   servicePrice: number | null;
   serviceDurationMinutes: number | null;
+  /** PHASE 16.2 — every selected service, in selection order. */
+  services: BookingDraftServiceLine[];
+  /** PHASE 16.2 — offer-aware total of all lines. */
+  totalPrice: number | null;
+  /** PHASE 16.2 — summed duration of all lines (one continuous sitting). */
+  totalDurationMinutes: number | null;
   /** Slot snapshot (local salon-clock values, as in the entry flow). */
   dateKey: string | null;
   startMinutes: number | null;
@@ -113,7 +131,16 @@ function writeStore(store: PersistedDraftStore): void {
 }
 
 function freshRecords(store: PersistedDraftStore, now: number): BookingDraftRecord[] {
-  return store.records.filter((record) => now - record.updatedAt <= BOOKING_DRAFT_MAX_AGE_MS);
+  return store.records
+    .filter((record) => now - record.updatedAt <= BOOKING_DRAFT_MAX_AGE_MS)
+    // PHASE 16.2 — defensive normalisation: injected/legacy rows without
+    // the multi-service fields read back as an empty line list, never crash.
+    .map((record) => ({
+      ...record,
+      services: Array.isArray(record.services) ? record.services : [],
+      totalPrice: record.totalPrice ?? null,
+      totalDurationMinutes: record.totalDurationMinutes ?? null,
+    }));
 }
 
 /* ---- public API ---- */
@@ -141,6 +168,10 @@ export interface BookingDraftInput {
   serviceName?: string | null;
   servicePrice?: number | null;
   serviceDurationMinutes?: number | null;
+  /** PHASE 16.2 — full multi-service line items (selection order). */
+  services?: BookingDraftServiceLine[];
+  totalPrice?: number | null;
+  totalDurationMinutes?: number | null;
   dateKey?: string | null;
   startMinutes?: number | null;
   endMinutes?: number | null;
@@ -175,6 +206,9 @@ export function saveBookingDraft(input: BookingDraftInput): BookingDraftRecord {
     serviceName: input.serviceName ?? null,
     servicePrice: input.servicePrice ?? null,
     serviceDurationMinutes: input.serviceDurationMinutes ?? null,
+    services: (input.services || []).map((line) => ({ ...line })),
+    totalPrice: input.totalPrice ?? null,
+    totalDurationMinutes: input.totalDurationMinutes ?? null,
     dateKey: input.dateKey ?? null,
     startMinutes: input.startMinutes ?? null,
     endMinutes: input.endMinutes ?? null,

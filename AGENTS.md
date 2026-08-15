@@ -98,6 +98,7 @@ npm run test:phase-15.8    # likes + weekly most-liked videos (24 tests)
 npm run test:phase-15.10   # final 5-theme video acceptance gate (73 tests)
 npm run test:phase-15      # every Phase 15 suite (244 tests)
 npm run test:phase-16.1    # booking foundation: Salon → Service → Date → Time → Details → Summary (55 tests)
+npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
