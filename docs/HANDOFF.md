@@ -1,10 +1,60 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-15** (session `arena/01a003f2-new-tamplete-app`).
+> Last updated: **2026-08-15** (session `arena/01a00455-new-tamplete-app`).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 15.8 — LIKES + WEEKLY MOST-LIKED SYSTEM: COMPLETE (23 tests).**
+  - Added one event-derived Like button/count to every Short + Long card and a
+    responsive active-theme-only Weekly Top Videos panel (rank/title/type/
+    current-week count). Success updates card + ranking immediately; duplicate
+    same-user/session actions do not increment. Loading, retryable error,
+    unavailable, empty and per-card mutation error states are explicit; EN/HI,
+    Light/Dark and desktop/tablet/mobile remain shared with the existing gallery.
+  - Inspected M06 `social_videos`, M10 `website_events`, M12 RLS, M14 indexes,
+    M16/M18 themes, `useAuth`/Supabase session and `bookingBrowserId` first.
+    M27–M28 are **DRAFT only**: reuse `website_events` (no parallel likes table
+    or mutable count), formalize nullable social-video theme/kind, hash
+    database-derived `auth.uid()` or the existing anonymous session, enforce a
+    unique business+actor+theme+video event, validate owner/protected video
+    target + theme, block direct public like insertion, and calculate Monday
+    week bounds in the existing business timezone. No migration was applied.
+  - Production requires a real existing business UUID and uses only Supabase
+    RPCs; it never accepts/invents user/salon ids and never falls back locally
+    after backend errors. Supabase-absent builder preview reuses real website
+    slug + existing browser session in an isolated event store. Theme/data
+    switches invalidate in-flight writes and stale rankings.
+  - No dashboard integration, Phase 15.9/15.10, unlike/reactions, API key or
+    schema execution. Validation: 15.8 **23/23**; complete Phase 15 **180/180**;
+    migrations **28/28 x2 + A–U 21/21**; lint/build and 25-screen verification.
+    Details: `docs/phase-15.8-likes-weekly-most-liked.md`.
+
+- **PHASE 15.7 — VIDEO PLAYER + ORIGINAL PLATFORM REDIRECT: COMPLETE (21 tests).**
+  - Final responsive card/player built on the existing shared
+    `SiteVideoGallery`: lazy 9:16 Shorts / 16:9 Long media, thumbnail/title/
+    exact channel source/type, full-card Play, direct View, EN/HI, and
+    frame-mode desktop/tablet/mobile layouts. On-demand embeds expose loading,
+    ready, unavailable and invalid states; broken thumbnails keep actions
+    usable; Escape/backdrop/focus restore/body-lock are included.
+  - New `videoPlatform.ts` is the single interaction-time gate: exact provider
+    hosts + native single-video path + external-id match + active-theme check;
+    malformed/lookalike/profile/foreign-theme destinations fail closed. Safe
+    opens use `_blank` + `noopener,noreferrer` and pass the exact stored URL
+    unchanged. `SocialVideo.originalUrl` preserves the paste separately from
+    legacy/canonical `url`; `channelUrl` preserves oEmbed `author_url`. Add,
+    replace, catalog, moderation and legacy backfill paths all carry the fields.
+  - Corrected the protected catalog's prior unrelated valid-id redirects: all
+    50 stable slots now point to theme-relevant public videos whose exact title,
+    channel name and channel URL were checked through YouTube oEmbed on
+    2026-08-15. Shorts use real `/shorts/`; Long Videos use `watch?v=`. Stable
+    protected record ids, 5+5 fill, owner overrides and tombstones are retained.
+  - No migration/API key/private credential, likes, weekly ranking, dashboard
+    integration, Phase 15.8 or later work. Validation: 15.7 **21/21**; complete
+    Phase 15 **157/157**; 10.8 **36/36**; 10.12 **178/178**; lint/build and
+    25-screen verification green. Details:
+    `docs/phase-15.7-video-player-original-platform-redirect.md`.
 
 - **PHASE 15.6 — OWNER/ADMIN VIDEO MANAGEMENT: COMPLETE (34 tests).**
   - One management surface (`VideoManagementPanel` in Step 07) over the
@@ -1037,14 +1087,14 @@
     *"Authentication form is ready, but Supabase is not connected. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app."*
   - TopBar account action includes a graceful loading fallback so buttons never permanently disappear during session verification.
   - Automated regression suite added in `scripts/test-auth-modal.mjs` (`npm run test:auth`).
-- `supabase/migrations/` now contains **24 ordered DRAFT migrations (M01–M24)**:
-  M01–M15 follow the 90-point specification §5.25; M16–M21 complete the Phase 7
-  catalog, provenance, seed, read, save, refresh, and management architecture;
-  M22 completes Phase 8.1; M23 adds Phase 8.2 security hardening; M24 adds the
-  Phase 9.1 offer, badge, variable-price and theme-bundle architecture.
-- `scripts/validate-migrations.mjs` source-checks M18, applies all 24 files twice, and runs
-  the expanded functional acceptance set A–T using `@electric-sql/pglite` (real PostgreSQL).
-- Validation is green: **24/24 clean apply on pass 1, 24/24 on pass 2, 20/20
+- `supabase/migrations/` now contains **28 ordered DRAFT migrations (M01–M28)**:
+  M01–M15 follow the 90-point specification §5.25; M16–M21 complete Phase 7;
+  M22–M23 complete Phase 8 service management/security; M24–M26 cover Phase 9
+  commerce/localization/safety; M27–M28 implement Phase 15.8's event-backed
+  video likes and weekly ranking without a parallel likes table.
+- `scripts/validate-migrations.mjs` source-checks M18, applies all 28 files twice, and runs
+  the expanded functional acceptance set A–U using `@electric-sql/pglite` (real PostgreSQL).
+- Validation is green: **28/28 clean apply on pass 1, 28/28 on pass 2, 21/21
   functional tests, 9/9 Phase 9.1 tests, and 14/14 auth regression tests**.
 - **No migration has been applied to local, staging, or live Supabase.** The SQL
   is a reviewed/testable draft only.
@@ -1127,7 +1177,7 @@ Do not infer its complete state from the repository.
 - Historical booking snapshots, payment verification/idempotency, audit events,
   auto-save/resume, plan/white-label gates.
 
-### 3. Checked-in M01–M24 drafts
+### 3. Checked-in M01–M28 drafts
 
 The draft creates a clean target schema only when no known legacy collision is
 present. **M02 deliberately raises an exception** when it finds known live/legacy
@@ -1137,7 +1187,7 @@ parallel business model.
 
 Because the known live project has several of those objects, M02 must be
 regenerated after read-only introspection with explicit preserving
-rename/ALTER/backfill steps. M03–M23 may also need adjustments based on the
+rename/ALTER/backfill steps. M03–M28 may also need adjustments based on the
 actual types, keys, policies and data.
 
 The optional `payment_refunds` table is deferred until a real refund backend is
@@ -1151,7 +1201,7 @@ npm run lint                # TypeScript type check (tsc --noEmit)
 npm run test:auth           # Auth modal and login reliability regression tests
 node verify-22-screens.js   # Static verification of all 25 screens & features
 npm run generate:theme-seed # regenerate M18 from the TypeScript source
-npm run validate:migrations # source-check M18 + apply M01–M24 twice + tests A–T
+npm run validate:migrations # source-check M18 + apply M01–M28 twice + tests A–U
 npm run test:theme-catalog # five-theme DB/RPC/UI read-boundary checks
 npm run test:service-saving # refresh/CRUD/ownership/provenance checks
 npm run test:service-management # Phase 8.1 real-database management E2E
@@ -1201,6 +1251,10 @@ npm run test:phase-15.2    # YouTube/platform URL auto-fetch (18 tests)
 npm run test:phase-15.3    # 5 shorts + 5 long videos per theme (21 tests)
 npm run test:phase-15.4    # auto thumbnail + title + description (18 tests)
 npm run test:phase-15.5    # theme-wise protected mock video data (19 tests)
+npm run test:phase-15.6    # owner/admin video management (34 tests)
+npm run test:phase-15.7    # final player + exact original-platform redirect (21 tests)
+npm run test:phase-15.8    # secure likes + current-week theme ranking (23 tests)
+npm run test:phase-15      # all Phase 15 suites (180 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1208,7 +1262,7 @@ Expected output:
 - `lint`: 0 errors
 - `test:auth`: 14/14 passed
 - `verify-22-screens`: 25/25 verified
-- `validate:migrations`: M18 source check + 24/24 applied cleanly x2, 20/20 tests passed
+- `validate:migrations`: M18 source check + 28/28 applied cleanly x2, 21/21 tests passed
 - `test:phase-9.1`: 9/9 passed across all five themes
 - `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
@@ -1241,6 +1295,10 @@ Expected output:
 - `test:phase-15.3`: 21/21 passed (5 shorts + 5 long videos per theme)
 - `test:phase-15.4`: 18/18 passed (auto thumbnail + title + description)
 - `test:phase-15.5`: 19/19 passed (theme-wise protected mock video data)
+- `test:phase-15.6`: 34/34 passed (owner/admin video management)
+- `test:phase-15.7`: 21/21 passed (final player + exact original redirect)
+- `test:phase-15.8`: 23/23 passed (secure likes + weekly theme ranking)
+- `test:phase-15`: 180/180 passed (all Phase 15 suites)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green
@@ -1253,7 +1311,7 @@ Expected output:
 
 ## Guardrails / gotchas
 
-- **Do not apply M01–M24 yet.** Draft generation and PGlite validation are not
+- **Do not apply M01–M28 yet.** Draft generation and PGlite validation are not
   execution approval.
 - Read-only live introspection comes first; sanitize outputs before committing.
 - Regenerate M02 rather than bypassing its collision exception.
@@ -1275,9 +1333,9 @@ Expected output:
 2. **Regenerate M02** and adapt downstream drafts to preserve the actual schema/data.
 3. Re-run clean replay, legacy-upgrade fixtures and security review.
 4. Obtain a **separate explicit go-ahead** for database execution.
-5. Apply M01–M24 in order via Supabase CLI (preferred) or SQL editor.
-6. Run P88 acceptance tests **A–L** plus Phase tests **M–T** on the approved environment.
+5. Apply M01–M28 in order via Supabase CLI (preferred) or SQL editor.
+6. Run P88 acceptance tests **A–L** plus Phase tests **M–U** on the approved environment.
 7. Generate/commit Supabase **TypeScript types** per P72 and wire the service layer.
 
-In short: **live Supabase introspection → M02 regenerate → approved M01–M24
-apply → acceptance A–T → TypeScript types**.
+In short: **live Supabase introspection → M02 regenerate → approved M01–M28
+apply → acceptance A–U → TypeScript types**.

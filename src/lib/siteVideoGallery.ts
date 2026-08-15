@@ -41,6 +41,15 @@ import {
   type VideoKind,
 } from './siteVideoCatalog';
 import { isCustomerVisibleSocialVideo } from './videoModeration';
+import {
+  nativeVideoIdFromUrl,
+  originalPlatformVideoDestination,
+  safePlatformChannelUrl,
+} from './videoPlatform';
+
+// Phase 15.7 safe-destination helper is re-exported from the established
+// gallery layer for callers that already import all video helpers here.
+export { safeOriginalPlatformVideoUrl } from './videoPlatform';
 
 // Re-export delete guards so callers can import from the gallery layer.
 export {
@@ -60,8 +69,10 @@ export interface VideoGalleryItem {
   id: string;
   title: string;
   platform: VideoGalleryPlatform;
-  /** External watch / open URL (never a stored video file). */
+  /** Exact validated external destination (legacy alias kept for 15.1–15.6). */
   url: string;
+  /** PHASE 15.7 — exact original platform URL used for every redirect. */
+  originalUrl: string;
   /** Safe thumbnail URL, or '' when none is usable. */
   thumbnailUrl: string;
   /** Provider embed URL when the link can be parsed; otherwise null. */
@@ -75,6 +86,8 @@ export interface VideoGalleryItem {
   kind: VideoKind;
   dateAdded?: string;
   channelName?: string;
+  /** Exact validated source channel/profile URL when supplied by the platform. */
+  channelUrl?: string;
   description?: string;
   externalVideoId?: string | null;
 }
@@ -199,7 +212,13 @@ export function safeExternalVideoUrl(value: unknown): string {
 export function resolveVideoThumbnail(video: SocialVideo): string {
   const ownerThumb = safeMediaUrl(video.thumbnailUrl);
   if (ownerThumb) return ownerThumb;
-  const yt = parseYoutubeVideoId(video.url || '') || (video.externalVideoId && /^[a-zA-Z0-9_-]{11}$/.test(video.externalVideoId) ? video.externalVideoId : null);
+  const sourceUrl = video.originalUrl || video.url || '';
+  const yt =
+    nativeVideoIdFromUrl(sourceUrl, 'youtube') ||
+    parseYoutubeVideoId(sourceUrl) ||
+    (video.externalVideoId && /^[a-zA-Z0-9_-]{11}$/.test(video.externalVideoId)
+      ? video.externalVideoId
+      : null);
   if (yt) {
     const derived = youtubeThumbUrl(yt);
     return isSafeMediaUrl(derived) ? derived : '';
@@ -211,17 +230,19 @@ function resolveEmbed(video: SocialVideo): {
   embedUrl: string | null;
   embedKind: VideoGalleryItem['embedKind'];
 } {
+  const sourceUrl = video.originalUrl || video.url || '';
   const yt =
-    parseYoutubeVideoId(video.url || '') ||
+    nativeVideoIdFromUrl(sourceUrl, 'youtube') ||
+    parseYoutubeVideoId(sourceUrl) ||
     (typeof video.externalVideoId === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(video.externalVideoId)
       ? video.externalVideoId
       : null);
   if (yt) {
     return { embedUrl: youtubeEmbedUrl(yt), embedKind: 'youtube' };
   }
-  const ig = parseInstagramShortcode(video.url || '');
+  const ig = parseInstagramShortcode(sourceUrl);
   if (ig) {
-    const reel = /\/reel\//i.test(video.url || '');
+    const reel = /\/reel\//i.test(sourceUrl);
     return { embedUrl: instagramEmbedUrl(ig, reel ? 'reel' : 'p'), embedKind: 'instagram' };
   }
   return { embedUrl: null, embedKind: null };
@@ -246,14 +267,24 @@ export function ownerVideoForTheme(
   if (!video || typeof video !== 'object') return null;
   if (!ownerVideoBelongsToTheme(video, themeId)) return null;
 
-  const url = safeExternalVideoUrl(video.url);
-  if (!url) return null;
+  const destination = originalPlatformVideoDestination({
+    platform: normalisePlatform(video.platform),
+    url: video.url,
+    originalUrl: video.originalUrl,
+    externalVideoId: video.externalVideoId,
+    themeId: video.themeId,
+  });
+  if (destination.ok === false) return null;
+  const url = destination.url;
 
   const id = typeof video.id === 'string' && video.id.trim() ? video.id.trim() : '';
   if (!id) return null;
 
   const titleRaw = typeof video.title === 'string' ? video.title.trim() : '';
-  const platform = normalisePlatform(video.platform);
+  // Grandfathered rows occasionally carried a stale platform label. The exact
+  // provider host wins for those rows; records with explicit originalUrl fail
+  // closed on a mismatch inside originalPlatformVideoDestination.
+  const platform = destination.platform;
   const kind = resolveVideoKind(video);
   const title =
     titleRaw ||
@@ -276,6 +307,7 @@ export function ownerVideoForTheme(
     title,
     platform,
     url,
+    originalUrl: url,
     thumbnailUrl,
     embedUrl,
     embedKind,
@@ -283,7 +315,11 @@ export function ownerVideoForTheme(
     themeId: isVideoGalleryThemeId(video.themeId) ? video.themeId : null,
     kind,
     dateAdded: typeof video.dateAdded === 'string' ? video.dateAdded : undefined,
-    channelName: typeof video.channelName === 'string' ? video.channelName : undefined,
+    channelName:
+      typeof video.channelName === 'string' && video.channelName.trim()
+        ? video.channelName.trim()
+        : undefined,
+    channelUrl: safePlatformChannelUrl(video.channelUrl, platform) || undefined,
     description: typeof video.description === 'string' ? video.description : undefined,
     externalVideoId: video.externalVideoId ?? null,
   };

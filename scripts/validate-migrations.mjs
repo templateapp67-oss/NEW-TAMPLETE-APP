@@ -19,7 +19,7 @@ const migrationFiles = (await readdir(migrationsDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-assert.equal(migrationFiles.length, 26, 'expected exactly M01-M26');
+assert.equal(migrationFiles.length, 28, 'expected exactly M01-M28');
 
 const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
 
@@ -80,7 +80,7 @@ for (let pass = 1; pass <= 2; pass += 1) {
       throw new Error(`migration pass ${pass} failed at ${file}: ${error.message}`, { cause: error });
     }
   }
-  console.log(`Migration pass ${pass}: ${applied}/26 applied cleanly`);
+  console.log(`Migration pass ${pass}: ${applied}/28 applied cleanly`);
 }
 
 const ids = {
@@ -104,6 +104,7 @@ const ids = {
   predefinedInactive: '80000000-0000-4000-8000-0000000000a2',
   savedPredefinedA: '90000000-0000-4000-8000-0000000000a1',
   savedManualA: '90000000-0000-4000-8000-0000000000a2',
+  videoA: 'a0000000-0000-4000-8000-0000000000a1',
 };
 
 await db.query(
@@ -1589,6 +1590,140 @@ await test('T — Phase 8.1 full saved-service management across all five themes
   assert.deepEqual(legacyCustomAfter.rows, legacyCustomBefore.rows);
 });
 
-assert.equal(passed, 20);
-console.log(`Functional tests: ${passed}/20 passed`);
+await test('U — video likes are deduplicated, theme-safe and ranked by the current week', async () => {
+  const theme = await db.query(
+    `select id from public.themes where theme_id = 'barber_mens_grooming'`,
+  );
+  await db.query(
+    `insert into public.social_videos (
+       id, business_id, platform, video_url, external_video_id, caption,
+       theme_id, video_kind, status
+     ) values ($1, $2, 'youtube', 'https://www.youtube.com/watch?v=AbCdEf12345',
+       'AbCdEf12345', 'Owner barber video', $3, 'long', 'active')`,
+    [ids.videoA, ids.businessA, theme.rows[0].id],
+  );
+
+  // Anonymous visitors use the existing browser/session token. The same
+  // session cannot create a second event; another real session can.
+  await asRole('anon', '', async () => {
+    const first = await db.query(
+      `select public.like_video($1, 'barber_mens_grooming', 'theme:barber:s1', 'browser-session-a') as result`,
+      [ids.businessA],
+    );
+    assert.equal(first.rows[0].result.total_likes, 1);
+    assert.equal(first.rows[0].result.weekly_likes, 1);
+    assert.equal(first.rows[0].result.duplicate, false);
+
+    const duplicate = await db.query(
+      `select public.like_video($1, 'barber_mens_grooming', 'theme:barber:s1', 'browser-session-a') as result`,
+      [ids.businessA],
+    );
+    assert.equal(duplicate.rows[0].result.total_likes, 1);
+    assert.equal(duplicate.rows[0].result.duplicate, true);
+
+    const second = await db.query(
+      `select public.like_video($1, 'barber_mens_grooming', 'theme:barber:s1', 'browser-session-b') as result`,
+      [ids.businessA],
+    );
+    assert.equal(second.rows[0].result.total_likes, 2);
+
+    await expectReject(
+      () => db.query(
+        `select public.like_video($1, 'nail_lash_studio', 'theme:barber:s1', 'browser-session-c')`,
+        [ids.businessA],
+      ),
+      /unavailable for this theme/i,
+    );
+    await expectReject(
+      () => db.query(
+        `select public.like_video($1, 'barber_mens_grooming', $2, 'browser-session-c')`,
+        [ids.businessB, ids.videoA],
+      ),
+      /unavailable/i,
+    );
+
+    // Direct event insertion cannot bypass the validated RPC.
+    await expectReject(
+      () => db.query(
+        `insert into public.website_events (business_id, event_type, visitor_token, metadata)
+         values ($1, 'video_like', 'forged', '{"theme_id":"barber_mens_grooming","video_key":"theme:barber:s1"}')`,
+        [ids.businessA],
+      ),
+      /row-level security/i,
+    );
+  });
+
+  // Auth identity comes only from auth.uid(); changing the supplied visitor
+  // token cannot manufacture a second like for the same signed-in user.
+  await asRole('authenticated', ids.ownerA, async () => {
+    const first = await db.query(
+      `select public.like_video($1, 'barber_mens_grooming', 'theme:barber:s1', '') as result`,
+      [ids.businessA],
+    );
+    const duplicate = await db.query(
+      `select public.like_video($1, 'barber_mens_grooming', 'theme:barber:s1', 'different-session') as result`,
+      [ids.businessA],
+    );
+    assert.equal(first.rows[0].result.total_likes, 3);
+    assert.equal(duplicate.rows[0].result.total_likes, 3);
+    assert.equal(duplicate.rows[0].result.duplicate, true);
+
+    const ownerVideo = await db.query(
+      `select public.like_video($1, 'barber_mens_grooming', $2, '') as result`,
+      [ids.businessA, ids.videoA],
+    );
+    assert.equal(ownerVideo.rows[0].result.video_kind, 'long');
+    assert.equal(ownerVideo.rows[0].result.total_likes, 1);
+  });
+
+  // An older event contributes to the all-time card count, never this week's
+  // ranking. Root fixture insertion represents historical retained data.
+  await db.query(
+    `insert into public.website_events (
+       business_id, event_type, visitor_token, metadata, created_at
+     ) values (
+       $1, 'video_like', 'video-like:historical',
+       '{"theme_id":"barber_mens_grooming","video_key":"theme:barber:s1","video_kind":"short"}',
+       now() - interval '8 days'
+     )`,
+    [ids.businessA],
+  );
+
+  await asRole('anon', '', async () => {
+    const state = await db.query(
+      `select public.get_video_like_state(
+         $1, 'barber_mens_grooming', array['theme:barber:s1', $2]::text[], 'browser-session-a'
+       ) as result`,
+      [ids.businessA, ids.videoA],
+    );
+    assert.equal(state.rows[0].result.theme_id, 'barber_mens_grooming');
+    const mock = state.rows[0].result.videos.find((row) => row.video_id === 'theme:barber:s1');
+    const owner = state.rows[0].result.videos.find((row) => row.video_id === ids.videoA);
+    assert.equal(mock.total_likes, 4);
+    assert.equal(mock.weekly_likes, 3);
+    assert.equal(mock.liked_by_viewer, true);
+    assert.equal(mock.video_kind, 'short');
+    assert.equal(owner.total_likes, 1);
+    assert.equal(owner.video_kind, 'long');
+
+    const top = await db.query(
+      `select public.get_weekly_top_videos($1, 'barber_mens_grooming', 5) as result`,
+      [ids.businessA],
+    );
+    assert.equal(top.rows[0].result.theme_id, 'barber_mens_grooming');
+    assert.equal(top.rows[0].result.videos[0].video_id, 'theme:barber:s1');
+    assert.equal(top.rows[0].result.videos[0].weekly_likes, 3);
+    assert.equal(top.rows[0].result.videos[0].video_kind, 'short');
+    assert.ok(top.rows[0].result.videos.some((row) => row.video_kind === 'long'));
+
+    const nailTop = await db.query(
+      `select public.get_weekly_top_videos($1, 'nail_lash_studio', 5) as result`,
+      [ids.businessA],
+    );
+    assert.deepEqual(nailTop.rows[0].result.videos, []);
+  });
+});
+
+assert.equal(passed, 21);
+console.log(`Functional tests: ${passed}/21 passed`);
 await db.close();

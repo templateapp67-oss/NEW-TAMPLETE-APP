@@ -30,6 +30,7 @@ import {
   type SocialPlatform,
 } from './siteSocialFeed';
 import { isSafeMediaUrl, safeMediaUrl } from './siteHero';
+import { safePlatformChannelUrl, validatePlatformVideoUrl } from './videoPlatform';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 /* ------------------------------------------------------------------ */
@@ -65,12 +66,16 @@ export type VideoUrlParseOutcome = VideoUrlParseResult | VideoUrlParseError;
 export interface VideoPlatformMetadata {
   platform: VideoMetadataPlatform;
   externalVideoId: string;
-  /** Original / canonical watch URL. */
+  /** Canonical/provider URL used by the legacy form field. */
   url: string;
+  /** PHASE 15.7 — exact pasted platform URL, never rebuilt for redirect. */
+  originalUrl?: string;
   title: string;
   description: string;
   /** Channel / page / author name. */
   channelName: string;
+  /** Exact oEmbed channel/profile URL when the platform supplies one. */
+  channelUrl?: string;
   thumbnailUrl: string;
   embedUrl: string | null;
   /** How the metadata was obtained (for UI / tests). */
@@ -284,13 +289,18 @@ export function derivedYoutubeMetadata(
   originalUrl?: string,
 ): VideoPlatformMetadata {
   const thumb = youtubeThumbUrl(videoId);
+  const exactOriginal = originalUrl && /^https?:\/\//i.test(originalUrl)
+    ? originalUrl.trim()
+    : youtubeCanonicalUrl(videoId);
   return {
     platform: 'youtube',
     externalVideoId: videoId,
-    url: originalUrl && /^https?:\/\//i.test(originalUrl) ? originalUrl.trim() : youtubeCanonicalUrl(videoId),
+    url: youtubeCanonicalUrl(videoId),
+    originalUrl: exactOriginal,
     title: '',
     description: '',
     channelName: '',
+    channelUrl: '',
     thumbnailUrl: isSafeMediaUrl(thumb) ? thumb : '',
     embedUrl: youtubeEmbedUrl(videoId),
     source: 'derived',
@@ -367,7 +377,7 @@ export async function fetchVideoMetadata(
       if (parsed.platform === 'youtube') {
         return {
           ok: true,
-          metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.canonicalUrl),
+          metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.originalUrl),
         };
       }
       return { ok: false, code: 'fetch_failed', message: videoMetadataErrorMessage('fetch_failed') };
@@ -380,6 +390,7 @@ export async function fetchVideoMetadata(
       title?: string;
       description?: string;
       channelName?: string;
+      channelUrl?: string;
       thumbnailUrl?: string;
       embedUrl?: string | null;
       source?: string;
@@ -392,9 +403,13 @@ export async function fetchVideoMetadata(
       platform: parsed.platform,
       externalVideoId: (body.externalVideoId || parsed.externalVideoId).trim(),
       url: (body.url || parsed.canonicalUrl || parsed.originalUrl).trim(),
+      // The response may canonicalise a watch URL; the exact paste remains the
+      // only Phase 15.7 external redirect destination.
+      originalUrl: parsed.originalUrl,
       title: typeof body.title === 'string' ? body.title.trim() : '',
       description: typeof body.description === 'string' ? body.description.trim() : '',
       channelName: typeof body.channelName === 'string' ? body.channelName.trim() : '',
+      channelUrl: safePlatformChannelUrl(body.channelUrl, parsed.platform),
       thumbnailUrl: isSafeMediaUrl(thumbnailUrl) ? thumbnailUrl : '',
       embedUrl:
         typeof body.embedUrl === 'string' && body.embedUrl
@@ -417,7 +432,7 @@ export async function fetchVideoMetadata(
     if (parsed.platform === 'youtube') {
       return {
         ok: true,
-        metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.canonicalUrl),
+        metadata: derivedYoutubeMetadata(parsed.externalVideoId, parsed.originalUrl),
       };
     }
     return { ok: false, code: 'network', message: videoMetadataErrorMessage('network') };
@@ -441,10 +456,12 @@ export function socialVideoDraftFromMetadata(
   | 'title'
   | 'platform'
   | 'url'
+  | 'originalUrl'
   | 'thumbnailUrl'
   | 'externalVideoId'
   | 'description'
   | 'channelName'
+  | 'channelUrl'
   | 'themeId'
   | 'videoKind'
 > {
@@ -453,10 +470,12 @@ export function socialVideoDraftFromMetadata(
     title: metadata.title,
     platform: metadata.platform,
     url: metadata.url,
+    originalUrl: metadata.originalUrl || metadata.url,
     thumbnailUrl: metadata.thumbnailUrl,
     externalVideoId: metadata.externalVideoId,
     description: metadata.description || undefined,
     channelName: metadata.channelName || undefined,
+    channelUrl: safePlatformChannelUrl(metadata.channelUrl, metadata.platform) || undefined,
     themeId: extras.themeId ?? null,
     videoKind: extras.videoKind ?? null,
   };
@@ -616,15 +635,26 @@ export function socialVideoFromPasteAndMetadata(options: {
     }
   }
 
+  const originalCandidate = (metadata?.originalUrl || url || finalUrl).trim();
+  const originalValidation = validatePlatformVideoUrl(
+    originalCandidate,
+    platform,
+    externalVideoId,
+  );
+
   return {
     id: id || `v-${platform}-${externalVideoId || Date.now()}`,
     title,
     platform,
     url: finalUrl,
+    // Keep the exact paste for audit/redirect. If a direct caller passes an
+    // invalid value we still preserve it, but the public opener fails closed.
+    originalUrl: originalValidation.ok ? originalValidation.url : originalCandidate,
     thumbnailUrl,
     externalVideoId,
     description: description || undefined,
     channelName: channelName || undefined,
+    channelUrl: safePlatformChannelUrl(metadata?.channelUrl, platform) || undefined,
     themeId: themeId ?? null,
     videoKind: videoKind ?? null,
     dateAdded: 'Today',

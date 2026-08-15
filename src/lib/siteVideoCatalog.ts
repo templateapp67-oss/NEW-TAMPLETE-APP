@@ -46,8 +46,10 @@ export interface ThemeVideoSeed {
   titleHi?: string;
   /** YouTube 11-char id — must be unique across the 50-record catalog. */
   externalVideoId: string;
-  /** Optional channel label for display. */
-  channelName?: string;
+  /** Exact YouTube oEmbed author name (never theme-authored/fabricated). */
+  channelName: string;
+  /** Exact YouTube oEmbed author URL. */
+  channelUrl: string;
   description?: string;
 }
 
@@ -61,15 +63,22 @@ function ytWatch(id: string): string {
 
 function seedToSocial(themeId: SiteHeaderThemeId, seed: ThemeVideoSeed): SocialVideo {
   const isShort = seed.kind === 'short';
+  const originalUrl = isShort ? ytShort(seed.externalVideoId) : ytWatch(seed.externalVideoId);
   return {
     id: seed.id,
     title: seed.title,
     platform: 'youtube',
-    url: isShort ? ytShort(seed.externalVideoId) : ytWatch(seed.externalVideoId),
+    url: originalUrl,
+    originalUrl,
     thumbnailUrl: youtubeThumbUrl(seed.externalVideoId),
     externalVideoId: seed.externalVideoId,
-    description: seed.description,
+    // Transparent attribution summary when the provider description is not
+    // bundled. It never claims salon ownership or changes platform metadata.
+    description:
+      seed.description ||
+      `${seed.title} — original YouTube ${isShort ? 'Short' : 'video'} by ${seed.channelName}.`,
     channelName: seed.channelName,
+    channelUrl: seed.channelUrl,
     themeId,
     videoKind: seed.kind,
     /** PHASE 15.5 — mark as protected mock so owner delete cannot purge it. */
@@ -81,80 +90,422 @@ function seedToSocial(themeId: SiteHeaderThemeId, seed: ThemeVideoSeed): SocialV
  * Fifty unique YouTube video ids (public, embeddable). Grouped 10 per theme
  * so no two themes ever reference the same clip.
  *
- * IDs are well-known public uploads chosen because they resolve on
- * img.youtube.com + oEmbed. Titles and channel labels below are
- * theme-specific salon copy, not the original YouTube titles.
+ * PHASE 15.7 audit (2026-08-15): every id resolved through YouTube oEmbed.
+ * Titles, channel names and channel URLs below are the exact provider metadata;
+ * the linked content matches its theme. No salon-authored title/channel is
+ * presented as platform metadata and no unrelated music/demo redirect remains.
  */
 const CATALOG: Record<SiteHeaderThemeId, ThemeVideoSeed[]> = {
-  /* Barber — men's grooming / fades / beard */
-  barber_mens_grooming: [
-    { id: 'theme:barber:s1', kind: 'short', externalVideoId: 'dQw4w9WgXcQ', title: 'Skin fade, 60 seconds', channelName: 'The Shop', description: 'Tight skin fade finish on the chair.' },
-    { id: 'theme:barber:s2', kind: 'short', externalVideoId: 'jNQXAC9IVRw', title: 'Hot-towel shave roll', channelName: 'The Shop', description: 'Classic hot-towel prep before the straight razor.' },
-    { id: 'theme:barber:s3', kind: 'short', externalVideoId: '9bZkp7q19f0', title: 'Beard line-up close-up', channelName: 'The Shop', description: 'Crisp cheek and neck line.' },
-    { id: 'theme:barber:s4', kind: 'short', externalVideoId: 'kJQP7kiw5Fk', title: 'Mid-fade transform', channelName: 'The Shop', description: 'Before the cape comes off.' },
-    { id: 'theme:barber:s5', kind: 'short', externalVideoId: 'fJ9rUzIMcZQ', title: 'Straight-razor detail', channelName: 'The Shop', description: 'Neck clean-up, slow pass.' },
-    { id: 'theme:barber:l1', kind: 'long', externalVideoId: 'OPf0YbXqDm0', title: 'Full grooming session walkthrough', channelName: 'The Shop', description: 'Cut, beard, and hot-towel finish from open to close.' },
-    { id: 'theme:barber:l2', kind: 'long', externalVideoId: 'hT_nvWreIhg', title: 'How we build a classic taper', channelName: 'The Shop', description: 'Step-by-step taper for everyday wear.' },
-    { id: 'theme:barber:l3', kind: 'long', externalVideoId: 'YQHsXMglC9A', title: 'Shop tour — chairs, tools, ritual', channelName: 'The Shop', description: 'A quiet look around the barber floor.' },
-    { id: 'theme:barber:l4', kind: 'long', externalVideoId: 'CevxZvSJLk8', title: 'Beard sculpt masterclass', channelName: 'The Shop', description: 'Shape, density, and oil finish.' },
-    { id: 'theme:barber:l5', kind: 'long', externalVideoId: 'e-ORhEE9VVg', title: 'First-time client consult', channelName: 'The Shop', description: 'How we plan a cut before the clippers start.' },
+  "barber_mens_grooming": [
+    {
+      "id": "theme:barber:s1",
+      "kind": "short",
+      "externalVideoId": "DnxVO2cE184",
+      "title": "Step-by-Step Beginner Fade Tutorial with Clippers #fade #barber #clipper",
+      "channelName": "StopNFade",
+      "channelUrl": "https://www.youtube.com/@Stopnfade"
+    },
+    {
+      "id": "theme:barber:s2",
+      "kind": "short",
+      "externalVideoId": "Vx9xQ8nYppM",
+      "title": "High Fade Tutorial Step by Step #fade #barber #haircut",
+      "channelName": "StopNFade",
+      "channelUrl": "https://www.youtube.com/@Stopnfade"
+    },
+    {
+      "id": "theme:barber:s3",
+      "kind": "short",
+      "externalVideoId": "2hDsEnv0b5k",
+      "title": "Eladio Carrión Haircut #barbero #barbershop #barber skin fade tutorial for beginners",
+      "channelName": "Chemote Barber",
+      "channelUrl": "https://www.youtube.com/@chemotebarber"
+    },
+    {
+      "id": "theme:barber:s4",
+      "kind": "short",
+      "externalVideoId": "ZVWn50hzsG0",
+      "title": "Burst Fade Mullet Haircut Tutorial with Clippers #fade #barber #haircut",
+      "channelName": "StopNFade",
+      "channelUrl": "https://www.youtube.com/@Stopnfade"
+    },
+    {
+      "id": "theme:barber:s5",
+      "kind": "short",
+      "externalVideoId": "wfE_Lj6dULE",
+      "title": "Flawless High Fade / Military Haircut 🔥 Barber Tutorial 💈✨ STEP BY STEP 📚 @HowToFade",
+      "channelName": "HowToFade101",
+      "channelUrl": "https://www.youtube.com/@HowToFade"
+    },
+    {
+      "id": "theme:barber:l1",
+      "kind": "long",
+      "externalVideoId": "5UPAzEw8loo",
+      "title": "Professional Beard Shaving Tutorial | Clean & Smooth Grooming",
+      "channelName": "Razor & Style",
+      "channelUrl": "https://www.youtube.com/@RAZORSTYLE-r9n"
+    },
+    {
+      "id": "theme:barber:l2",
+      "kind": "long",
+      "externalVideoId": "XYOwCSBXJDw",
+      "title": "How to Achieve the Perfect Haircut and Beard - Barber Tutorial",
+      "channelName": "Luis Antonio",
+      "channelUrl": "https://www.youtube.com/@LuisAntonioJordan"
+    },
+    {
+      "id": "theme:barber:l3",
+      "kind": "long",
+      "externalVideoId": "MCO1wlhP6wU",
+      "title": "Long Beard Trimming & Shaping Barber Tutorial",
+      "channelName": "House of Shaves Barbershop",
+      "channelUrl": "https://www.youtube.com/@houseofshavesbarbershop"
+    },
+    {
+      "id": "theme:barber:l4",
+      "kind": "long",
+      "externalVideoId": "wuqZCFAfzpU",
+      "title": "Pro Barber Shows How to Trim a Long Beard the Right Way",
+      "channelName": "Live Bearded",
+      "channelUrl": "https://www.youtube.com/@livebearded"
+    },
+    {
+      "id": "theme:barber:l5",
+      "kind": "long",
+      "externalVideoId": "BiVmtWKwRIE",
+      "title": "Beard Trim - Barbering tutorial",
+      "channelName": "Mike Taylor Education",
+      "channelUrl": "https://www.youtube.com/@MikeTaylorEducation"
+    }
   ],
-
-  /* Hair Studio — colour bar / cuts / styling */
-  hair_studio_color_bar: [
-    { id: 'theme:hair:s1', kind: 'short', externalVideoId: 'lp-EO5I60KA', title: 'Balayage foil pull', channelName: 'Colour Bar', description: 'Hand-painted lift on camera.' },
-    { id: 'theme:hair:s2', kind: 'short', externalVideoId: 'RgKAFK5djSk', title: 'Gloss seal, wet-to-dry', channelName: 'Colour Bar', description: 'The shine moment after a gloss.' },
-    { id: 'theme:hair:s3', kind: 'short', externalVideoId: '2Vv-BfVoq4g', title: 'Blowout finish reel', channelName: 'Colour Bar', description: 'Round-brush polish in under a minute.' },
-    { id: 'theme:hair:s4', kind: 'short', externalVideoId: 'JGwWNGJdvx8', title: 'Money-piece refresh', channelName: 'Colour Bar', description: 'Face-framing brightness only.' },
-    { id: 'theme:hair:s5', kind: 'short', externalVideoId: '60ItHLz5WEA', title: 'Curtain-bang trim', channelName: 'Colour Bar', description: 'Soft fringe, dry cut.' },
-    { id: 'theme:hair:l1', kind: 'long', externalVideoId: 'pRpeEdMmmQ0', title: 'Full colour-bar transformation', channelName: 'Colour Bar', description: 'Consult, formula, paint, and finish.' },
-    { id: 'theme:hair:l2', kind: 'long', externalVideoId: 'kffacxfA7G4', title: 'Lived-in blonde day on set', channelName: 'Colour Bar', description: 'From root melt to toner.' },
-    { id: 'theme:hair:l3', kind: 'long', externalVideoId: 'hLQl3WQQoQ0', title: 'Cut & style for camera', channelName: 'Colour Bar', description: 'Editorial cut with movement.' },
-    { id: 'theme:hair:l4', kind: 'long', externalVideoId: 'Pkh8UtuejGw', title: 'Keratin smooth session', channelName: 'Colour Bar', description: 'Treatment timeline and aftercare notes.' },
-    { id: 'theme:hair:l5', kind: 'long', externalVideoId: '4NRXx6U8ABQ', title: 'Studio evening — colour + blow dry', channelName: 'Colour Bar', description: 'A complete chair-time story.' },
+  "hair_studio_color_bar": [
+    {
+      "id": "theme:hair:s1",
+      "kind": "short",
+      "externalVideoId": "s2C85eaYj5c",
+      "title": "Honey Blonde Balayage on Light Brown Hair",
+      "channelName": "Malibu C Professional",
+      "channelUrl": "https://www.youtube.com/@MalibuCPro"
+    },
+    {
+      "id": "theme:hair:s2",
+      "kind": "short",
+      "externalVideoId": "GDP4LSrLoOw",
+      "title": "Blonde Balayage Hair Color ✨ Smooth & Clean Transformation",
+      "channelName": "Lashes Beauty Parlour",
+      "channelUrl": "https://www.youtube.com/@Lashebeautyparlour"
+    },
+    {
+      "id": "theme:hair:s3",
+      "kind": "short",
+      "externalVideoId": "wOv7HcWZNHs",
+      "title": "Blonde Hair Balayage Technique for Stunning Results",
+      "channelName": "Blonde Balayage Hair TV",
+      "channelUrl": "https://www.youtube.com/@BlondeBalayageHairTV"
+    },
+    {
+      "id": "theme:hair:s4",
+      "kind": "short",
+      "externalVideoId": "p8uLB_uHLxg",
+      "title": "Toasted Caramel Balayage Is the Must-Try Hair Color of 2026 🤎✨ #shorts",
+      "channelName": "Frost & Flow",
+      "channelUrl": "https://www.youtube.com/@sugarillusions"
+    },
+    {
+      "id": "theme:hair:s5",
+      "kind": "short",
+      "externalVideoId": "VWiZO9Xq7ww",
+      "title": "Balayage Hair Color Trends You Need to Try in 2025 | Balayage Hair Color Transformation",
+      "channelName": "Himanshu Pal Academy",
+      "channelUrl": "https://www.youtube.com/@HimanshuPalAcademy"
+    },
+    {
+      "id": "theme:hair:l1",
+      "kind": "long",
+      "externalVideoId": "4xs5qxDnJhQ",
+      "title": "How to Do Perfect Balayage | Step-by-Step Hair Coloring Guide",
+      "channelName": "Lashes Beauty Parlour",
+      "channelUrl": "https://www.youtube.com/@Lashebeautyparlour"
+    },
+    {
+      "id": "theme:hair:l2",
+      "kind": "long",
+      "externalVideoId": "S7ve3Wkaa1I",
+      "title": "How To: Babylights & Balayage Hair Salon Color Tutorial | Single Service Transformation!",
+      "channelName": "Daniella Benita",
+      "channelUrl": "https://www.youtube.com/@DaniellaBenita"
+    },
+    {
+      "id": "theme:hair:l3",
+      "kind": "long",
+      "externalVideoId": "Vp7U3u3mye4",
+      "title": "REVERSE BALAYAGE Salon Hair Color Tutorial | Rebalancing with Lived In Dimension | Daniella Benita",
+      "channelName": "Daniella Benita",
+      "channelUrl": "https://www.youtube.com/@DaniellaBenita"
+    },
+    {
+      "id": "theme:hair:l4",
+      "kind": "long",
+      "externalVideoId": "pF85GDarx6I",
+      "title": "VOLUME BLOWOUT | SALON BLOW DRY TUTORIAL",
+      "channelName": "Styles By Summer",
+      "channelUrl": "https://www.youtube.com/@StylesBySummer"
+    },
+    {
+      "id": "theme:hair:l5",
+      "kind": "long",
+      "externalVideoId": "kwr08yBPYmM",
+      "title": "Layered Haircut & Blowout Tutorial For Fine Hair",
+      "channelName": "Behind The Chair",
+      "channelUrl": "https://www.youtube.com/@behindthechair_com"
+    }
   ],
-
-  /* Beauty / Spa — facial / body / makeup */
-  beauty_skin_spa: [
-    { id: 'theme:spa:s1', kind: 'short', externalVideoId: 'JRfuAukYTKg', title: 'Jade-roller cool-down', channelName: 'The Spa', description: 'Lymph finish after a facial.' },
-    { id: 'theme:spa:s2', kind: 'short', externalVideoId: 'ZbZSe6N_BXs', title: 'Clay mask peel', channelName: 'The Spa', description: 'The reveal after a purifying mask.' },
-    { id: 'theme:spa:s3', kind: 'short', externalVideoId: 'aJOTlE1K90k', title: 'Soft glam eye', channelName: 'The Spa', description: 'Quick bridal-trial eye look.' },
-    { id: 'theme:spa:s4', kind: 'short', externalVideoId: 'YqeW9_5kURI', title: 'Hot-stone placement', channelName: 'The Spa', description: 'Warm stones along the back.' },
-    { id: 'theme:spa:s5', kind: 'short', externalVideoId: '3AtDnEC4zak', title: 'Serum press-in', channelName: 'The Spa', description: 'Hydration layer, slow press.' },
-    { id: 'theme:spa:l1', kind: 'long', externalVideoId: '1G4isv_Fylg', title: 'Signature facial, start to glow', channelName: 'The Spa', description: 'Cleanse, extract, mask, and finish.' },
-    { id: 'theme:spa:l2', kind: 'long', externalVideoId: 'ru0K8uYEZWw', title: 'Full-body spa ritual', channelName: 'The Spa', description: 'Scrub, wrap, and massage sequence.' },
-    { id: 'theme:spa:l3', kind: 'long', externalVideoId: '0KSOMA3QBU0', title: 'HD bridal makeup session', channelName: 'The Spa', description: 'Base to lashes for the big day.' },
-    { id: 'theme:spa:l4', kind: 'long', externalVideoId: 'uf9k6q_yO9c', title: 'Skin consult & treatment plan', channelName: 'The Spa', description: 'How we read skin before we treat.' },
-    { id: 'theme:spa:l5', kind: 'long', externalVideoId: '9jK-NcRmVcw', title: 'Quiet hour in the treatment suite', channelName: 'The Spa', description: 'Ambience, linen, and soft light.' },
+  "beauty_skin_spa": [
+    {
+      "id": "theme:spa:s1",
+      "kind": "short",
+      "externalVideoId": "1HedU0VXrfk",
+      "title": "Welcome to the Caudalie Boutique & Spa in NYC! 🧖‍♀️🍇✨",
+      "channelName": "Caudalie US",
+      "channelUrl": "https://www.youtube.com/@caudalieus"
+    },
+    {
+      "id": "theme:spa:s2",
+      "kind": "short",
+      "externalVideoId": "T7BCgDiUL04",
+      "title": "Lush Re-Wilding Spa Treatment",
+      "channelName": "LUSH",
+      "channelUrl": "https://www.youtube.com/@LUSH"
+    },
+    {
+      "id": "theme:spa:s3",
+      "kind": "short",
+      "externalVideoId": "IYuTJzFlRJM",
+      "title": "ASMR Facial on Harper Zilmer",
+      "channelName": "Boho Med Spa",
+      "channelUrl": "https://www.youtube.com/@BohoMedSpa"
+    },
+    {
+      "id": "theme:spa:s4",
+      "kind": "short",
+      "externalVideoId": "Qe0RJR-ai5Y",
+      "title": "Bay Area Head Spa Amazing Experience! Facial, Massage and More 🥰 #headspa #spa #facial",
+      "channelName": "Christina Marie",
+      "channelUrl": "https://www.youtube.com/@ChristinaMarie17"
+    },
+    {
+      "id": "theme:spa:s5",
+      "kind": "short",
+      "externalVideoId": "NDYQ3vsta4I",
+      "title": "Benefits of Facial Massage in Professional Skin Treatments pt 2 #podcast #skincare #facialmassage",
+      "channelName": "L'Moor",
+      "channelUrl": "https://www.youtube.com/@LmoorBringsMore"
+    },
+    {
+      "id": "theme:spa:l1",
+      "kind": "long",
+      "externalVideoId": "v8htMYxkn_Y",
+      "title": "Luxury Image Skincare Spa Facial & Relaxing Arm Massage",
+      "channelName": "Huyana Beauty",
+      "channelUrl": "https://www.youtube.com/@HuyanaBeauty"
+    },
+    {
+      "id": "theme:spa:l2",
+      "kind": "long",
+      "externalVideoId": "6K7fMhtS4og",
+      "title": "How to Give a Truly Relaxing Facial | Step by Step Treatment",
+      "channelName": "Huyana Beauty",
+      "channelUrl": "https://www.youtube.com/@HuyanaBeauty"
+    },
+    {
+      "id": "theme:spa:l3",
+      "kind": "long",
+      "externalVideoId": "XOGzCsOtYoM",
+      "title": "A Spa facial treatment for achieving glowing glass skin",
+      "channelName": "Huyana Beauty",
+      "channelUrl": "https://www.youtube.com/@HuyanaBeauty"
+    },
+    {
+      "id": "theme:spa:l4",
+      "kind": "long",
+      "externalVideoId": "tXrYlkwfOKU",
+      "title": "Treat Yourself to a Facial. A Pro Shows us How it's Done.",
+      "channelName": "Renown Health",
+      "channelUrl": "https://www.youtube.com/@renownhealthnv"
+    },
+    {
+      "id": "theme:spa:l5",
+      "kind": "long",
+      "externalVideoId": "sMbQglfeBAc",
+      "title": "Professional Facial Cleansing treatment techniques - tutorial",
+      "channelName": "BeautyTrainingHarrow",
+      "channelUrl": "https://www.youtube.com/@BeautyTrainingHarrow"
+    }
   ],
-
-  /* Family — men / women / kids */
-  family_full_service: [
-    { id: 'theme:family:s1', kind: 'short', externalVideoId: 'Jz5e3cpP4cE', title: 'Kids first-cut smile', channelName: 'Family Floor', description: 'Cape on, grin ready.' },
-    { id: 'theme:family:s2', kind: 'short', externalVideoId: 'nSDgHBxUbVQ', title: 'Dad & daughter chair time', channelName: 'Family Floor', description: 'Two cuts, one visit.' },
-    { id: 'theme:family:s3', kind: 'short', externalVideoId: '09X9gU_K7Ps', title: 'School-ready trim', channelName: 'Family Floor', description: 'Quick tidy before Monday.' },
-    { id: 'theme:family:s4', kind: 'short', externalVideoId: '450p7goxZqg', title: 'Mom blow-dry refresh', channelName: 'Family Floor', description: 'Between the school run and dinner.' },
-    { id: 'theme:family:s5', kind: 'short', externalVideoId: 'iS1g8G_njx8', title: 'Family Saturday check-in', channelName: 'Family Floor', description: 'Three chairs booked together.' },
-    { id: 'theme:family:l1', kind: 'long', externalVideoId: '7wtfhZwyrcc', title: 'Whole-family visit walkthrough', channelName: 'Family Floor', description: 'How we stage men, women, and kids in one go.' },
-    { id: 'theme:family:l2', kind: 'long', externalVideoId: 'KTZaiyg2Zio', title: 'Gentle kids cut guide', channelName: 'Family Floor', description: 'Patience, pacing, and a prize drawer.' },
-    { id: 'theme:family:l3', kind: 'long', externalVideoId: '8UVNT4wvIGY', title: "Women's colour for busy weeks", channelName: 'Family Floor', description: 'Low-maintenance colour that still looks polished.' },
-    { id: 'theme:family:l4', kind: 'long', externalVideoId: 'tAGnKpE4NCI', title: "Men's tidy-up & beard", channelName: 'Family Floor', description: 'Fast, friendly chair time for him.' },
-    { id: 'theme:family:l5', kind: 'long', externalVideoId: '3tmd-ClpJxA', title: 'Open house — meet the team', channelName: 'Family Floor', description: 'A bright tour of the family salon.' },
+  "family_full_service": [
+    {
+      "id": "theme:family:s1",
+      "kind": "short",
+      "externalVideoId": "YDbUpzl06dA",
+      "title": "Fun at the Barber Shop💈Kids Getting Haircut #shorts #barber #haircut #oliverandlucas",
+      "channelName": "Oliver and Lucas - Educational Videos for Kids",
+      "channelUrl": "https://www.youtube.com/@OliverandLucas"
+    },
+    {
+      "id": "theme:family:s2",
+      "kind": "short",
+      "externalVideoId": "qAkj1LqFR4U",
+      "title": "Korean Cut Salon Singapore $14 haircut… unexpected result 😳 K Cut Salon",
+      "channelName": "SuperPrincessjo",
+      "channelUrl": "https://www.youtube.com/@SuperPrincessjo"
+    },
+    {
+      "id": "theme:family:s3",
+      "kind": "short",
+      "externalVideoId": "N4Sh3MDv6Kk",
+      "title": "Little Girl’s Cute Haircut Experience 💇‍♀️ | Himanshu Pal Salon",
+      "channelName": "Himanshu Pal Academy",
+      "channelUrl": "https://www.youtube.com/@HimanshuPalAcademy"
+    },
+    {
+      "id": "theme:family:s4",
+      "kind": "short",
+      "externalVideoId": "3Nv_RldcsCY",
+      "title": "Top 2024 Kids Haircuts | Trendy and Easy Engravings",
+      "channelName": "M-Zone",
+      "channelUrl": "https://www.youtube.com/@M-Zone01"
+    },
+    {
+      "id": "theme:family:s5",
+      "kind": "short",
+      "externalVideoId": "TRn28XLcMLk",
+      "title": "Convenient Haircuts from Great Clips 😌",
+      "channelName": "Great Clips",
+      "channelUrl": "https://www.youtube.com/@greatclips"
+    },
+    {
+      "id": "theme:family:l1",
+      "kind": "long",
+      "externalVideoId": "L6hKiex_AME",
+      "title": "CHILDREN’S HAIRCUT TUTORIAL- SLIDERCUTS",
+      "channelName": "SliderCuts (Slider)",
+      "channelUrl": "https://www.youtube.com/@SliderCuts"
+    },
+    {
+      "id": "theme:family:l2",
+      "kind": "long",
+      "externalVideoId": "ZkLGxuzdPzI",
+      "title": "KIDS HAIR CUT | DROP FADE | TUTORIAL",
+      "channelName": "Memthebarber",
+      "channelUrl": "https://www.youtube.com/@memthebarber6697"
+    },
+    {
+      "id": "theme:family:l3",
+      "kind": "long",
+      "externalVideoId": "7Sj7nXDG5Ug",
+      "title": "Haircut Tutorial for Young Boys - TheSalonGuy",
+      "channelName": "TheSalonGuy",
+      "channelUrl": "https://www.youtube.com/@TheSalonGuy"
+    },
+    {
+      "id": "theme:family:l4",
+      "kind": "long",
+      "externalVideoId": "NnvaPAoEG1o",
+      "title": "Little Boy Haircut Tutorial",
+      "channelName": "Jessa Seewald",
+      "channelUrl": "https://www.youtube.com/@JessaSeewald"
+    },
+    {
+      "id": "theme:family:l5",
+      "kind": "long",
+      "externalVideoId": "rc6wv_kkNDA",
+      "title": "Hair Cuts for Kids ✂️ Kids Getting Haircuts at Barber Shop 💇🏽‍♂️ Kids Fun Haircut 💈Haircut for Kids",
+      "channelName": "Oliver and Lucas - Educational Videos for Kids",
+      "channelUrl": "https://www.youtube.com/@OliverandLucas"
+    }
   ],
-
-  /* Nail / Lash — sets, art, lifts */
-  nail_lash_studio: [
-    { id: 'theme:nail:s1', kind: 'short', externalVideoId: 'rYEDA3JcQqw', title: 'Chrome aura set', channelName: 'The Edit', description: 'Mirror powder, one finger at a time.' },
-    { id: 'theme:nail:s2', kind: 'short', externalVideoId: 'L_jWHffIx5E', title: 'Lash lift reveal', channelName: 'The Edit', description: 'Before the mascara wand.' },
-    { id: 'theme:nail:s3', kind: 'short', externalVideoId: '09B_0vQW7bs', title: 'French tip clean line', channelName: 'The Edit', description: 'Smile-line precision.' },
-    { id: 'theme:nail:s4', kind: 'short', externalVideoId: 'QY5iX61k4QQ', title: 'Brow lamination brush-up', channelName: 'The Edit', description: 'Soft hold, natural arch.' },
-    { id: 'theme:nail:s5', kind: 'short', externalVideoId: 'iWkF5J4m3mE', title: 'Gel removal ASMR', channelName: 'The Edit', description: 'Soak, lift, and buffer.' },
-    { id: 'theme:nail:l1', kind: 'long', externalVideoId: 'lY2yjAdbvdQ', title: 'Full set — prep to top coat', channelName: 'The Edit', description: 'Shape, build, art, and seal.' },
-    { id: 'theme:nail:l2', kind: 'long', externalVideoId: 'fKopy74weus', title: 'Volume lash mapping class', channelName: 'The Edit', description: 'Fan placement for soft drama.' },
-    { id: 'theme:nail:l3', kind: 'long', externalVideoId: '09R8_2nJtjg', title: 'Nail art studio session', channelName: 'The Edit', description: 'From base colour to hand-painted detail.' },
-    { id: 'theme:nail:l4', kind: 'long', externalVideoId: 'SlPhMPnQ58k', title: 'Mani-pedi dual station', channelName: 'The Edit', description: 'Hands and feet, same appointment.' },
-    { id: 'theme:nail:l5', kind: 'long', externalVideoId: 'ScMzIvxBSi4', title: 'Soft glam lash + brow day', channelName: 'The Edit', description: 'Lift, tint, and finish together.' },
-  ],
+  "nail_lash_studio": [
+    {
+      "id": "theme:nail:s1",
+      "kind": "short",
+      "externalVideoId": "9NrQfC2en-w",
+      "title": "Easy nail art for short natural nails",
+      "channelName": "Nails With Mandy",
+      "channelUrl": "https://www.youtube.com/@nailswithmandy"
+    },
+    {
+      "id": "theme:nail:s2",
+      "kind": "short",
+      "externalVideoId": "AxxhRvVUVGQ",
+      "title": "EASY beginner nail art 🍃🫧 #nails #nailart #nailtutorial #gelnails",
+      "channelName": "aisebrush",
+      "channelUrl": "https://www.youtube.com/@aisebrush"
+    },
+    {
+      "id": "theme:nail:s3",
+      "kind": "short",
+      "externalVideoId": "tHqVZoTQm24",
+      "title": "OPAL NAIL ART TUTORIAL",
+      "channelName": "nailthoughts",
+      "channelUrl": "https://www.youtube.com/@nailthoughts"
+    },
+    {
+      "id": "theme:nail:s4",
+      "kind": "short",
+      "externalVideoId": "JtqlQJGgN8w",
+      "title": "Lash V Brow Lamination so satisfying process step by step eyebrow styling shaping",
+      "channelName": "Lash V - Lash & Brow Salon supplier",
+      "channelUrl": "https://www.youtube.com/@lashv"
+    },
+    {
+      "id": "theme:nail:s5",
+      "kind": "short",
+      "externalVideoId": "1P1T20EXmRM",
+      "title": "Dlux Professional Lash Lift and Brow Lamination",
+      "channelName": "DLUX PROFESSIONAL",
+      "channelUrl": "https://www.youtube.com/@DLUXPROFESSIONAL"
+    },
+    {
+      "id": "theme:nail:l1",
+      "kind": "long",
+      "externalVideoId": "Hvn8CouVjDQ",
+      "title": "how to become a PRO at gel x nails | *advanced* nail art tutorial + amazon products",
+      "channelName": "Sion K",
+      "channelUrl": "https://www.youtube.com/@nailsbysion"
+    },
+    {
+      "id": "theme:nail:l2",
+      "kind": "long",
+      "externalVideoId": "Dt_MpBHRLjI",
+      "title": "How to Do Gel-X Nails Like a PRO 💫 (nail extensions + beginner nail art)",
+      "channelName": "Jessica Vu",
+      "channelUrl": "https://www.youtube.com/@jessyluxe"
+    },
+    {
+      "id": "theme:nail:l3",
+      "kind": "long",
+      "externalVideoId": "JEd6Xoj3jjU",
+      "title": "FUN EASY NAIL ART TUTORIAL PROFESSIONAL GEL",
+      "channelName": "Jessica Cosmetics",
+      "channelUrl": "https://www.youtube.com/@jessicacosmeticsusa"
+    },
+    {
+      "id": "theme:nail:l4",
+      "kind": "long",
+      "externalVideoId": "OGkr7YA_qeE",
+      "title": "Lash Lift & Natural Brow Lamination Step By Step - Maxymova",
+      "channelName": "Bella Beauty Professional",
+      "channelUrl": "https://www.youtube.com/@bellabeautyprofessional"
+    },
+    {
+      "id": "theme:nail:l5",
+      "kind": "long",
+      "externalVideoId": "Wp4pxy6MDog",
+      "title": "LAMINATION + BROW TINT PROCESS Step by Step (using Thuya and Brow Code)",
+      "channelName": "Boss Brows",
+      "channelUrl": "https://www.youtube.com/@bossbrowsla"
+    }
+  ]
 };
 
 /** Raw seeds for one theme (exactly 5 short + 5 long). */
@@ -301,7 +652,7 @@ export const THEME_MOCK_CONTENT_HINTS: Record<SiteHeaderThemeId, readonly string
   barber_mens_grooming: ['fade', 'beard', 'shave', 'taper', 'razor', 'grooming', 'shop'],
   hair_studio_color_bar: ['balayage', 'colour', 'color', 'blowout', 'gloss', 'keratin', 'blonde', 'fringe'],
   beauty_skin_spa: ['facial', 'spa', 'mask', 'serum', 'bridal', 'skin', 'stone', 'glow'],
-  family_full_service: ['kids', 'family', 'dad', 'mom', 'school', 'women', 'men', 'chair'],
+  family_full_service: ['kids', 'child', 'children', 'boy', 'girl', 'haircut', 'salon', 'barber'],
   nail_lash_studio: ['nail', 'lash', 'brow', 'chrome', 'gel', 'mani', 'pedi', 'french'],
 };
 
@@ -312,7 +663,7 @@ export function themeMockTitles(themeId: SiteHeaderThemeId): string[] {
 
 /** All descriptions in the mock catalog for one theme. */
 export function themeMockDescriptions(themeId: SiteHeaderThemeId): string[] {
-  return themeVideoSeeds(themeId).map((s) => s.description || '');
+  return themeVideoCatalog(themeId).map((video) => video.description || '');
 }
 
 /** All thumbnail URLs in the mock catalog for one theme. */

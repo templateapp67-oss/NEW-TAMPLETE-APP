@@ -3,7 +3,7 @@
  *
  * Provides the highest-fidelity test environment available offline:
  *
- *   • REAL PostgreSQL (PGlite) with the complete M01–M26 migration set.
+ *   • REAL PostgreSQL (PGlite) with the complete M01–M28 migration set.
  *   • The REAL `@supabase/supabase-js` browser client — its HTTP layer is
  *     redirected into PGlite, so the app's own `supabaseClient.ts`,
  *     `themeCatalogService.ts` and `savedServiceService.ts` run unmodified.

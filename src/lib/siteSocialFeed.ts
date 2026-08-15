@@ -12,6 +12,7 @@
  * likes or thumbnails.
  */
 import type { SalonData, SocialProfiles, SocialVideo } from '../types';
+import { safeOriginalPlatformVideoUrl } from './videoPlatform';
 
 export type SocialPlatform = 'instagram' | 'youtube' | 'facebook' | 'tiktok';
 
@@ -27,6 +28,7 @@ export interface SocialFeedItem {
   title: string;
   caption: string;
   url: string;
+  originalUrl: string;
   thumbnailUrl: string;
   embedUrl: string | null;
   embedKind: 'youtube' | 'instagram' | null;
@@ -108,15 +110,16 @@ export function configuredSocialSources(profiles: SocialProfiles | undefined): S
 }
 
 export function toSocialFeedItem(video: SocialVideo): SocialFeedItem {
-  const yt = video.platform === 'youtube' ? parseYoutubeVideoId(video.url) : parseYoutubeVideoId(video.url);
-  const ig = parseInstagramShortcode(video.url);
+  const originalUrl = safeOriginalPlatformVideoUrl(video);
+  const yt = parseYoutubeVideoId(originalUrl);
+  const ig = parseInstagramShortcode(originalUrl);
   let embedUrl: string | null = null;
   let embedKind: SocialFeedItem['embedKind'] = null;
   if (yt) {
     embedUrl = youtubeEmbedUrl(yt);
     embedKind = 'youtube';
   } else if (ig) {
-    const reel = /\/reel\//.test(video.url);
+    const reel = /\/reel\//.test(originalUrl);
     embedUrl = instagramEmbedUrl(ig, reel ? 'reel' : 'p');
     embedKind = 'instagram';
   }
@@ -127,7 +130,8 @@ export function toSocialFeedItem(video: SocialVideo): SocialFeedItem {
     platform: video.platform,
     title: video.title,
     caption: video.title,
-    url: video.url,
+    url: originalUrl,
+    originalUrl,
     thumbnailUrl,
     embedUrl,
     embedKind,
@@ -138,7 +142,7 @@ export function toSocialFeedItem(video: SocialVideo): SocialFeedItem {
 
 /** The only social posts the website may show — owner-configured videos. */
 export function resolveSocialFeed(data: Pick<SalonData, 'socialVideos'>): SocialFeedItem[] {
-  return (data.socialVideos || []).map(toSocialFeedItem);
+  return (data.socialVideos || []).map(toSocialFeedItem).filter((item) => !!item.originalUrl);
 }
 
 export function socialFeedIsEmpty(data: Pick<SalonData, 'socialVideos' | 'socialProfiles'>): boolean {

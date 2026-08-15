@@ -64,6 +64,10 @@ import {
   type VideoPlatformMetadata,
 } from './videoUrlMetadata';
 import { youtubeThumbUrl } from './siteSocialFeed';
+import {
+  originalPlatformVideoDestination,
+  safePlatformChannelUrl,
+} from './videoPlatform';
 
 /* ------------------------------------------------------------------ */
 /* Actor + permission (existing auth + ownership logic only)           */
@@ -274,6 +278,16 @@ export function validateVideoMetadataEdits(edits: VideoMetadataEditInput): strin
 /** Pure edit application (validation already passed). Never mutates input. */
 function applyMetadataEdits(video: SocialVideo, edits: VideoMetadataEditInput): SocialVideo {
   const next: SocialVideo = { ...video };
+  // First post-15.7 edit safely backfills the exact legacy destination. New
+  // records already carry originalUrl and are never rewritten here.
+  if (!next.originalUrl) {
+    const legacyDestination = originalPlatformVideoDestination(video);
+    if (legacyDestination.ok) {
+      next.originalUrl = legacyDestination.url;
+      next.platform = legacyDestination.platform;
+      next.externalVideoId = next.externalVideoId || legacyDestination.externalVideoId;
+    }
+  }
   if (edits.title !== undefined) next.title = edits.title.trim();
   if (edits.description !== undefined) next.description = edits.description.trim() || undefined;
   if (edits.channelName !== undefined) next.channelName = edits.channelName.trim() || undefined;
@@ -365,6 +379,8 @@ export function editManagedVideoMetadata(
 
 export interface VideoReplaceResultFields {
   url: string;
+  /** PHASE 15.7 — exact replacement paste; never canonicalised for redirect. */
+  originalUrl: string;
   platform: SocialVideo['platform'];
   externalVideoId: string | null;
   thumbnailUrl: string;
@@ -373,6 +389,7 @@ export interface VideoReplaceResultFields {
   title?: string;
   description?: string;
   channelName?: string;
+  channelUrl?: string;
 }
 
 /**
@@ -412,6 +429,7 @@ export function buildVideoReplaceFields(
     ok: true,
     fields: {
       url,
+      originalUrl: parsed.originalUrl,
       platform: parsed.platform,
       externalVideoId: parsed.externalVideoId,
       thumbnailUrl: thumbFromMeta || derivedThumb,
@@ -419,6 +437,7 @@ export function buildVideoReplaceFields(
       title: meta?.title?.trim() || undefined,
       description: meta?.description?.trim() || undefined,
       channelName: meta?.channelName?.trim() || undefined,
+      channelUrl: safePlatformChannelUrl(meta?.channelUrl, parsed.platform) || undefined,
     },
   };
 }
@@ -478,8 +497,10 @@ export function replaceManagedVideoUrl(
       replacesMockId: mock.id,
       themeId: mock.themeId ?? null,
       url: fields.url,
+      originalUrl: fields.originalUrl,
       platform: fields.platform,
       externalVideoId: fields.externalVideoId,
+      channelUrl: fields.channelUrl,
       thumbnailUrl: fields.thumbnailUrl || mock.thumbnailUrl,
       videoKind: fields.videoKind,
       status: 'active',
@@ -498,8 +519,10 @@ export function replaceManagedVideoUrl(
     {
       ...existing,
       url: fields.url,
+      originalUrl: fields.originalUrl,
       platform: fields.platform,
       externalVideoId: fields.externalVideoId,
+      channelUrl: fields.channelUrl,
       thumbnailUrl: fields.thumbnailUrl || existing.thumbnailUrl,
     },
     edits,
