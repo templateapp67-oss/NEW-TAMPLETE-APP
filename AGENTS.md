@@ -19,8 +19,11 @@ The app contains:
 - **Post-launch dashboard (screens 18–25)** — tabs: overview, website,
   bookings, payments, share, settings, referral, branding
   (`src/components/PreviewPane.tsx` + dashboard tabs in `src/App.tsx`).
-- **Booking confirmation** (`src/components/BookingConfirmation.tsx`, booking ID
-  `NX-10482`), **Share Referral Premium**, **Branding White-label**.
+- **Booking confirmation** (dashboard demo screen
+  `src/components/BookingConfirmation.tsx`, booking ID `NX-10482`; the REAL
+  public-site confirmation is `src/components/SiteBookingConfirmation.tsx`
+  over `src/lib/siteBookingConfirmation.ts`), **Share Referral Premium**,
+  **Branding White-label**.
 - **Owner auth + shop location** — Supabase Auth, Leaflet map with Nominatim
   geocoding, and a **public nearby-salon search** at the `/nearby` route
   (`src/components/NearbySalonSearch.tsx`).
@@ -101,6 +104,8 @@ npm run test:phase-16.1    # booking foundation: Salon → Service → Date → 
 npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
 npm run test:phase-16.3    # date & time slot availability (36 tests)
 npm run test:phase-16.5    # advance payment / deposit (24 tests)
+npm run test:phase-16.6    # booking confirmation (54 tests)
+npm run test:phase-16.8    # call/WhatsApp/book action protection (74 tests)
 npm run test:phase-16.7    # booking management (38 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features

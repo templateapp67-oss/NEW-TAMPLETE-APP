@@ -144,7 +144,11 @@ for (const config of CASES) {
       assert.ok(utils.getByTestId('site-footer-description').textContent.trim().length > 0);
       assert.ok(utils.getByTestId('site-footer-links').textContent.includes('Home') || utils.getByTestId('site-footer-links').textContent.includes('Services'));
       assert.ok(utils.getByTestId('site-footer-services').textContent.includes('Signature Haircut'));
-      assert.ok(utils.getByTestId('site-footer-contact').textContent.includes('99999'));
+      // PHASE 16.8 — the footer still renders the salon's contact block, but the
+      // dialable number is masked until this visitor's 25% advance succeeds.
+      assert.ok(utils.getByTestId('site-footer-contact').textContent.trim().length > 0);
+      assert.equal(utils.getByTestId('site-footer-call').dataset.locked, 'true');
+      assert.equal(utils.getByTestId('site-footer-contact').textContent.includes('9999900000'), false);
       assert.ok(utils.getByTestId('site-footer-address').textContent.includes('21 Test Street'));
       assert.ok(utils.getByTestId('site-footer-hours').textContent.length > 0);
       assert.ok(utils.getByTestId('site-footer-social').querySelector('a[aria-label="Instagram"]'));
@@ -162,8 +166,14 @@ for (const config of CASES) {
       assert.equal(utils.getByTestId('final-cta-section').dataset.theme, config.id);
       assert.ok(utils.getByTestId('final-cta-call'));
       assert.ok(utils.getByTestId('final-cta-whatsapp'));
-      assert.ok((utils.getByTestId('final-cta-call').getAttribute('href') || '').includes('99999') || (utils.getByTestId('final-cta-call').getAttribute('href') || '').includes('tel:'));
-      assert.ok((utils.getByTestId('final-cta-whatsapp').getAttribute('href') || '').includes('9999900000'));
+      // PHASE 16.8 — Call / WhatsApp are protected: before the required 25%
+      // advance payment they carry NO href and NO number, only the lock state.
+      const finalCall = utils.getByTestId('final-cta-call');
+      const finalWa = utils.getByTestId('final-cta-whatsapp');
+      assert.equal(finalCall.dataset.locked, 'true');
+      assert.equal(finalWa.dataset.locked, 'true');
+      assert.equal(finalCall.getAttribute('href'), null);
+      assert.equal(finalWa.getAttribute('href'), null);
     });
 
     await test('floating actions match the viewport', () => {

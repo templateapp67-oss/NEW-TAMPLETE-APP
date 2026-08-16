@@ -30,10 +30,9 @@ import {
   canWhatsApp,
   openSiteBooking,
   salonMapsHref,
-  salonTelHref,
-  salonWhatsAppHref,
 } from '../lib/siteBooking';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import SiteProtectedContactAction from './SiteProtectedContactAction';
 import {
   BARBER_SURFACES,
   BEAUTY_SPA_SURFACES,
@@ -249,8 +248,6 @@ export default function SiteMobileActionBar({
 
   // If only fewer actions are enabled, still show 4 slots but disable/hide? Spec says Call Now | WhatsApp | Directions | Book, so show all if possible.
   // Determine visible count for grid: keep 4 cols always for consistent UI.
-  const telHref = salonTelHref(data);
-  const waHref = salonWhatsAppHref(data);
 
   return (
     <div
@@ -275,17 +272,19 @@ export default function SiteMobileActionBar({
         }}
       >
         {showCall ? (
-          <a
-            href={telHref}
-            data-testid="site-mobile-bar-call"
-            data-action="call"
+          <SiteProtectedContactAction
+            action="call"
+            data={data}
+            themeId={themeId}
+            testId="site-mobile-bar-call"
             className={skin.buttonBase}
             style={skin.callStyle}
-            aria-label={T.callNow}
+            ariaLabel={T.callNow}
+            showLockIcon={false}
           >
             <Phone className={skin.iconSize} />
             <span className="leading-none text-center">{T.callNowShort}</span>
-          </a>
+          </SiteProtectedContactAction>
         ) : (
           <span
             data-testid="site-mobile-bar-call-disabled"
@@ -299,19 +298,19 @@ export default function SiteMobileActionBar({
         )}
 
         {showWa ? (
-          <a
-            href={waHref}
-            target="_blank"
-            rel="noreferrer"
-            data-testid="site-mobile-bar-whatsapp"
-            data-action="whatsapp"
+          <SiteProtectedContactAction
+            action="whatsapp"
+            data={data}
+            themeId={themeId}
+            testId="site-mobile-bar-whatsapp"
             className={skin.buttonBase}
             style={skin.waStyle}
-            aria-label={T.whatsapp}
+            ariaLabel={T.whatsapp}
+            showLockIcon={false}
           >
             <MessageCircle className={skin.iconSize} />
             <span className="leading-none text-center">{T.whatsapp}</span>
-          </a>
+          </SiteProtectedContactAction>
         ) : (
           <span
             data-testid="site-mobile-bar-whatsapp-disabled"

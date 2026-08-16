@@ -10,10 +10,9 @@ import {
   canCall,
   canWhatsApp,
   openSiteBooking,
-  salonTelHref,
-  salonWhatsAppHref,
 } from '../lib/siteBooking';
 import { useSiteLocale } from './SiteHeader';
+import SiteProtectedContactAction from './SiteProtectedContactAction';
 import SiteSkeleton from './SiteSkeleton';
 
 export interface StructurePalette {
@@ -218,27 +217,33 @@ export function FinalBookingCta({
 
   const extras = (C && data) ? (
     <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-      {showCall && (
-        <a
-          data-testid="final-cta-call"
-          href={salonTelHref(data)}
+      {showCall && themeId && (
+        <SiteProtectedContactAction
+          action="call"
+          data={data}
+          themeId={themeId}
+          testId="final-cta-call"
+          ariaLabel={C.ctaCall}
           className={`site-touch inline-flex items-center gap-2 px-4 text-[10px] font-bold uppercase tracking-[0.14em] ${shapeOf(themeId, sharp)}`}
           style={ghostStyle(themeId, palette)}
+          showLockIcon={false}
         >
           <Phone className="w-3.5 h-3.5" /> {C.ctaCall}
-        </a>
+        </SiteProtectedContactAction>
       )}
-      {showWa && (
-        <a
-          data-testid="final-cta-whatsapp"
-          href={salonWhatsAppHref(data)}
-          target="_blank"
-          rel="noreferrer"
+      {showWa && themeId && (
+        <SiteProtectedContactAction
+          action="whatsapp"
+          data={data}
+          themeId={themeId}
+          testId="final-cta-whatsapp"
+          ariaLabel={C.ctaWhatsapp}
           className={`site-touch inline-flex items-center gap-2 px-4 text-[10px] font-bold uppercase tracking-[0.14em] ${shapeOf(themeId, sharp)}`}
           style={ghostStyle(themeId, palette)}
+          showLockIcon={false}
         >
           <MessageCircle className="w-3.5 h-3.5" /> {C.ctaWhatsapp}
-        </a>
+        </SiteProtectedContactAction>
       )}
     </div>
   ) : null;

@@ -1058,11 +1058,41 @@ section('UI — WhatsApp confirmation: essentials only, no card / UPI / CVV');
     await act(async () => { fireEvent.click(utils.getByTestId('payment-continue')); });
     await act(async () => { fireEvent.click(utils.getByTestId('payment-whatsapp')); });
     assert.ok(openedUrl && openedUrl.includes('wa.me'));
-    assert.ok(openedUrl.includes('919999900000')); // salon's whatsapp phone (digits-only)
     assert.ok(openedUrl.includes('NX-'));        // booking id
+    // PHASE 16.8 — pay-at-salon takes NO advance, so the salon's own
+    // WhatsApp number stays protected: the receipt is still shareable, but
+    // it is not addressed to the salon.
+    assert.equal(openedUrl.includes('919999900000'), false);
     // Sensitive payment info: the WhatsApp URL must NOT include a full
     // card or CVV.
     assert.equal(openedUrl.includes('4242') || openedUrl.includes('cvv'), false);
+    dom.window.open = origOpen;
+    cleanup();
+  });
+
+  await test('After a successful advance the WhatsApp share addresses the salon', async () => {
+    setCleanState();
+    const data = richData('family_full_service');
+    const service = data.services[0];
+    const summary = {
+      serviceId: service.id,
+      dateKey: '2026-08-14',
+      startMinutes: 11 * 60,
+      endMinutes: 12 * 60,
+      customer: { name: 'A', mobile: '9999999999', email: '', notes: '' },
+    };
+    let openedUrl = null;
+    const origOpen = dom.window.open;
+    dom.window.open = (url) => { openedUrl = url; return null; };
+    const utils = renderPaymentStandalone('family_full_service', data, summary);
+    fireEvent.click(utils.getByTestId('payment-option-advance'));
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-continue')); });
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-pay')); });
+    await act(async () => { await wait(1600); });
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-whatsapp')); });
+    assert.ok(openedUrl && openedUrl.includes('wa.me'));
+    // The 25% advance succeeded, so the salon's real number is authorized.
+    assert.ok(openedUrl.includes('919999900000'), `expected the salon number, got ${openedUrl}`);
     dom.window.open = origOpen;
     cleanup();
   });

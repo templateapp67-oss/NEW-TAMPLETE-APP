@@ -132,8 +132,15 @@ for (const config of CASES) {
       const call = utils.getByTestId('site-mobile-bar-call');
       const wa = utils.getByTestId('site-mobile-bar-whatsapp');
       const dir = utils.getByTestId('site-mobile-bar-directions');
-      assert.ok(call.getAttribute('href').includes('99999') || call.getAttribute('href').startsWith('tel:'));
-      assert.ok(wa.getAttribute('href').includes('9999900000') || wa.getAttribute('href').includes('wa.me'));
+      // PHASE 16.8 — Call and WhatsApp are protected by the required 25%
+      // advance payment. The bar still renders both actions for the salon
+      // being viewed, but until this visitor has a successful advance they
+      // carry the lock state and NO dialable target at all.
+      assert.equal(call.dataset.locked, 'true');
+      assert.equal(wa.dataset.locked, 'true');
+      assert.equal(call.getAttribute('href'), null);
+      assert.equal(wa.getAttribute('href'), null);
+      assert.equal(call.dataset.lockReason, 'payment-required');
       const href = dir.getAttribute('href');
       // Should be maps link using saved location (fullAddress encoded)
       assert.ok(href.includes('maps.google.com') || href.includes('Jaipur') || href.includes('q='), `Directions href unexpected: ${href}`);

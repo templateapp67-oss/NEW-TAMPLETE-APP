@@ -354,18 +354,22 @@ for (const config of CASES) {
       assert.ok(utils.container.querySelector('#section-services'), 'services target missing');
     });
 
-    await test('optional Call CTA uses the existing tel: contact system', () => {
+    await test('optional Call CTA uses the existing protected contact system', () => {
       const call = hero.querySelector('[data-testid="hero-call-cta"]');
       assert.ok(call, 'hero-call-cta missing');
-      assert.ok((call.getAttribute('href') || '').startsWith('tel:'), `bad call href: ${call.getAttribute('href')}`);
-      assert.equal(flat(call), H.callCta);
+      // PHASE 16.8 — the hero Call CTA is gated on the required 25% advance
+      // payment: locked it exposes no tel: target at all.
+      assert.equal(call.dataset.locked, 'true');
+      assert.equal(call.getAttribute('href'), null);
+      assert.ok(flat(call).includes(H.callCta));
     });
 
-    await test('optional WhatsApp CTA uses the existing wa.me contact system', () => {
+    await test('optional WhatsApp CTA uses the existing protected contact system', () => {
       const wa = hero.querySelector('[data-testid="hero-whatsapp-cta"]');
       assert.ok(wa, 'hero-whatsapp-cta missing');
-      assert.ok((wa.getAttribute('href') || '').startsWith('https://wa.me/'), `bad wa href: ${wa.getAttribute('href')}`);
-      assert.equal(flat(wa), H.whatsAppCta);
+      assert.equal(wa.dataset.locked, 'true');
+      assert.equal(wa.getAttribute('href'), null);
+      assert.ok(flat(wa).includes(H.whatsAppCta));
     });
 
     await test('optional View Gallery CTA targets the gallery section', () => {
@@ -445,9 +449,14 @@ for (const config of CASES) {
         assert.match(HI[key], /[\u0900-\u097F]/, `${key} not translated to Hindi`);
       }
     });
-    await test('Hindi keeps working hrefs on the contact CTAs', () => {
-      assert.ok((hero.querySelector('[data-testid="hero-call-cta"]').getAttribute('href') || '').startsWith('tel:'));
-      assert.ok((hero.querySelector('[data-testid="hero-whatsapp-cta"]').getAttribute('href') || '').startsWith('https://wa.me/'));
+    await test('Hindi keeps the protected contact CTAs consistent', () => {
+      // PHASE 16.8 — locked in Hindi too, with the Hindi lock explanation.
+      const call = hero.querySelector('[data-testid="hero-call-cta"]');
+      const wa = hero.querySelector('[data-testid="hero-whatsapp-cta"]');
+      assert.equal(call.getAttribute('href'), null);
+      assert.equal(wa.getAttribute('href'), null);
+      assert.match(call.getAttribute('title') || '', /[\u0900-\u097F]/);
+      assert.match(wa.getAttribute('title') || '', /[\u0900-\u097F]/);
     });
   }
 
