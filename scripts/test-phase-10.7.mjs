@@ -541,16 +541,18 @@ section('Engine — gateway simulator outcomes');
     const data = richData('nail_lash_studio');
     const rec = makeRecord('nail_lash_studio', data.services[0], 'full');
     const attempt = simulateGateway(rec, { method: 'card', cardNumber: '4242424242424242' });
-    // Simulate UI-side timeout cancel after the gate is past its wait window.
+    // Simulate UI-side timeout after the gate is past its wait window.
+    // PHASE 16.9 — the expiry path passes the explicit `timeout` outcome,
+    // so the record lands in `failed` (distinct from customer cancellation).
     await wait(300);
-    attempt.cancel('Payment timed out — please retry');
+    attempt.cancel('Payment timed out — please retry', 'timeout');
     const result = await attempt.promise;
-    // Whether the simulator resolves via the UI cancel hook (cancellation)
-    // or the future timeout branch, the booking is never confirmed.
-    assert.ok(['cancellation', 'timeout'].includes(result.outcome));
-    assert.equal(result.record.paymentStatus, 'cancelled');
+    assert.equal(result.outcome, 'timeout');
+    assert.equal(result.record.paymentStatus, 'failed');
+    assert.equal(result.record.bookingStatus, 'failed');
     assert.notEqual(result.record.bookingStatus, 'confirmed');
     assert.notEqual(result.record.bookingStatus, 'pay_at_salon');
+    assert.ok(/timed out/i.test(result.reason || ''), 'reason stays human-readable');
   });
 
   await test('Booking is NEVER confirmed on a failed/cancelled payment', async () => {
@@ -812,9 +814,11 @@ section('UI — Gateway flow: success / failure / cancellation / retry');
     await act(async () => { fireEvent.click(utils.getByTestId('payment-continue')); });
     fireEvent.change(utils.getByTestId('payment-card-number'), { target: { value: '4242424242424242' } });
     await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-pay')); });
-    // Wait for the "processing" state, then cancel.
+    // Wait for the "processing" state, then cancel (16.9: the cancel
+    // action asks for an inline confirmation before it runs).
     await act(async () => { await wait(350); });
     await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel')); });
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel-yes')); });
     await act(async () => { await wait(200); });
     const flow = utils.getByTestId('payment-flow');
     assert.equal(flow.dataset.step, 'result');

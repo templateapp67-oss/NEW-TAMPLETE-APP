@@ -351,8 +351,10 @@ section('States — pending / success / failed / cancelled; no confirm before pa
     assert.equal(rec.bookingStatus, 'pending_payment', 'must not be confirmed while pending');
     assert.equal(rec.paymentStatus, 'pending');
     assert.ok(Boolean(utils.getByTestId('payment-processing')), 'processing state visible');
-    // Cancel to exit the never-resolving attempt.
+    // Cancel to exit the never-resolving attempt (16.9: cancel asks for
+    // an inline confirmation first).
     await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel')); });
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel-yes')); });
     cleanup();
     window.localStorage.clear();
   });
@@ -384,7 +386,10 @@ section('States — pending / success / failed / cancelled; no confirm before pa
     await act(async () => { fireEvent.click(utils.getByTestId('payment-continue')); });
     await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-pay')); });
     await act(async () => { await wait(400); });
+    // PHASE 16.9 — cancelling an in-flight payment confirms first.
     await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel')); });
+    assert.ok(Boolean(utils.getByTestId('payment-gateway-cancel-confirm')), 'cancel must ask for confirmation');
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel-yes')); });
     await act(async () => { await wait(200); });
     const rec = readPaymentRecords()[0];
     assert.equal(rec.paymentStatus, 'cancelled');
@@ -461,6 +466,7 @@ section('Duplicate submission prevented');
     assert.equal(utils.container.querySelector('[data-testid="payment-gateway-pay"]'), null, 'Pay hidden while processing');
     assert.ok(Boolean(utils.getByTestId('payment-gateway-cancel')));
     await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel')); });
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel-yes')); });
     cleanup();
     window.localStorage.clear();
   });

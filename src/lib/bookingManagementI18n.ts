@@ -15,6 +15,7 @@ const EN = {
   'customer.retry': 'Retry',
   'customer.cancel': 'Cancel booking',
   'customer.cancelConfirm': 'Cancel this booking? This cannot be undone.',
+  'customer.keepBooking': 'Keep my booking',
   'customer.cancelled': 'Your booking was cancelled.',
   'customer.cancelFailed': 'This booking can no longer be cancelled.',
 
@@ -27,7 +28,10 @@ const EN = {
   'owner.confirm': 'Confirm',
   'owner.complete': 'Mark completed',
   'owner.cancel': 'Cancel booking',
+  'owner.cancelConfirm': 'Cancel this booking? This cannot be undone.',
+  'owner.keepBooking': 'Keep booking',
   'owner.updated': 'Booking updated.',
+  'owner.cancelled': 'Booking cancelled.',
   'owner.updateFailed': 'This change is not allowed for the booking\u2019s current status.',
   'owner.filter.all': 'All',
 
@@ -73,6 +77,7 @@ const HI: Record<keyof typeof EN, string> = {
   'customer.retry': 'फिर से कोशिश करें',
   'customer.cancel': 'बुकिंग रद्द करें',
   'customer.cancelConfirm': 'यह बुकिंग रद्द करें? इसे पूर्ववत नहीं किया जा सकता।',
+  'customer.keepBooking': 'मेरी बुकिंग रखें',
   'customer.cancelled': 'आपकी बुकिंग रद्द कर दी गई।',
   'customer.cancelFailed': 'यह बुकिंग अब रद्द नहीं की जा सकती।',
 
@@ -85,7 +90,10 @@ const HI: Record<keyof typeof EN, string> = {
   'owner.confirm': 'पक्का करें',
   'owner.complete': 'पूर्ण करें',
   'owner.cancel': 'बुकिंग रद्द करें',
+  'owner.cancelConfirm': 'यह बुकिंग रद्द करें? इसे पूर्ववत नहीं किया जा सकता।',
+  'owner.keepBooking': 'बुकिंग रखें',
   'owner.updated': 'बुकिंग अपडेट हो गई।',
+  'owner.cancelled': 'बुकिंग रद्द कर दी गई।',
   'owner.updateFailed': 'बुकिंग की वर्तमान स्थिति में यह बदलाव संभव नहीं है।',
   'owner.filter.all': 'सभी',
 

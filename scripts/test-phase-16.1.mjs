@@ -185,7 +185,8 @@ function renderFlow(themeId, extras = {}) {
       themeId,
       data: richData(themeId, extras),
       onBackToWebsite: () => {},
-      onShowToast: (msg) => toasts.push(msg),
+      // PHASE 16.9 — typed notices; the harness keeps the message text.
+      onShowToast: (msg) => toasts.push(typeof msg === 'string' ? msg : msg.message),
     }),
   );
   return { utils, toasts };

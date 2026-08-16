@@ -14,7 +14,7 @@
  * ('booking'), the same one the 16.3 availability states use.
  */
 import { useMemo, useState } from 'react';
-import { Calendar, CalendarX, Clock, CreditCard, ReceiptText, RefreshCw, Sparkles, User } from 'lucide-react';
+import { Calendar, CalendarX, Clock, CreditCard, ReceiptText, RefreshCw, ShieldAlert, Sparkles, User } from 'lucide-react';
 import type { SalonData } from '../types';
 import { formatCurrency } from '../lib/pricing';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
@@ -38,12 +38,14 @@ import SiteBookingConfirmation from './SiteBookingConfirmation';
 import { readBookingConfirmation } from '../lib/siteBookingConfirmation';
 import type { BookingConfirmationView } from '../lib/siteBookingConfirmation';
 import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
+import type { BookingNoticeInput } from '../lib/siteBookingNotices';
 
 interface Props {
   themeId: SiteHeaderThemeId;
   data: SalonData;
   businessId: string;
-  onShowToast?: (msg: string) => void;
+  /** PHASE 16.9 — typed notices on the EXISTING toast seam. */
+  onShowToast?: (input: BookingNoticeInput) => void;
 }
 
 export default function SiteMyBookings({ themeId, data, businessId, onShowToast }: Props) {
@@ -94,10 +96,17 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openReference, businessId, themeId, version]);
 
+  // PHASE 16.9 — cancellation asks for an inline, themed confirmation
+  // (replaces the blocking native `window.confirm`); the destructive
+  // action only runs on the explicit confirm button.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   const cancelBooking = (record: PaymentRecord) => {
-    if (typeof window !== 'undefined' && !window.confirm(T['customer.cancelConfirm'])) return;
     const result = customerCancelBooking(businessId, themeId, record.bookingId);
-    onShowToast?.(result.ok ? T['customer.cancelled'] : T['customer.cancelFailed']);
+    onShowToast?.(result.ok
+      ? { kind: 'warning', message: T['customer.cancelled'] }
+      : { kind: 'error', message: T['customer.cancelFailed'] });
+    setConfirmingId(null);
     setVersion((v) => v + 1);
   };
 
@@ -229,13 +238,51 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
                 <button
                   type="button"
                   data-testid={`my-booking-cancel-${record.bookingId}`}
-                  onClick={() => cancelBooking(record)}
+                  aria-expanded={confirmingId === record.bookingId}
+                  onClick={() => setConfirmingId((current) => (current === record.bookingId ? null : record.bookingId))}
                   className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border rounded-lg cursor-pointer inline-flex items-center gap-1.5"
                   style={{ borderColor: s.danger, color: s.danger, backgroundColor: 'transparent' }}
                 >
                   <CalendarX className="w-3 h-3" />
                   {T['customer.cancel']}
                 </button>
+              )}
+
+              {/* PHASE 16.9 — inline confirmation before the destructive
+                  cancellation. The booking is untouched until confirmed. */}
+              {confirmingId === record.bookingId && customerCanCancel(record) && (
+                <div
+                  data-testid={`my-booking-cancel-confirm-${record.bookingId}`}
+                  role="alertdialog"
+                  aria-label={T['customer.cancelConfirm']}
+                  className="flex flex-wrap items-center gap-2 border rounded-lg p-2.5"
+                  style={{ backgroundColor: s.card, borderColor: s.danger }}
+                >
+                  <ShieldAlert className="w-4 h-4 shrink-0" style={{ color: s.danger }} aria-hidden />
+                  <span className="flex-1 min-w-[12rem] text-[10px] font-bold leading-relaxed" style={{ color: s.text }}>
+                    {T['customer.cancelConfirm']}
+                  </span>
+                  <button
+                    type="button"
+                    data-testid={`my-booking-cancel-keep-${record.bookingId}`}
+                    autoFocus
+                    onClick={() => setConfirmingId(null)}
+                    className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border rounded-lg cursor-pointer inline-flex items-center gap-1.5"
+                    style={{ borderColor: s.accent, color: s.accent, backgroundColor: 'transparent' }}
+                  >
+                    {T['customer.keepBooking']}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid={`my-booking-cancel-yes-${record.bookingId}`}
+                    onClick={() => cancelBooking(record)}
+                    className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border rounded-lg cursor-pointer inline-flex items-center gap-1.5"
+                    style={{ borderColor: s.danger, color: '#ffffff', backgroundColor: s.danger }}
+                  >
+                    <CalendarX className="w-3 h-3" />
+                    {T['customer.cancel']}
+                  </button>
+                </div>
               )}
             </div>
 

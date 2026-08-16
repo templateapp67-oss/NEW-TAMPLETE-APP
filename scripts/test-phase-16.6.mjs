@@ -634,7 +634,9 @@ section('Flow UI — the screen never claims Confirmed before payment');
     assert.equal(record.bookingStatus, 'pending_payment');
     assert.equal(bookingConfirmationState(record), 'payment_pending');
     assert.equal(utils.container.querySelector('[data-testid="payment-confirm"]'), null);
+    // PHASE 16.9 — cancel asks for an inline confirmation first.
     await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel')); });
+    await act(async () => { fireEvent.click(utils.getByTestId('payment-gateway-cancel-yes')); });
     cleanup();
     window.localStorage.clear();
   });
