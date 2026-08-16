@@ -26,10 +26,10 @@ import {
   openSiteBooking,
   salonDisplayName,
   salonMapsHref,
-  salonTelHref,
-  salonWhatsAppHref,
 } from '../lib/siteBooking';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import SiteProtectedContactAction from './SiteProtectedContactAction';
+import { displayContactNumber, resolveSiteContactAccess } from '../lib/siteContactAccess';
 import {
   Facebook,
   Instagram,
@@ -189,6 +189,7 @@ export default function SiteFooter({ themeId, data }: { themeId: SiteHeaderTheme
   if (!nameStyle.color) nameStyle.color = skin.text;
   const description = (data.about || data.tagline || S.footerFallbackTagline || '').trim();
   const nav = buildSiteNavItems(themeId, data);
+  const footerAccess = resolveSiteContactAccess(data, themeId);
   const services = activeCatalogItems(data.services).slice(0, 5);
   const hours = data.openingHours ? Object.entries(data.openingHours) : [];
   const [legal, setLegal] = useState<LegalKey | null>(null);
@@ -289,14 +290,29 @@ export default function SiteFooter({ themeId, data }: { themeId: SiteHeaderTheme
             <p className={skin.headingClass} style={{ color: skin.accent }}>{C['chrome.contact']}</p>
             <div className="mt-3 space-y-1.5" style={{ color: skin.text }}>
               {canCall(data) && (
-                <a href={salonTelHref(data)} className="flex items-center gap-2 hover:underline">
-                  <Phone className="w-3.5 h-3.5" style={{ color: skin.accent }} /> {data.phone}
-                </a>
+                <SiteProtectedContactAction
+                  action="call"
+                  data={data}
+                  themeId={themeId}
+                  testId="site-footer-call"
+                  ariaLabel={C['chrome.call']}
+                  className="flex items-center gap-2 hover:underline"
+                >
+                  <Phone className="w-3.5 h-3.5" style={{ color: skin.accent }} />{' '}
+                  {displayContactNumber(data.phone, footerAccess.call.unlocked)}
+                </SiteProtectedContactAction>
               )}
               {canWhatsApp(data) && (
-                <a href={salonWhatsAppHref(data)} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:underline">
+                <SiteProtectedContactAction
+                  action="whatsapp"
+                  data={data}
+                  themeId={themeId}
+                  testId="site-footer-whatsapp"
+                  ariaLabel={C['chrome.whatsapp']}
+                  className="flex items-center gap-2 hover:underline"
+                >
                   {C['chrome.whatsapp']}
-                </a>
+                </SiteProtectedContactAction>
               )}
               <p className="flex items-center gap-2 break-all">
                 <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: skin.accent }} />

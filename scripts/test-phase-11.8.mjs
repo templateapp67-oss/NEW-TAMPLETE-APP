@@ -350,13 +350,16 @@ for (const config of CASES) {
       assert.equal(lastScroll.section, 'gallery');
     });
 
-    await test('Hero → Call / WhatsApp → existing contact actions', () => {
+    await test('Hero → Call / WhatsApp → existing protected contact actions', () => {
       const call = hero.querySelector('[data-testid="hero-call-cta"]');
       const wa = hero.querySelector('[data-testid="hero-whatsapp-cta"]');
-      assert.equal(call.getAttribute('href'), 'tel:+91 99999 00000');
-      assert.equal(wa.getAttribute('href'), 'https://wa.me/919999900000');
-      assert.equal(wa.getAttribute('target'), '_blank');
-      assert.match(wa.getAttribute('rel') || '', /noreferrer|noopener/);
+      // PHASE 16.8 — the salon's real numbers stay out of the markup until the
+      // visitor's required 25% advance payment has actually succeeded.
+      assert.equal(call.dataset.locked, 'true');
+      assert.equal(wa.dataset.locked, 'true');
+      assert.equal(call.getAttribute('href'), null);
+      assert.equal(wa.getAttribute('href'), null);
+      assert.equal(hero.innerHTML.includes('919999900000'), false);
     });
 
     await test('flows create no duplicate sections and no route change', () => {

@@ -196,17 +196,19 @@ for (const config of CASES) {
       assert.equal(lastScroll.section, 'gallery', 'landed on a section that is not Gallery');
     });
 
-    await test('Call and WhatsApp use the existing contact actions', () => {
+    await test('Call and WhatsApp use the existing protected contact actions', () => {
       const call = hero.querySelector('[data-testid="hero-call-cta"]');
       const wa = hero.querySelector('[data-testid="hero-whatsapp-cta"]');
-      assert.equal(call.tagName, 'A');
-      assert.equal(wa.tagName, 'A');
-      assert.ok((call.getAttribute('href') || '').startsWith('tel:'), 'call is not a tel: action');
-      assert.ok((wa.getAttribute('href') || '').startsWith('https://wa.me/'), 'whatsapp is not a wa.me action');
-      assert.equal(wa.getAttribute('target'), '_blank');
-      assert.match(wa.getAttribute('rel') || '', /noreferrer|noopener/);
-      assert.equal(flat(call), H.callCta);
-      assert.equal(flat(wa), H.whatsAppCta);
+      // PHASE 16.8 — before the required 25% advance payment both actions are
+      // locked: rendered as buttons that carry no contact target whatsoever.
+      assert.equal(call.tagName, 'BUTTON');
+      assert.equal(wa.tagName, 'BUTTON');
+      assert.equal(call.dataset.locked, 'true');
+      assert.equal(wa.dataset.locked, 'true');
+      assert.equal(call.getAttribute('href'), null);
+      assert.equal(wa.getAttribute('href'), null);
+      assert.ok(flat(call).includes(H.callCta));
+      assert.ok(flat(wa).includes(H.whatsAppCta));
     });
 
     await test('hero CTAs never create duplicate sections or routes', () => {
@@ -437,8 +439,9 @@ for (const config of CASES) {
           const gallery = hero.querySelector('[data-testid="hero-gallery-cta"]');
           assert.equal(flat(gallery), T.galleryCta);
           assert.equal(gallery.getAttribute('href'), `#${heroTargetId(config.id, 'gallery')}`);
-          assert.ok((hero.querySelector('[data-testid="hero-call-cta"]').getAttribute('href') || '').startsWith('tel:'));
-          assert.ok((hero.querySelector('[data-testid="hero-whatsapp-cta"]').getAttribute('href') || '').startsWith('https://wa.me/'));
+          // PHASE 16.8 — protected until the advance payment succeeds.
+          assert.equal(hero.querySelector('[data-testid="hero-call-cta"]').dataset.locked, 'true');
+          assert.equal(hero.querySelector('[data-testid="hero-whatsapp-cta"]').dataset.locked, 'true');
           for (const id of CTA_IDS) {
             assert.ok(cls(hero.querySelector(`[data-testid="${id}"]`)).includes('site-hero-cta'));
           }

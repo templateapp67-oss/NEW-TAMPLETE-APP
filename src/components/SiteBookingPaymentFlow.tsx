@@ -50,6 +50,7 @@ import {
   toBookingConfirmation,
 } from '../lib/siteBookingConfirmation';
 import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
+import { authorizeContactOpen } from '../lib/siteContactAccess';
 import {
   fillPaymentText,
   paymentFlowText,
@@ -847,9 +848,15 @@ export default function SiteBookingPaymentFlow(props: Props) {
 
   const sendOnWhatsApp = useCallback(() => {
     if (!receipt) return;
-    const phone = (data.whatsappPhone || data.phone || '').replace(/\D/g, '');
     const message = buildWhatsAppMessage(receipt, T, locale, salonDisplayName(data, themeId));
-    const target = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    // PHASE 16.8 — the salon's own WhatsApp number is addressed ONLY when the
+    // advance payment authorizes it (`pay_at_salon` receipts do not). Without
+    // that authorization the receipt is still shareable — just not to the
+    // salon's protected number.
+    const authorized = authorizeContactOpen('whatsapp', data, themeId);
+    const target = authorized
+      ? `${authorized}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(target, '_blank', 'noopener');
   }, [receipt, data, themeId, T, locale]);
 

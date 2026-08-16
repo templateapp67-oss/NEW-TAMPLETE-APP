@@ -22,6 +22,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoMark, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
+import SiteProtectedContactAction from '../SiteProtectedContactAction';
 import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, Sparkles, ArrowRight, Camera, PlayCircle, Phone, MessageCircle, Images } from 'lucide-react';
@@ -193,26 +194,28 @@ export default function NailLashHero({ data, mode }: Props) {
             {(cta.call || cta.whatsApp || cta.gallery) && (
               <div data-testid="hero-cta-secondary-row" className="flex flex-wrap gap-2 mt-6">
                 {cta.call && (
-                  <a
-                    data-testid="hero-call-cta"
-                    href={cta.call.href}
+                  <SiteProtectedContactAction
+                    action="call"
+                    data={data}
+                    themeId="nail_lash_studio"
+                    testId="hero-call-cta"
                     className={heroCtaClass('nail_lash_studio', "rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5")}
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
                     <Phone className="w-3.5 h-3.5" aria-hidden /> {H.callCta}
-                  </a>
+                  </SiteProtectedContactAction>
                 )}
                 {cta.whatsApp && (
-                  <a
-                    data-testid="hero-whatsapp-cta"
-                    href={cta.whatsApp.href}
-                    target="_blank"
-                    rel="noreferrer"
+                  <SiteProtectedContactAction
+                    action="whatsapp"
+                    data={data}
+                    themeId="nail_lash_studio"
+                    testId="hero-whatsapp-cta"
                     className={heroCtaClass('nail_lash_studio', "rounded-full px-4 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.14em] inline-flex items-center gap-1.5")}
                     style={{ backgroundColor: t.pinkSoft, color: t.pinkDeep }}
                   >
                     <MessageCircle className="w-3.5 h-3.5" aria-hidden /> {H.whatsAppCta}
-                  </a>
+                  </SiteProtectedContactAction>
                 )}
                 {cta.gallery && (
                   <a

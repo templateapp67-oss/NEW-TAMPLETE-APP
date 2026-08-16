@@ -10,6 +10,9 @@ import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteProtectedContactAction from './SiteProtectedContactAction';
+import SiteContactLockNotice from './SiteContactLockNotice';
+import { displayContactNumber, resolveSiteContactAccess } from '../lib/siteContactAccess';
 import SiteSeo from './SiteSeo';
 import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
@@ -322,8 +325,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
   const aboutState = resolveSectionState('about', [data.about || '1']);
   const locationState = resolveSectionState('location', ['ready']);
   const secondaryImage = data.gallery?.[1]?.url || galleryThemeMedia('family_full_service')[1]?.src || '';
-  const contactPhone = data.phone || '';
-  const whatsappPhone = (data.whatsappPhone || data.phone || '').replace(/\D/g, '');
+  const familyContactAccess = resolveSiteContactAccess(data, 'family_full_service');
   const hours = data.openingHours
     ? Object.entries(data.openingHours)
     : [['monday', { open: true, startTime: '10:00', endTime: '20:00' }], ['tuesday', { open: true, startTime: '10:00', endTime: '20:00' }], ['wednesday', { open: true, startTime: '10:00', endTime: '20:00' }], ['thursday', { open: true, startTime: '10:00', endTime: '20:00' }]];
@@ -492,7 +494,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
           <div className="grid md:grid-cols-[1fr_1fr] gap-8">
             <div>
               <SectionIntro eyebrow={S.contactEyebrow} title={S.contactTitle} body={S.contactBody} light t={t} />
-              <div className="grid grid-cols-3 gap-2 mt-7"><ContactButton href={`tel:${contactPhone}`} icon={Phone} t={t}>{S.contactCall}</ContactButton><ContactButton href={whatsappPhone ? `https://wa.me/${whatsappPhone}` : '#section-contact'} icon={MessageCircle} t={t}>{S['common.whatsApp']}</ContactButton><button type="button" data-open-booking="true" onClick={openSiteBooking} className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[10px] font-extrabold uppercase tracking-[0.13em] transition-all hover:-translate-y-0.5" style={{ backgroundColor: t.sun, color: '#12385b' }}><CalendarDays className="w-4 h-4" />{S.contactBookOnline}</button></div>
+              <div className="grid grid-cols-3 gap-2 mt-7"><SiteProtectedContactAction action="call" data={data} themeId="family_full_service" testId="theme-contact-call" ariaLabel={S.contactCall} className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[10px] font-extrabold uppercase tracking-[0.13em] transition-all hover:-translate-y-0.5" style={{ backgroundColor: t.card, color: t.ink }} showLockIcon={false}><Phone className="w-4 h-4" />{S.contactCall}</SiteProtectedContactAction><SiteProtectedContactAction action="whatsapp" data={data} themeId="family_full_service" testId="theme-contact-whatsapp" ariaLabel={S['common.whatsApp']} className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[10px] font-extrabold uppercase tracking-[0.13em] transition-all hover:-translate-y-0.5" style={{ backgroundColor: t.card, color: t.ink }} showLockIcon={false}><MessageCircle className="w-4 h-4" />{S['common.whatsApp']}</SiteProtectedContactAction><button type="button" data-open-booking="true" onClick={openSiteBooking} className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[10px] font-extrabold uppercase tracking-[0.13em] transition-all hover:-translate-y-0.5" style={{ backgroundColor: t.sun, color: '#12385b' }}><CalendarDays className="w-4 h-4" />{S.contactBookOnline}</button></div>
               <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-[10px] font-bold text-white/75"><span className="flex items-center gap-1.5"><HeartHandshake className="w-3.5 h-3.5" style={{ color: sun }} /> {S.contactNote1}</span><span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" style={{ color: sun }} /> {S.contactNote2}</span></div>
             </div>
             <div className="rounded-[1.75rem] p-5 md:p-6" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
@@ -500,7 +502,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
                 <div><h3 className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-white flex items-center gap-2"><MapPin className="w-4 h-4" style={{ color: sun }} /> {S.contactVisitLabel}</h3><p className="text-xs leading-relaxed mt-3 text-white/75">{data.address?.fullAddress || 'Your salon address will appear here.'}</p><a data-testid="theme-contact-directions" href={salonMapsHref(data)} target="_blank" rel="noreferrer" className="site-touch inline-flex items-center gap-1.5 mt-4 text-[10px] font-extrabold text-white">{S['common.getDirections']} <Navigation className="w-3.5 h-3.5" /></a></div>
                 <div><h3 className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-white flex items-center gap-2"><Clock3 className="w-4 h-4" style={{ color: sun }} /> {S.contactHoursLabel}</h3><div className="mt-3"><SiteSalonStatus themeId="family_full_service" data={data} placement="contact" inverted /></div><div className="space-y-2 mt-3">{hours.slice(0, 5).map(([day, schedule]) => <div key={day} className="flex justify-between gap-2 text-[10px] border-b pb-1.5 text-white/75" style={{ borderColor: 'rgba(255,255,255,0.16)' }}><span className="capitalize">{dayLabel(day as string, locale)}</span><span>{schedule.open ? `${schedule.startTime} – ${schedule.endTime}` : S['common.closed']}</span></div>)}</div></div>
               </div>
-              <div className="mt-5 pt-4 border-t flex flex-wrap items-center justify-between gap-2 text-[10px] text-white/70" style={{ borderColor: 'rgba(255,255,255,0.16)' }}><span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" style={{ color: sun }} /> {data.email || 'hello@familysalon.com'}</span><span>{data.phone || S.contactPhoneFallback}</span></div>
+              <div className="mt-5 pt-4 border-t flex flex-wrap items-center justify-between gap-2 text-[10px] text-white/70" style={{ borderColor: 'rgba(255,255,255,0.16)' }}><span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" style={{ color: sun }} /> {data.email || 'hello@familysalon.com'}</span><span data-testid="theme-contact-phone">{data.phone ? displayContactNumber(data.phone, familyContactAccess.call.unlocked) : S.contactPhoneFallback}</span></div>
             </div>
           </div>
         </section>
@@ -517,6 +519,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
       <SiteFloatingActions themeId="family_full_service" data={data} mode={mode} />
       <SiteMobileActionBar themeId="family_full_service" data={data} mode={mode} />
       <SiteBookingHost themeId="family_full_service" data={data} />
+      <SiteContactLockNotice themeId="family_full_service" data={data} />
     </div>
   );
 }

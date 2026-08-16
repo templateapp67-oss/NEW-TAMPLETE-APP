@@ -1,10 +1,53 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-16** (session `arena/01a00b45-new-tamplete-app`, Phase 16.6).
+> Last updated: **2026-08-16** (session `arena/01a00b45-new-tamplete-app`, Phase 16.8).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.8 — CALL / WHATSAPP / BOOK ACTION PROTECTION: COMPLETE (74 tests).**
+  - Call, WhatsApp and Book Online are protected by the EXISTING
+    booking/payment/auth architecture (the 10.7/16.5 record store +
+    the 16.6 state rule). No duplicate booking system, no invented
+    tables/columns/ids and no fake payment records; M08/M09 stay
+    unapplied drafts and no DB was executed.
+  - **Single authorization point** `src/lib/siteContactAccess.ts`
+    (read-only): `resolveContactAccess` / `resolveSiteContactAccess`,
+    `findUnlockingBooking`, `authorizeContactOpen`,
+    `contactAccessAudit`, `isBookingExpired`, `displayContactNumber`.
+    Unlock requires ALL of: this browser's identity, this salon +
+    theme, `paymentStatus==='paid'`, a 16.6 confirmed state,
+    `amountDue > 0`, and a slot that has not finished. `pay_at_salon`
+    does NOT unlock (no advance was taken).
+  - **One shared control** `SiteProtectedContactAction` is now the ONLY
+    thing that may emit a salon contact target; the 5 heroes, floating
+    actions, mobile action bar, footer, final-CTA/section states and
+    the Family + NailLash contact rows all render it. A test asserts no
+    other public-site file builds a `tel:`/`wa.me` link.
+  - **Bypass resistance**: while locked the markup contains no href, no
+    `tel:`, no `wa.me` and no digits (printed numbers are masked), and
+    the click handler re-verifies against the store — so tampering with
+    `data-locked`/`href` in devtools opens nothing. Mirrors the draft
+    server rule: M08 pins 25% (`(service_price_paise + 3) / 4`), M09
+    `verification_status`, M11 `verify_payment()` is SECURITY DEFINER +
+    service_role-only, M12 has no anonymous booking/payment write policy.
+  - States: unlocked / payment-required / payment-pending /
+    payment-failed / cancelled / expired / unavailable, each with its
+    own EN+HI message quoting the salon's OWN advance percentage, plus
+    a lock notice that routes into the single existing booking flow.
+  - Privacy: another customer's, salon's or theme's paid booking can
+    never unlock this page; the href always comes from the viewed
+    salon's own data.
+  - NOT in 16.8: notifications, final acceptance testing.
+  - Earlier suites that asserted always-exposed contacts (10.4, 10.7,
+    10.9, 11.3, 11.6, 11.8) now assert the protected semantics; none
+    were deleted and 10.7 gained a test. Details:
+    `docs/phase-16.8-contact-action-protection.md`.
+  - Validation: `test:phase-16.8` **74/74**; 10.4 118, 10.7 67, 10.9 77,
+    11.3 249, 11.6 377, 11.8 450; Phases 10–15 fully green; 16.1 55,
+    16.2 55, 16.3 36, 16.5 24, 16.6 54, 16.7 38; validate:migrations
+    21/21; lint 0; build green; verify-22-screens 25/25.
 
 - **PHASE 16.6 — BOOKING CONFIRMATION: COMPLETE (54 tests).**
   - A clear Booking Confirmation screen over the EXISTING booking /

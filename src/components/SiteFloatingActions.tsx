@@ -11,11 +11,10 @@ import {
   canCall,
   canWhatsApp,
   openSiteBooking,
-  salonTelHref,
-  salonWhatsAppHref,
   scrollSiteToTop,
 } from '../lib/siteBooking';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import SiteProtectedContactAction from './SiteProtectedContactAction';
 import {
   BARBER_SURFACES,
   BEAUTY_SPA_SURFACES,
@@ -123,9 +122,6 @@ export default function SiteFloatingActions({
 
   if (bookingOpen) return null;
 
-  const callHref = salonTelHref(data);
-  const waHref = salonWhatsAppHref(data);
-
   // PHASE 10.9: mobile bottom bar is now SiteMobileActionBar.
   // Floating actions on mobile only shows Back to Top, so the two bars don't duplicate.
   // Desktop: Call, WhatsApp, Back to Top remain usable.
@@ -159,28 +155,32 @@ export default function SiteFloatingActions({
       className="absolute right-3 bottom-6 z-50 flex flex-col gap-2 pointer-events-none"
     >
       {showCall && (
-        <a
-          data-testid="site-fab-call"
-          href={callHref}
-          aria-label={C['chrome.call']}
+        <SiteProtectedContactAction
+          action="call"
+          data={data}
+          themeId={themeId}
+          testId="site-fab-call"
+          ariaLabel={C['chrome.call']}
           className={`${skin.btn} pointer-events-auto`}
           style={skin.btnStyle}
+          showLockIcon={false}
         >
           <Phone className="w-4 h-4" />
-        </a>
+        </SiteProtectedContactAction>
       )}
       {showWa && (
-        <a
-          data-testid="site-fab-whatsapp"
-          href={waHref}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={C['chrome.whatsapp']}
+        <SiteProtectedContactAction
+          action="whatsapp"
+          data={data}
+          themeId={themeId}
+          testId="site-fab-whatsapp"
+          ariaLabel={C['chrome.whatsapp']}
           className={`${skin.btn} pointer-events-auto`}
           style={skin.btnStyle}
+          showLockIcon={false}
         >
           <MessageCircle className="w-4 h-4" />
-        </a>
+        </SiteProtectedContactAction>
       )}
       <button
         type="button"

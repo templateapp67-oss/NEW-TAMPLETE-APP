@@ -22,6 +22,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoMark, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
+import SiteProtectedContactAction from '../SiteProtectedContactAction';
 import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, ArrowUpRight, Play, Phone, MessageCircle, Images } from 'lucide-react';
@@ -177,26 +178,28 @@ export default function HairStudioHero({ data, mode }: Props) {
             {(cta.call || cta.whatsApp || cta.gallery) && (
               <div data-testid="hero-cta-secondary-row" className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-7">
                 {cta.call && (
-                  <a
-                    data-testid="hero-call-cta"
-                    href={cta.call.href}
+                  <SiteProtectedContactAction
+                    action="call"
+                    data={data}
+                    themeId="hair_studio_color_bar"
+                    testId="hero-call-cta"
                     className={heroCtaClass('hair_studio_color_bar', "inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b")}
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
                     <Phone className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.callCta}
-                  </a>
+                  </SiteProtectedContactAction>
                 )}
                 {cta.whatsApp && (
-                  <a
-                    data-testid="hero-whatsapp-cta"
-                    href={cta.whatsApp.href}
-                    target="_blank"
-                    rel="noreferrer"
+                  <SiteProtectedContactAction
+                    action="whatsapp"
+                    data={data}
+                    themeId="hair_studio_color_bar"
+                    testId="hero-whatsapp-cta"
                     className={heroCtaClass('hair_studio_color_bar', "inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] font-semibold pb-1 border-b")}
                     style={{ color: t.ink, borderColor: t.rose }}
                   >
                     <MessageCircle className="w-3 h-3" style={{ color: t.rose }} aria-hidden /> {H.whatsAppCta}
-                  </a>
+                  </SiteProtectedContactAction>
                 )}
                 {cta.gallery && (
                   <a

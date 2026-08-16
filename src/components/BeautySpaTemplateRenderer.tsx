@@ -9,6 +9,7 @@ import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteContactLockNotice from './SiteContactLockNotice';
 import SiteSeo from './SiteSeo';
 import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
@@ -405,6 +406,7 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
       <SiteFloatingActions themeId="beauty_skin_spa" data={data} mode={mode} />
       <SiteMobileActionBar themeId="beauty_skin_spa" data={data} mode={mode} />
       <SiteBookingHost themeId="beauty_skin_spa" data={data} />
+      <SiteContactLockNotice themeId="beauty_skin_spa" data={data} />
     </div>
   );
 }

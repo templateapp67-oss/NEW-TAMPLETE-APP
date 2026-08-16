@@ -22,6 +22,7 @@ import { heroText } from '../../lib/siteHeroI18n';
 import { heroCtaOptions, heroDescription, heroFocusBadges, heroHeadline, heroLogoMark, heroMedia, heroMeta, heroModeValue, heroSalonName, heroStat } from '../../lib/siteHero';
 import { heroImageSizes, heroImageSrc, heroMediaPlan, useReducedMotion } from '../../lib/siteHeroMedia';
 import { openSiteBooking } from '../../lib/siteBooking';
+import SiteProtectedContactAction from '../SiteProtectedContactAction';
 import { heroCtaClass, heroLinkProps } from '../../lib/siteHeroNav';
 import type { ViewportMode } from '../../lib/siteStructure';
 import { Star, MapPin, ArrowRight, Smile, Users, PlayCircle, CalendarCheck, Phone, MessageCircle, Images } from 'lucide-react';
@@ -172,26 +173,28 @@ export default function FamilyHero({ data, mode }: Props) {
               {(cta.call || cta.whatsApp || cta.gallery) && (
                 <div data-testid="hero-cta-secondary-row" className="grid gap-2 mt-2.5" style={{ gridTemplateColumns: `repeat(${[cta.call, cta.whatsApp, cta.gallery].filter(Boolean).length}, minmax(0, 1fr))` }}>
                   {cta.call && (
-                    <a
-                      data-testid="hero-call-cta"
-                      href={cta.call.href}
+                    <SiteProtectedContactAction
+                      action="call"
+                      data={data}
+                      themeId="family_full_service"
+                      testId="hero-call-cta"
                       className={heroCtaClass('family_full_service', "rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5")}
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
                       <Phone className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.callCta}
-                    </a>
+                    </SiteProtectedContactAction>
                   )}
                   {cta.whatsApp && (
-                    <a
-                      data-testid="hero-whatsapp-cta"
-                      href={cta.whatsApp.href}
-                      target="_blank"
-                      rel="noreferrer"
+                    <SiteProtectedContactAction
+                      action="whatsapp"
+                      data={data}
+                      themeId="family_full_service"
+                      testId="hero-whatsapp-cta"
                       className={heroCtaClass('family_full_service', "rounded-xl py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5")}
                       style={{ backgroundColor: t.well, color: t.blue }}
                     >
                       <MessageCircle className="w-3.5 h-3.5" style={{ color: t.teal }} aria-hidden /> {H.whatsAppCta}
-                    </a>
+                    </SiteProtectedContactAction>
                   )}
                   {cta.gallery && (
                     <a
