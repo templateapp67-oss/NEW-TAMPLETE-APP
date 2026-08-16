@@ -26,6 +26,7 @@ import { displayService } from '../lib/displayService';
 import { serviceDisplayPrice, formatCurrency } from '../lib/pricing';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import SiteSalonStatus from './SiteSalonStatus';
+import SiteMyBookings from './SiteMyBookings';
 import { consumeBookingServicePrefill, salonDisplayName } from '../lib/siteBooking';
 import { getSalonNameStyle } from '../lib/brandIdentity';
 import { useTickingNow, weekdayKeyOf } from '../lib/salonStatus';
@@ -844,6 +845,15 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     {T['salon.confirm']}
                   </p>
                 </div>
+
+                {/* PHASE 16.7 — this visitor's OWN bookings at THIS salon
+                    (renders nothing when they have never booked here). */}
+                <SiteMyBookings
+                  themeId={themeId}
+                  data={data}
+                  businessId={salonContext.businessId}
+                  onShowToast={onShowToast}
+                />
               </motion.div>
             )}
 

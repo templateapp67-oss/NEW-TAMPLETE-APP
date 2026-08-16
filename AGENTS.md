@@ -101,6 +101,7 @@ npm run test:phase-16.1    # booking foundation: Salon → Service → Date → 
 npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
 npm run test:phase-16.3    # date & time slot availability (36 tests)
 npm run test:phase-16.5    # advance payment / deposit (24 tests)
+npm run test:phase-16.7    # booking management (38 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
