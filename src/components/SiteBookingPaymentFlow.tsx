@@ -42,6 +42,14 @@ import { getSalonNameStyle } from '../lib/brandIdentity';
 
 import { paymentSurfaces } from '../lib/siteBookingPaymentTheme';
 import type { PaymentFlowSurface } from '../lib/siteBookingPaymentTheme';
+import SiteBookingConfirmation, { confirmationStateColors } from './SiteBookingConfirmation';
+import {
+  bookingConfirmationState,
+  findActiveBookingForContext,
+  isConfirmedState,
+  toBookingConfirmation,
+} from '../lib/siteBookingConfirmation';
+import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
 import {
   fillPaymentText,
   paymentFlowText,
@@ -499,11 +507,50 @@ export default function SiteBookingPaymentFlow(props: Props) {
   const goToOption = useCallback(() => setStep('option'), []);
   const goToGateway = useCallback(() => setStep('gateway'), []);
 
+  /**
+   * PHASE 16.6 — duplicate-booking protection. Before ANY record is
+   * created, look for a live booking this visitor already made for the
+   * exact same salon + theme + services + date + slot + mobile. A refresh,
+   * a retry or a return to the confirmation page then re-uses that row
+   * (and its existing reference) instead of creating a second booking.
+   */
+  const bookingServiceIdsForContext = useMemo(
+    () => (multiLines ? multiLines.map((line) => line.serviceId) : [service.id]),
+    [multiLines, service.id],
+  );
+  const findLiveDuplicate = useCallback(
+    () => findActiveBookingForContext({
+      businessId,
+      themeId,
+      serviceIds: bookingServiceIdsForContext,
+      dateKey,
+      startMinutes,
+      customerMobile: customer.mobile,
+    }),
+    [businessId, themeId, bookingServiceIdsForContext, dateKey, startMinutes, customer.mobile],
+  );
+  /** Re-opens an already-confirmed duplicate instead of booking again. */
+  const reuseConfirmedDuplicate = useCallback((existing: PaymentRecord): boolean => {
+    if (!isConfirmedState(bookingConfirmationState(existing))) return false;
+    setRecord(existing);
+    setOption(existing.paymentOption);
+    setReceipt(toReceiptView(existing, locale));
+    setStep('confirm');
+    onShowToast?.(bookingConfirmationText(locale)['duplicate.notice']);
+    onBookingConfirmed(existing);
+    return true;
+  }, [locale, onShowToast, onBookingConfirmed]);
+
   const proceedFromOption = useCallback(() => {
+    // PHASE 16.6 — never create a second booking for the same context.
+    const duplicate = record || findLiveDuplicate();
+    if (duplicate && reuseConfirmedDuplicate(duplicate)) return;
     if (option === 'pay_at_salon') {
       // No gateway — create the booking row immediately, but use an
       // idempotency key so a refresh / re-entry never creates a second row.
-      const bookingId = record?.bookingId || generateBookingId();
+      // PHASE 16.6 — an existing live row for this context also donates
+      // its reference, so the customer keeps ONE booking number.
+      const bookingId = record?.bookingId || duplicate?.bookingId || generateBookingId();
       const created = createPayAtSalonRecord({
         businessId,
         themeId,
@@ -538,6 +585,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
     businessId,
     themeId,
     service,
+    multiLines,
     dateKey,
     startMinutes,
     endMinutes,
@@ -547,6 +595,8 @@ export default function SiteBookingPaymentFlow(props: Props) {
     customer,
     locale,
     onBookingConfirmed,
+    findLiveDuplicate,
+    reuseConfirmedDuplicate,
   ]);
 
   // -----------------------------------------------------------------
@@ -557,6 +607,19 @@ export default function SiteBookingPaymentFlow(props: Props) {
     // one live attempt at a time, enforced synchronously via a ref.
     if (submitLockRef.current) return;
     submitLockRef.current = true;
+    // PHASE 16.6 — a live booking already exists for this exact context
+    // (refresh / retry / returning to the page): re-use it instead of
+    // creating a second booking. An already-confirmed one goes straight
+    // back to its confirmation screen.
+    const liveDuplicate = record || findLiveDuplicate();
+    if (!record && liveDuplicate) {
+      submitLockRef.current = false;
+      if (reuseConfirmedDuplicate(liveDuplicate)) return;
+      setRecord(liveDuplicate);
+      setOption(liveDuplicate.paymentOption);
+      onShowToast?.(bookingConfirmationText(locale)['duplicate.notice']);
+      return;
+    }
     if (!record && option !== 'pay_at_salon') {
       // First attempt — create a pending record BEFORE the user sees the
       // payment form, so a refresh during processing still has a row to
@@ -643,6 +706,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
     businessId,
     themeId,
     service,
+    multiLines,
     dateKey,
     startMinutes,
     endMinutes,
@@ -654,6 +718,9 @@ export default function SiteBookingPaymentFlow(props: Props) {
     gatewayForm,
     locale,
     onBookingConfirmed,
+    onShowToast,
+    findLiveDuplicate,
+    reuseConfirmedDuplicate,
   ]);
 
   // Tick the timeout counter for the user-facing timer.
@@ -785,6 +852,24 @@ export default function SiteBookingPaymentFlow(props: Props) {
     const target = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(target, '_blank', 'noopener');
   }, [receipt, data, themeId, T, locale]);
+
+  // -----------------------------------------------------------------
+  // PHASE 16.6 — confirmation view derived from the PERSISTED record.
+  // "Confirmed" is never shown from UI state alone: the state comes from
+  // the booking + payment status pair the engine actually wrote.
+  // -----------------------------------------------------------------
+  const CT = bookingConfirmationText(locale);
+  const confirmationView = useMemo(
+    () => (record ? toBookingConfirmation(record) : null),
+    [record],
+  );
+  const confirmationState = confirmationView
+    ? confirmationView.state
+    : receipt
+      ? bookingConfirmationState({ bookingStatus: receipt.bookingStatus, paymentStatus: receipt.paymentStatus })
+      : 'payment_pending';
+  const confirmationIsConfirmed = isConfirmedState(confirmationState);
+  const confirmationColors = confirmationStateColors(confirmationState, s);
 
   // -----------------------------------------------------------------
   // Render
@@ -1295,19 +1380,36 @@ export default function SiteBookingPaymentFlow(props: Props) {
               animate={{ opacity: 1, x: 0 }}
               className="flex flex-col gap-4"
             >
+              {/* PHASE 16.6 — the banner is derived from the REAL persisted
+                  status pair: "Confirmed" only after the required payment
+                  actually succeeded (or the explicit pay-at-salon path). */}
               <div
                 data-testid="payment-confirm"
-                data-confirmed={receipt.bookingStatus === 'confirmed' || receipt.bookingStatus === 'pay_at_salon'}
+                data-confirmed={confirmationIsConfirmed}
+                data-confirmation-state={confirmationState}
                 className={`${D.successCard} p-6 flex flex-col items-center text-center gap-3`}
-                style={{ backgroundColor: s.successSoft, borderColor: s.success }}
+                style={{ backgroundColor: confirmationColors.bg, borderColor: confirmationColors.border }}
               >
-                <CheckCircle2 className="w-12 h-12" style={{ color: s.success }} />
+                {confirmationIsConfirmed ? (
+                  <CheckCircle2 className="w-12 h-12" style={{ color: confirmationColors.fg }} />
+                ) : confirmationState === 'payment_pending' ? (
+                  <Hourglass className="w-12 h-12" style={{ color: confirmationColors.fg }} />
+                ) : (
+                  <AlertTriangle className="w-12 h-12" style={{ color: confirmationColors.fg }} />
+                )}
                 <h1 className={`text-lg md:text-xl ${D.stepTitle}`} style={{ color: s.textStrong }}>
-                  {T['confirm.title']}
+                  {CT[`state.${confirmationState}.headline` as keyof typeof CT]}
                 </h1>
                 <p className="text-[11px] max-w-md" style={{ color: s.muted }}>
-                  {T['confirm.subtitle']}
+                  {CT[`state.${confirmationState}.body` as keyof typeof CT]}
                 </p>
+                <span
+                  data-testid="payment-confirm-state-chip"
+                  className="text-[9px] font-extrabold uppercase tracking-[0.16em] px-2.5 py-1"
+                  style={{ backgroundColor: confirmationColors.fg, color: '#ffffff', borderRadius: 999 }}
+                >
+                  {CT[`state.${confirmationState}` as keyof typeof CT]}
+                </span>
                 <div
                   data-testid="payment-confirm-booking-id"
                   className="mt-2 flex items-center gap-2 px-3 py-1.5"
@@ -1333,7 +1435,24 @@ export default function SiteBookingPaymentFlow(props: Props) {
                 </div>
               </div>
 
-              <ConfirmationCard D={D} s={s} T={T} locale={locale} receipt={receipt} data={data} staffName={staffName} />
+              {/* PHASE 16.6 — one shared confirmation panel (also used by
+                  the booking-history summary view) fed by the SAME record
+                  the engine persisted. `payment-confirm-card` keeps its
+                  10.7 test id so earlier phases stay intact. */}
+              {confirmationView ? (
+                <SiteBookingConfirmation
+                  themeId={themeId}
+                  data={data}
+                  view={confirmationView}
+                  variant="flow"
+                  showStatusBanner={false}
+                  showReference={false}
+                  showActions={false}
+                  detailsTestId="payment-confirm-card"
+                />
+              ) : (
+                <ConfirmationCard D={D} s={s} T={T} locale={locale} receipt={receipt} data={data} staffName={staffName} />
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <button

@@ -14,7 +14,7 @@
  * ('booking'), the same one the 16.3 availability states use.
  */
 import { useMemo, useState } from 'react';
-import { Calendar, CalendarX, Clock, CreditCard, RefreshCw, Sparkles, User } from 'lucide-react';
+import { Calendar, CalendarX, Clock, CreditCard, ReceiptText, RefreshCw, Sparkles, User } from 'lucide-react';
 import type { SalonData } from '../types';
 import { formatCurrency } from '../lib/pricing';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
@@ -34,6 +34,10 @@ import { injectedSectionStatus } from '../lib/siteStructure';
 import { salonDisplayName } from '../lib/siteBooking';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { useEffect } from 'react';
+import SiteBookingConfirmation from './SiteBookingConfirmation';
+import { readBookingConfirmation } from '../lib/siteBookingConfirmation';
+import type { BookingConfirmationView } from '../lib/siteBookingConfirmation';
+import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
 
 interface Props {
   themeId: SiteHeaderThemeId;
@@ -48,8 +52,11 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
   const T = bookingManagementText(locale);
   const s = bookingSurfaces(themeId, appearance);
 
+  const CT = bookingConfirmationText(locale);
   const [version, setVersion] = useState(0);
   const [retry, setRetry] = useState(0);
+  // PHASE 16.6 — which booking's full confirmation/receipt summary is open.
+  const [openReference, setOpenReference] = useState<string | null>(null);
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
     window.addEventListener(PAYMENT_EVENT, bump);
@@ -73,6 +80,19 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [businessId, themeId, version],
   );
+
+  /**
+   * PHASE 16.6 — the summary the customer re-opens from their history.
+   * Resolved through `readBookingConfirmation`, which reads the browser
+   * identity internally and is tenant+theme keyed, so this can only ever
+   * return THIS visitor's own booking at THIS salon.
+   */
+  const openSummary: BookingConfirmationView | null = useMemo(() => {
+    if (!openReference) return null;
+    const found = readBookingConfirmation(openReference, businessId, themeId);
+    return found.ok ? found.view : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openReference, businessId, themeId, version]);
 
   const cancelBooking = (record: PaymentRecord) => {
     if (typeof window !== 'undefined' && !window.confirm(T['customer.cancelConfirm'])) return;
@@ -190,17 +210,45 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
               </span>
             </div>
 
-            {customerCanCancel(record) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* PHASE 16.6 — the summary/receipt is reachable again from
+                  the booking history, for every state. */}
               <button
                 type="button"
-                data-testid={`my-booking-cancel-${record.bookingId}`}
-                onClick={() => cancelBooking(record)}
-                className="self-start text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border rounded-lg cursor-pointer inline-flex items-center gap-1.5"
-                style={{ borderColor: s.danger, color: s.danger, backgroundColor: 'transparent' }}
+                data-testid={`my-booking-summary-${record.bookingId}`}
+                aria-expanded={openReference === record.bookingId}
+                onClick={() => setOpenReference((current) => (current === record.bookingId ? null : record.bookingId))}
+                className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border rounded-lg cursor-pointer inline-flex items-center gap-1.5"
+                style={{ borderColor: s.accent, color: s.accent, backgroundColor: 'transparent' }}
               >
-                <CalendarX className="w-3 h-3" />
-                {T['customer.cancel']}
+                <ReceiptText className="w-3 h-3" />
+                {openReference === record.bookingId ? CT['action.hideReceipt'] : CT['history.open']}
               </button>
+
+              {customerCanCancel(record) && (
+                <button
+                  type="button"
+                  data-testid={`my-booking-cancel-${record.bookingId}`}
+                  onClick={() => cancelBooking(record)}
+                  className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border rounded-lg cursor-pointer inline-flex items-center gap-1.5"
+                  style={{ borderColor: s.danger, color: s.danger, backgroundColor: 'transparent' }}
+                >
+                  <CalendarX className="w-3 h-3" />
+                  {T['customer.cancel']}
+                </button>
+              )}
+            </div>
+
+            {openReference === record.bookingId && openSummary && (
+              <div data-testid={`my-booking-summary-panel-${record.bookingId}`} className="pt-1">
+                <SiteBookingConfirmation
+                  themeId={themeId}
+                  data={data}
+                  view={openSummary}
+                  variant="history"
+                  onShowToast={onShowToast}
+                />
+              </div>
             )}
           </div>
         );
