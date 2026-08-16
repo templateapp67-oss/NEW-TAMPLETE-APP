@@ -1,10 +1,47 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`, Phase 16.3).
+> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`, Phase 16.5).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.5 — ADVANCE PAYMENT / DEPOSIT: COMPLETE (24 tests).**
+  - The 16.x booking flow is connected to the EXISTING Phase 10.7 payment
+    architecture — single AND multi-service selections now hand off to the
+    same payment flow (the 16.2 "later phase" placeholder is closed).
+  - **Real-total math**: booking total = Σ offer-aware line prices from the
+    16.2 selection engine; the 25% advance derives from that total via the
+    EXISTING `calculatePaymentAmounts` + `bookingRules.advanceDepositPercentage`
+    (default 25, clamped; configured percentages honoured). Never hardcoded.
+  - The option step shows the complete booking summary (every line for
+    multi-service) plus an explicit **Total / Advance now (pct) / Remaining**
+    breakdown (`payment-amount-breakdown`).
+  - Additive store shape: `PaymentServiceLine` + optional
+    `PaymentRecord.services` / `ReceiptView.services`; pre-16.5 rows parse
+    unchanged; resumed records restore their lines. Still the browser-local
+    SANDBOX store — no payment tables/columns/credentials invented (M09
+    stays an unapplied draft; Razorpay is later server work). Static-scan
+    test enforces no service-role/gateway-secret strings in frontend code.
+  - **No-confirm-before-payment** invariant re-verified for advance:
+    pending → `pending_payment`; success → `paid`+`confirmed` together;
+    failure/cancel/timeout → never confirmed; retry reuses the SAME row.
+  - **Duplicate-submission guard**: synchronous ref lock on
+    `startGatewayAttempt` + `retryGateway` (two clicks in one tick → one
+    record, one attempt), on top of the existing idempotency keys.
+  - Context preserved end-to-end (salon/theme/lines/date/slot/customer into
+    the record + confirm screen); back-from-payment lands on the Booking
+    Summary with the 16.1-draft-restored selection (`resumeAtSummary`).
+  - EN/HI additions (`summary.totalAmount/advanceAmount/remainingAmount/
+    servicesCount`, `summary.paymentNext`); light/dark via existing
+    surfaces; responsive unchanged. Sandbox labels kept (EN+HI).
+  - NOT in 16.5: confirmation extras, notifications, booking management,
+    Call/WhatsApp protection, real Razorpay/M09 execution.
+  - Validation: `test:phase-16.5` **24/24**; 16.2 updated hand-off test
+    55/55; 16.1 55/55; 16.3 36/36; 10.6 107/107; 10.7 66/66; Phases 10–15
+    fully green; `validate:migrations` 27/27 ×2 + 21/21; lint 0; build
+    green; verify-22-screens 25/25. Details:
+    `docs/phase-16.5-advance-payment-deposit.md`.
 
 - **PHASE 16.3 — DATE & TIME SLOT SELECTION: COMPLETE (36 tests).**
   - The Date + Time step shows only **genuinely available** slots, derived
@@ -1391,6 +1428,7 @@ npm run test:phase-15      # every Phase 15 suite (244 tests)
 npm run test:phase-16.1    # booking foundation: Salon → Service → Date → Time → Details → Summary (55 tests)
 npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
 npm run test:phase-16.3    # date & time slot availability (36 tests)
+npm run test:phase-16.5    # advance payment / deposit (24 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1439,6 +1477,7 @@ Expected output:
 - `test:phase-16.1`: 55/55 passed (booking foundation, all five themes)
 - `test:phase-16.2`: 55/55 passed (multi-service selection + auto totals)
 - `test:phase-16.3`: 36/36 passed (date & time slot availability)
+- `test:phase-16.5`: 24/24 passed (advance payment / deposit)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed

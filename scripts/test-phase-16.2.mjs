@@ -517,7 +517,9 @@ section('Single-service path — unchanged 10.6/10.7 behaviour');
     setPaymentStoreForTests(null);
   });
 
-  await test('multi-service Confirm does NOT open the payment flow (later phase)', async () => {
+  await test('multi-service Confirm hands off to the existing payment flow (Phase 16.5)', async () => {
+    // PHASE 16.5 replaced the 16.2 placeholder: multi-service selections now
+    // enter the SAME payment architecture, priced from the real line total.
     resetState();
     const data = richData('hair_studio_color_bar');
     const utils = render(React.createElement(SiteBookingFullFlow, { themeId: 'hair_studio_color_bar', data }));
@@ -526,8 +528,12 @@ section('Single-service path — unchanged 10.6/10.7 behaviour');
     await act(async () => { fireEvent.click(utils.getByTestId('booking-service-hair_studio_color_bar-svc-2')); });
     await walkToStep('summary', utils);
     await act(async () => { fireEvent.click(utils.getByTestId('booking-confirm')); });
-    assert.equal(utils.container.querySelector('[data-testid="payment-flow"]'), null, 'no payment for multi yet');
-    assert.equal(utils.getByTestId('booking-flow').dataset.step, 'summary');
+    const paymentFlow = utils.getByTestId('payment-flow');
+    assert.ok(Boolean(paymentFlow), 'multi-service must reach the payment flow');
+    assert.equal(paymentFlow.dataset.step, 'option');
+    // The booking total is the REAL sum of the two line prices (800 + 1500).
+    const totalNode = utils.getByTestId('payment-total-amount');
+    assert.ok(totalNode.textContent.includes('₹2,300'), `wrong total: ${totalNode.textContent}`);
     cleanup();
     window.localStorage.clear();
   });

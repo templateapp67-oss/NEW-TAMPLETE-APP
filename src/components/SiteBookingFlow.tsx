@@ -75,11 +75,21 @@ interface Props {
    */
   onProceedToPayment?: (payload: {
     service: { id: string };
+    /** PHASE 16.5 — every selected line (offer-aware price + duration). */
+    serviceLines: Array<{ serviceId: string; serviceName: string; price: number; durationMinutes: number }>;
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
     customer: { name: string; mobile: string; email: string; notes: string };
   }) => void;
+  /**
+   * PHASE 16.5 — when the visitor backs OUT of the payment flow, the host
+   * remounts this component with `resumeAtSummary` so the journey lands
+   * back on the Booking Summary with every selection (restored from the
+   * 16.1 draft) intact — nothing is lost by looking at the payment screen.
+   * Falls back to the normal start when the draft can't support a summary.
+   */
+  resumeAtSummary?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -227,7 +237,7 @@ const FLOW_DESIGNS: Record<SiteHeaderThemeId, FlowDesign> = {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
-export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShowToast, onProceedToPayment }: Props) {
+export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShowToast, onProceedToPayment, resumeAtSummary }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const now = useTickingNow(30_000);
@@ -261,7 +271,21 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   // A service-specific "Book Now" (Phase 12.3 prefill) arrives from inside
   // this salon's own website, so the salon confirmation is already implicit
   // and the flow opens on the service step. A plain open starts on `salon`.
-  const [step, setStep] = useState<BookingStepId>(initialPrefill ? 'service' : 'salon');
+  // PHASE 16.5 — backing out of the payment flow lands on the summary with
+  // the draft-restored selection (only when the draft actually reached it).
+  const resumeSummaryValid = Boolean(
+    resumeAtSummary
+    && !initialPrefill
+    && initialDraft
+    && initialDraft.status === 'summary_ready'
+    && initialDraft.dateKey
+    && initialDraft.startMinutes != null
+    && initialDraft.customer?.name
+    && initialDraft.customer?.mobile,
+  );
+  const [step, setStep] = useState<BookingStepId>(
+    resumeSummaryValid ? 'summary' : initialPrefill ? 'service' : 'salon',
+  );
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   // PHASE 16.2 — MULTI-SERVICE selection: an ordered id list. The first
   // service stays auto-selected on open (10.6 behaviour); a resumed draft
@@ -277,8 +301,12 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     if (draftIds.length > 0) return draftIds.slice(0, BOOKING_MAX_SERVICES);
     return services[0] ? [services[0].id] : [];
   });
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  const [selectedSlotMinutes, setSelectedSlotMinutes] = useState<number | null>(null);
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(
+    () => (resumeSummaryValid ? initialDraft?.dateKey ?? null : null),
+  );
+  const [selectedSlotMinutes, setSelectedSlotMinutes] = useState<number | null>(
+    () => (resumeSummaryValid ? initialDraft?.startMinutes ?? null : null),
+  );
   const [holdKey, setHoldKey] = useState<string | null>(null);
   const [holdsVersion, setHoldsVersion] = useState(0);
   const [customer, setCustomer] = useState(
@@ -1580,7 +1608,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                         borderRadius: 10,
                       }}
                     >
-                      {isMultiService ? T['summary.multiPaymentNote'] : T['summary.confirmNote']}
+                      {onProceedToPayment ? T['summary.paymentNext'] : T['summary.confirmNote']}
                     </p>
                   </div>
                 </div>
@@ -1611,16 +1639,22 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
             type="button"
             data-testid="booking-confirm"
             onClick={() => {
-              // PHASE 16.2 — the existing 10.7 payment flow prices exactly ONE
-              // service record, so only single-service selections hand off to
-              // it (byte-identical to 10.6/10.7). Multi-service payment is a
-              // later phase; the summary stays the final step with a clear note.
+              // PHASE 16.5 — single AND multi-service selections hand off to
+              // the EXISTING payment architecture. The full line items travel
+              // with the payload so the payment engine prices the REAL total
+              // (sum of offer-aware line prices — never hardcoded).
               if (
-                onProceedToPayment && !isMultiService
+                onProceedToPayment
                 && selectedService && selectedDateKey && selectedSlotMinutes != null
               ) {
                 onProceedToPayment({
                   service: { id: selectedService.id },
+                  serviceLines: selection.lines.map((line) => ({
+                    serviceId: line.service.id,
+                    serviceName: line.service.name,
+                    price: line.finalPrice,
+                    durationMinutes: line.durationMinutes,
+                  })),
                   dateKey: selectedDateKey,
                   startMinutes: selectedSlotMinutes,
                   endMinutes: selectedSlotMinutes + totalDuration,
@@ -1628,7 +1662,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                 });
                 return;
               }
-              toast(isMultiService ? 'summary.multiPaymentNote' : 'summary.confirmNote');
+              toast('summary.confirmNote');
             }}
             className={`${D.primary} px-6 md:px-8 flex items-center gap-2 cursor-pointer`}
             style={D.primaryStyle(s)}
