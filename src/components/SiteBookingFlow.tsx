@@ -28,7 +28,9 @@ import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import SiteSalonStatus from './SiteSalonStatus';
 import { consumeBookingServicePrefill, salonDisplayName } from '../lib/siteBooking';
 import { getSalonNameStyle } from '../lib/brandIdentity';
-import { useTickingNow } from '../lib/salonStatus';
+import { useTickingNow, weekdayKeyOf } from '../lib/salonStatus';
+import { bookingAvailabilityExtras } from '../lib/siteBookingAvailability';
+import { PAYMENT_EVENT } from '../lib/siteBookingPayment';
 import { dayLabel, translateCategory } from '../lib/siteI18n';
 import { bookingFlowText, fillBookingText } from '../lib/siteBookingI18n';
 import { bookingSurfaces } from '../lib/siteBookingTheme';
@@ -322,11 +324,45 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     [data, now.getTime()],
   );
 
+  /* PHASE 16.3 — availability context: real booked spans (existing 10.7
+   * records, salon+theme keyed) + staff windows (existing team schedule ↔
+   * assignedServiceIds relationship). Recomputed whenever the salon,
+   * selection, date, holds or booking records change. */
+  const [recordsVersion, setRecordsVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setRecordsVersion((v) => v + 1);
+    window.addEventListener(PAYMENT_EVENT, bump);
+    return () => window.removeEventListener(PAYMENT_EVENT, bump);
+  }, []);
+
+  const slotExtras = useMemo(
+    () => bookingAvailabilityExtras(
+      data,
+      salonContext.businessId,
+      themeId,
+      selectedServices,
+      selectedDate ? weekdayKeyOf(selectedDate) : null,
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, salonContext.businessId, themeId, selectedServices, selectedDateKey, recordsVersion],
+  );
+
+  /* PHASE 16.3 — availability state for the time step, through the SAME
+   * shared seam (the 'booking' section key). loading / error are forceable
+   * for tests and future async sources; ready renders the computed grid. */
+  const [availabilityRetry, setAvailabilityRetry] = useState(0);
+  const availabilityState: 'loading' | 'error' | 'ready' = useMemo(() => {
+    const forced = injectedSectionStatus('booking');
+    if (forced === 'loading' || forced === 'error') return forced;
+    return 'ready';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availabilityRetry, selectedDateKey, slotService?.id]);
+
   const slots: BookingSlot[] = useMemo(() => {
     if (!slotService || !selectedDate) return [];
-    return bookingSlotsForDay(data, themeId, slotService, selectedDate, now);
+    return bookingSlotsForDay(data, themeId, slotService, selectedDate, now, slotExtras);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, themeId, slotService?.id, selectedDateKey, now.getTime(), holdsVersion]);
+  }, [data, themeId, slotService?.id, selectedDateKey, now.getTime(), holdsVersion, slotExtras]);
 
   const visibleServices = useMemo(
     () => (categoryFilter ? services.filter((item) => item.category === categoryFilter) : services),
@@ -388,7 +424,8 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       if (slot.state === 'past' || slot.state === 'taken') return;
       // PHASE 16.2 — the hold covers the COMBINED sitting (summed duration),
       // so a multi-service appointment blocks its entire span for others.
-      const result = reserveBookingSlot(themeId, slotService, selectedDateKey, slot.minutes);
+      // PHASE 16.3 — extras: booked spans + staff windows + salon stamp.
+      const result = reserveBookingSlot(themeId, slotService, selectedDateKey, slot.minutes, slotExtras);
       if (!result.ok || !result.hold) {
         setHoldsVersion((v) => v + 1);
         onShowToast?.(T.slotLost);
@@ -399,28 +436,37 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       setSelectedSlotMinutes(slot.minutes);
       setHoldsVersion((v) => v + 1);
     },
-    [themeId, slotService, selectedDateKey, holdKey, onShowToast, T],
+    [themeId, slotService, selectedDateKey, holdKey, onShowToast, T, slotExtras],
   );
 
   /* Entering the time step always lands on a valid, held slot. */
   useEffect(() => {
     if (step !== 'time' || !slotService || !selectedDate) return;
+    if (availabilityState !== 'ready') return; // 16.3 — no auto-hold while loading / error
     if (
       selectedSlotMinutes != null
-      && bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now)
+      && bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now, slotExtras)
     ) {
       return;
     }
-    const first = bookingSlotsForDay(data, themeId, slotService, selectedDate, now).find(
+    // PHASE 16.3 — the visitor HAD a slot and lost it (someone booked the
+    // span meanwhile). Never silently swap their time: clear the dead
+    // selection, release the dead hold and tell them to pick again.
+    if (selectedSlotMinutes != null) {
+      onShowToast?.(T.slotLost);
+      if (holdKey) releaseBookingSlot(holdKey);
+      setHoldKey(null);
+      setSelectedSlotMinutes(null);
+      setHoldsVersion((v) => v + 1);
+      return;
+    }
+    // Initial entry with no selection yet: auto-hold the first open slot.
+    const first = bookingSlotsForDay(data, themeId, slotService, selectedDate, now, slotExtras).find(
       (slot) => slot.state === 'available' || slot.state === 'held',
     );
-    if (first) {
-      pickSlot(first);
-    } else if (selectedSlotMinutes != null) {
-      setSelectedSlotMinutes(null);
-    }
+    if (first) pickSlot(first);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, selectedDateKey, slotService?.id, now.getTime()]);
+  }, [step, selectedDateKey, slotService?.id, now.getTime(), recordsVersion, availabilityState]);
 
   /* PHASE 16.2 — toggle a service in/out of the multi-selection. Any change
    * to the selection invalidates the held slot (the sitting length changed). */
@@ -475,7 +521,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       const day = days.find((item) => item.dateKey === selectedDateKey);
       return !!day && day.selectable;
     }
-    if (step === 'time') return selectedSlotMinutes != null;
+    if (step === 'time') return availabilityState === 'ready' && selectedSlotMinutes != null;
     if (step === 'details') return detailsValid;
     return true;
   })();
@@ -500,7 +546,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     }
     if (step === 'time') {
       if (!slotService || !selectedDate || selectedSlotMinutes == null) return;
-      if (!bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now)) {
+      if (!bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now, slotExtras)) {
         onShowToast?.(T.slotLost);
         setStep('time');
         return;
@@ -1148,7 +1194,45 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     )}
                   </div>
 
-                  {slots.length === 0 ? (
+                  {/* PHASE 16.3 — availability loading / error / empty states. */}
+                  {availabilityState === 'loading' ? (
+                    <div
+                      data-testid="booking-loading-slots"
+                      className="p-4 flex flex-col items-center gap-3"
+                      aria-busy="true"
+                    >
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-2.5 w-full">
+                        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                          <div
+                            key={i}
+                            className={`${D.slot} h-10 animate-pulse`}
+                            style={{ backgroundColor: s.well, borderColor: s.chipLine }}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs font-semibold" style={{ color: s.muted }}>
+                        {T['time.loading']}
+                      </p>
+                    </div>
+                  ) : availabilityState === 'error' ? (
+                    <div
+                      data-testid="booking-error-slots"
+                      className="p-6 text-center flex flex-col items-center gap-3"
+                    >
+                      <p className="text-xs font-semibold" style={{ color: s.danger }}>
+                        {T['time.error']}
+                      </p>
+                      <button
+                        type="button"
+                        data-testid="booking-retry-slots"
+                        onClick={() => setAvailabilityRetry((v) => v + 1)}
+                        className={`${D.secondary} px-4 py-2 cursor-pointer`}
+                        style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
+                      >
+                        {T['time.retry']}
+                      </button>
+                    </div>
+                  ) : slots.length === 0 ? (
                     <div
                       data-testid="booking-empty-slots"
                       className="p-6 text-center text-xs font-semibold"
@@ -1194,10 +1278,19 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     </div>
                   )}
 
-                  {selectedSlot && !disabledSlot(selectedSlot) && (
+                  {availabilityState === 'ready' && selectedSlot && !disabledSlot(selectedSlot) && (
                     <p className="mt-3 text-[10px] font-semibold flex items-start gap-1.5" style={{ color: s.muted }}>
                       <CalendarCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.success }} />
                       {T['time.holdNote']}
+                    </p>
+                  )}
+                  {availabilityState === 'ready' && slots.some((slot) => slot.state === 'taken') && (
+                    <p
+                      data-testid="booking-booked-note"
+                      className="mt-2 text-[10px] font-semibold"
+                      style={{ color: s.muted }}
+                    >
+                      {T['time.bookedNote']}
                     </p>
                   )}
                 </div>

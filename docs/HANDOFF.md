@@ -1,10 +1,48 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`, Phase 16.2).
+> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`, Phase 16.3).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.3 — DATE & TIME SLOT SELECTION: COMPLETE (36 tests).**
+  - The Date + Time step shows only **genuinely available** slots, derived
+    from EXISTING data sources only (schema audited first: booking/staff
+    tables are unapplied drafts M05/M08, so no tables/columns invented).
+  - **Booked spans** — real booking records from the EXISTING 10.7 payment
+    store, tenant+theme keyed (`bookedSpansForSalon`): `confirmed` /
+    `pay_at_salon` / `pending_payment` block their span; `failed` /
+    `cancelled` never; `excludeBookingId` for resumed bookings. Exact
+    boundary starts/ends stay available.
+  - **Staff availability** — EXISTING `TeamMember.assignedServiceIds` +
+    `TeamMember.schedule` (WeeklySchedule) + `status`: when the mapping
+    covers the whole selection, the sitting must fit a qualified member's
+    window; `On Leave`/`Inactive` never count; no mapping → salon hours
+    alone (nothing invented). Duration-aware for the 16.2 combined sitting.
+  - **Salon isolation** — holds now stamp `businessId`; another salon's
+    holds/records can never block this salon (legacy un-stamped holds stay
+    blocking — fail-closed).
+  - **Double-booking**: grid disable + `reserveBookingSlot` refusal (no
+    hold row written over a booked span) + leave-step re-check; a record
+    landing while the grid is open (PAYMENT_EVENT) recalculates instantly
+    and clears a dead selection with a toast — never a silent swap.
+  - Engine changes are additive (`BookingSlotExtras` optional on
+    `bookingSlotsForDay` / `bookingSlotIsStillAvailable` /
+    `reserveBookingSlot`) — every pre-16.3 call site byte-identical.
+  - Availability loading / error(+Retry) / empty states via the shared
+    'booking' section seam; EN/HI (`time.loading/error/retry/bookedNote`);
+    light/dark; the 10.6 responsive grid unchanged.
+  - New file: `src/lib/siteBookingAvailability.ts` (derivation layer above
+    siteBookingFlow + siteBookingPayment — no import cycle).
+  - Explicitly NOT in 16.3: customer details (16.4+), payment/advance/
+    confirmation/notifications/management, server-authoritative
+    availability (drafts stay unapplied), explicit staff selection.
+  - Validation: `test:phase-16.3` **36/36**; 16.1 55/55; 16.2 55/55;
+    10.6 107/107; 10.7 66/66; Phases 10–15 fully green; 9.1 9/9;
+    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
+    verify-22-screens 25/25. Details:
+    `docs/phase-16.3-date-time-slot-selection.md`.
 
 - **PHASE 16.2 — SERVICE SELECTION: COMPLETE (55 tests).**
   - The booking Service step is wired to the EXISTING theme-specific service
@@ -1352,6 +1390,7 @@ npm run test:phase-15.10   # final 5-theme video acceptance (73 tests)
 npm run test:phase-15      # every Phase 15 suite (244 tests)
 npm run test:phase-16.1    # booking foundation: Salon → Service → Date → Time → Details → Summary (55 tests)
 npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
+npm run test:phase-16.3    # date & time slot availability (36 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1399,6 +1438,7 @@ Expected output:
 - `test:phase-15`: 244 tests, all green — PHASE 15 ACCEPTED
 - `test:phase-16.1`: 55/55 passed (booking foundation, all five themes)
 - `test:phase-16.2`: 55/55 passed (multi-service selection + auto totals)
+- `test:phase-16.3`: 36/36 passed (date & time slot availability)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed

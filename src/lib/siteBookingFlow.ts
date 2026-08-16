@@ -416,6 +416,71 @@ export interface BookingHold {
   startMinutes: number;
   endMinutes: number;
   expiresAt: number;
+  /** PHASE 16.3 — salon that owns the hold. Legacy holds without it keep
+   * blocking the same theme (fail-closed backward compatibility). */
+  businessId?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* PHASE 16.3 — availability extras (booked spans + staff windows)     */
+/* ------------------------------------------------------------------ */
+
+/** A span already taken by a real booking record (same salon + theme). */
+export interface BookingBlockedSpan {
+  dateKey: string;
+  startMinutes: number;
+  endMinutes: number;
+}
+
+/** Minutes-from-midnight window in which qualified staff are working. */
+export interface BookingStaffWindow {
+  startMinutes: number;
+  endMinutes: number;
+}
+
+/**
+ * Optional availability context threaded through the slot engine:
+ *   - `blockedSpans`  — spans taken by confirmed/pending booking records
+ *                       (derived from the EXISTING 10.7 payment store);
+ *   - `staffWindows`  — when non-null, a slot must fit fully inside one
+ *                       window (staff availability); `null`/undefined =
+ *                       salon hours alone govern (no mapping exists);
+ *   - `businessId`    — the active salon. Holds stamped with a DIFFERENT
+ *                       salon id never block this salon's slots.
+ * All fields optional → every pre-16.3 call site behaves identically.
+ */
+export interface BookingSlotExtras {
+  blockedSpans?: readonly BookingBlockedSpan[];
+  staffWindows?: readonly BookingStaffWindow[] | null;
+  businessId?: string;
+}
+
+function spanBlocked(
+  extras: BookingSlotExtras | undefined,
+  dateKey: string,
+  startMinutes: number,
+  endMinutes: number,
+): boolean {
+  if (!extras?.blockedSpans) return false;
+  return extras.blockedSpans.some(
+    (span) => span.dateKey === dateKey && span.startMinutes < endMinutes && span.endMinutes > startMinutes,
+  );
+}
+
+function outsideStaffWindows(
+  extras: BookingSlotExtras | undefined,
+  startMinutes: number,
+  endMinutes: number,
+): boolean {
+  const windows = extras?.staffWindows;
+  if (windows == null) return false; // no staff constraint for this selection
+  return !windows.some((win) => win.startMinutes <= startMinutes && win.endMinutes >= endMinutes);
+}
+
+/** A hold blocks this salon unless it is explicitly stamped with another salon. */
+function holdBlocksBusiness(hold: BookingHold, extras: BookingSlotExtras | undefined): boolean {
+  if (!hold.businessId || !extras?.businessId) return true; // legacy fail-closed
+  return hold.businessId === extras.businessId;
 }
 
 export function bookingSlotKey(
@@ -503,6 +568,7 @@ export function reserveBookingSlot(
   service: Pick<Service, 'id' | 'duration'>,
   dateKey: string,
   startMinutes: number,
+  extras?: BookingSlotExtras,
 ): BookingHoldResult {
   const duration = Math.max(service.duration || 30, 1);
   const endMinutes = startMinutes + duration;
@@ -511,8 +577,14 @@ export function reserveBookingSlot(
   const now = Date.now();
   const holds = activeBookingHolds(now);
 
+  // PHASE 16.3 — a span already taken by a REAL booking record can never
+  // be held, even if no live hold exists for it.
+  if (spanBlocked(extras, dateKey, startMinutes, endMinutes)) {
+    return { ok: false, reason: 'taken' };
+  }
+
   const existing = holds.find((hold) => hold.key === key);
-  if (existing && existing.browserId !== myId) {
+  if (existing && existing.browserId !== myId && holdBlocksBusiness(existing, extras)) {
     return { ok: false, reason: 'taken' };
   }
   const rest = holds.filter((hold) => hold.key !== key);
@@ -521,7 +593,8 @@ export function reserveBookingSlot(
       hold.themeId === themeId
       && hold.dateKey === dateKey
       && hold.startMinutes < endMinutes
-      && hold.endMinutes > startMinutes,
+      && hold.endMinutes > startMinutes
+      && holdBlocksBusiness(hold, extras),
   );
   if (overlapping) {
     return { ok: false, reason: 'taken' };
@@ -536,6 +609,7 @@ export function reserveBookingSlot(
     startMinutes,
     endMinutes,
     expiresAt: now + BOOKING_HOLD_MINUTES * 60_000,
+    ...(extras?.businessId ? { businessId: extras.businessId } : {}),
   };
   writeBookingHolds([...rest, hold]);
   return { ok: true, hold };
@@ -563,6 +637,7 @@ export function bookingSlotsForDay(
   service: Pick<Service, 'id' | 'duration'>,
   date: Date,
   now: Date = salonNow(),
+  extras?: BookingSlotExtras,
 ): BookingSlot[] {
   const info = bookingDayInfo(data, date, now);
   if (!info.selectable) return [];
@@ -586,6 +661,14 @@ export function bookingSlotsForDay(
     if (info.isToday && start < nowMinutes + minNoticeMinutes) {
       // Started already, or inside the minimum-notice window.
       state = 'past';
+    } else if (
+      // PHASE 16.3 — a span taken by a REAL booking record (same salon +
+      // theme) or outside every qualified staff member's working window
+      // is unavailable regardless of holds.
+      spanBlocked(extras, info.dateKey, start, end)
+      || outsideStaffWindows(extras, start, end)
+    ) {
+      state = 'taken';
     } else {
       const mine = holds.find((hold) => hold.key === key && hold.browserId === myId);
       const foreign = holds.find(
@@ -594,7 +677,8 @@ export function bookingSlotsForDay(
           && hold.dateKey === info.dateKey
           && hold.startMinutes < end
           && hold.endMinutes > start
-          && !(hold.key === key && hold.browserId === myId),
+          && !(hold.key === key && hold.browserId === myId)
+          && holdBlocksBusiness(hold, extras),
       );
       if (foreign) state = 'taken';
       else if (mine) state = 'held';
@@ -618,8 +702,9 @@ export function bookingSlotIsStillAvailable(
   date: Date,
   startMinutes: number,
   now: Date = salonNow(),
+  extras?: BookingSlotExtras,
 ): boolean {
-  const slot = bookingSlotsForDay(data, themeId, service, date, now).find(
+  const slot = bookingSlotsForDay(data, themeId, service, date, now, extras).find(
     (item) => item.minutes === startMinutes,
   );
   return !!slot && (slot.state === 'available' || slot.state === 'held');
