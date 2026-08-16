@@ -12,6 +12,7 @@ import {
   CreditCard,
   Leaf,
   Mail,
+  MapPin,
   MessageSquare,
   Phone,
   Scissors,
@@ -25,25 +26,38 @@ import { displayService } from '../lib/displayService';
 import { serviceDisplayPrice, formatCurrency } from '../lib/pricing';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import SiteSalonStatus from './SiteSalonStatus';
+import SiteMyBookings from './SiteMyBookings';
 import { consumeBookingServicePrefill, salonDisplayName } from '../lib/siteBooking';
 import { getSalonNameStyle } from '../lib/brandIdentity';
-import { useTickingNow } from '../lib/salonStatus';
+import { useTickingNow, weekdayKeyOf } from '../lib/salonStatus';
+import { bookingAvailabilityExtras } from '../lib/siteBookingAvailability';
+import { PAYMENT_EVENT } from '../lib/siteBookingPayment';
 import { dayLabel, translateCategory } from '../lib/siteI18n';
 import { bookingFlowText, fillBookingText } from '../lib/siteBookingI18n';
 import { bookingSurfaces } from '../lib/siteBookingTheme';
 import type { BookingFlowSurface } from '../lib/siteBookingTheme';
 import {
   BOOKING_HOLD_EVENT,
+  BOOKING_MAX_SERVICES,
   BOOKING_STEP_IDS,
+  bookingCombinedSlotService,
   bookingDayList,
+  bookingSalonContext,
+  bookingSelectedServices,
+  bookingSelectionSummary,
   bookingServicesByCategory,
   bookingServicesForTheme,
   bookingSlotIsStillAvailable,
   bookingSlotsForDay,
   releaseBookingSlot,
   reserveBookingSlot,
+  toggleBookingService,
   validateBookingCustomer,
 } from '../lib/siteBookingFlow';
+import { readBookingDraft, saveBookingDraft } from '../lib/siteBookingDraft';
+import { injectedSectionStatus } from '../lib/siteStructure';
+import type { SectionStatus } from '../lib/siteStructure';
+import { THEME_LABELS } from '../lib/themeServices';
 import type { BookingDayInfo, BookingSlot, BookingStepId } from '../lib/siteBookingFlow';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 
@@ -62,11 +76,21 @@ interface Props {
    */
   onProceedToPayment?: (payload: {
     service: { id: string };
+    /** PHASE 16.5 — every selected line (offer-aware price + duration). */
+    serviceLines: Array<{ serviceId: string; serviceName: string; price: number; durationMinutes: number }>;
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
     customer: { name: string; mobile: string; email: string; notes: string };
   }) => void;
+  /**
+   * PHASE 16.5 — when the visitor backs OUT of the payment flow, the host
+   * remounts this component with `resumeAtSummary` so the journey lands
+   * back on the Booking Summary with every selection (restored from the
+   * 16.1 draft) intact — nothing is lost by looking at the payment screen.
+   * Falls back to the normal start when the draft can't support a summary.
+   */
+  resumeAtSummary?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -214,7 +238,7 @@ const FLOW_DESIGNS: Record<SiteHeaderThemeId, FlowDesign> = {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
-export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShowToast, onProceedToPayment }: Props) {
+export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShowToast, onProceedToPayment, resumeAtSummary }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const now = useTickingNow(30_000);
@@ -235,20 +259,92 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   }, [data, themeId, initialPrefill]);
   const categories = useMemo(() => bookingServicesByCategory(services), [services]);
 
+  /* ---------- PHASE 16.1 · salon context + resumable draft ---------- */
+  // The salon is ALWAYS the one whose website is open — derived from the
+  // existing data, never picked from a list, never an invented id.
+  const salonContext = useMemo(() => bookingSalonContext(data, themeId), [data, themeId]);
+  // One draft per (business, theme, browser). Restored once on mount so a
+  // closed/reopened flow keeps the visitor's selections; foreign-tenant or
+  // foreign-theme drafts can never be read here (keyed lookups only).
+  const [initialDraft] = useState(() => readBookingDraft(salonContext.businessId, themeId));
+
   /* ---------- wizard state (preserved while moving between steps) ---------- */
-  const [step, setStep] = useState<BookingStepId>('service');
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
-    initialPrefill?.id ?? services[0]?.id ?? null,
+  // A service-specific "Book Now" (Phase 12.3 prefill) arrives from inside
+  // this salon's own website, so the salon confirmation is already implicit
+  // and the flow opens on the service step. A plain open starts on `salon`.
+  // PHASE 16.5 — backing out of the payment flow lands on the summary with
+  // the draft-restored selection (only when the draft actually reached it).
+  const resumeSummaryValid = Boolean(
+    resumeAtSummary
+    && !initialPrefill
+    && initialDraft
+    && initialDraft.status === 'summary_ready'
+    && initialDraft.dateKey
+    && initialDraft.startMinutes != null
+    && initialDraft.customer?.name
+    && initialDraft.customer?.mobile,
   );
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  const [selectedSlotMinutes, setSelectedSlotMinutes] = useState<number | null>(null);
+  const [step, setStep] = useState<BookingStepId>(
+    resumeSummaryValid ? 'summary' : initialPrefill ? 'service' : 'salon',
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  // PHASE 16.2 — MULTI-SERVICE selection: an ordered id list. The first
+  // service stays auto-selected on open (10.6 behaviour); a resumed draft
+  // restores every line that still exists on the active theme.
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(() => {
+    if (initialPrefill) return [initialPrefill.id];
+    const draftIds = (initialDraft?.services?.length
+      ? initialDraft.services.map((line) => line.serviceId)
+      : initialDraft?.serviceId
+        ? [initialDraft.serviceId]
+        : []
+    ).filter((id) => services.some((item) => item.id === id));
+    if (draftIds.length > 0) return draftIds.slice(0, BOOKING_MAX_SERVICES);
+    return services[0] ? [services[0].id] : [];
+  });
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(
+    () => (resumeSummaryValid ? initialDraft?.dateKey ?? null : null),
+  );
+  const [selectedSlotMinutes, setSelectedSlotMinutes] = useState<number | null>(
+    () => (resumeSummaryValid ? initialDraft?.startMinutes ?? null : null),
+  );
   const [holdKey, setHoldKey] = useState<string | null>(null);
   const [holdsVersion, setHoldsVersion] = useState(0);
-  const [customer, setCustomer] = useState({ name: '', mobile: '', email: '', notes: '' });
+  const [customer, setCustomer] = useState(
+    () => initialDraft?.customer ?? { name: '', mobile: '', email: '', notes: '' },
+  );
   const [formTouched, setFormTouched] = useState(false);
+  const draftResumed = !initialPrefill && !!initialDraft
+    && !!(initialDraft.serviceId || initialDraft.services?.length || initialDraft.customer?.name || initialDraft.customer?.mobile);
 
-  const selectedService = services.find((item) => item.id === selectedServiceId) || null;
+  /* PHASE 16.2 — service-list state through the EXISTING shared section
+   * seam ('services'): loading / error / empty / ready. Retry re-reads the
+   * seam so a recovered source renders immediately. */
+  const [serviceListRetry, setServiceListRetry] = useState(0);
+  const serviceListState: SectionStatus = useMemo(() => {
+    const forced = injectedSectionStatus('services');
+    if (forced === 'loading' || forced === 'error') return forced;
+    return services.length === 0 ? 'empty' : 'ready';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services, serviceListRetry]);
+
+  /* PHASE 16.2 — resolved selection + totals (ids that vanished from the
+   * active catalog are dropped at resolve time; nothing is ever invented). */
+  const selectedServices = useMemo(
+    () => bookingSelectedServices(services, selectedServiceIds),
+    [services, selectedServiceIds],
+  );
+  const selection = useMemo(
+    () => bookingSelectionSummary(selectedServices, data.offers),
+    [selectedServices, data.offers],
+  );
+  /** ONE bookable sitting for the existing slot/hold engine. */
+  const slotService = useMemo(
+    () => bookingCombinedSlotService(selectedServices),
+    [selectedServices],
+  );
+  /** First selected service — kept for 16.1 draft compatibility + prefill. */
+  const selectedService = selectedServices[0] || null;
   const selectedDate = selectedDateKey ? new Date(`${selectedDateKey}T12:00:00`) : null;
 
   const days = useMemo(
@@ -257,11 +353,45 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     [data, now.getTime()],
   );
 
-  const slots: BookingSlot[] = useMemo(() => {
-    if (!selectedService || !selectedDate) return [];
-    return bookingSlotsForDay(data, themeId, selectedService, selectedDate, now);
+  /* PHASE 16.3 — availability context: real booked spans (existing 10.7
+   * records, salon+theme keyed) + staff windows (existing team schedule ↔
+   * assignedServiceIds relationship). Recomputed whenever the salon,
+   * selection, date, holds or booking records change. */
+  const [recordsVersion, setRecordsVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setRecordsVersion((v) => v + 1);
+    window.addEventListener(PAYMENT_EVENT, bump);
+    return () => window.removeEventListener(PAYMENT_EVENT, bump);
+  }, []);
+
+  const slotExtras = useMemo(
+    () => bookingAvailabilityExtras(
+      data,
+      salonContext.businessId,
+      themeId,
+      selectedServices,
+      selectedDate ? weekdayKeyOf(selectedDate) : null,
+    ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, themeId, selectedServiceId, selectedDateKey, now.getTime(), holdsVersion]);
+    [data, salonContext.businessId, themeId, selectedServices, selectedDateKey, recordsVersion],
+  );
+
+  /* PHASE 16.3 — availability state for the time step, through the SAME
+   * shared seam (the 'booking' section key). loading / error are forceable
+   * for tests and future async sources; ready renders the computed grid. */
+  const [availabilityRetry, setAvailabilityRetry] = useState(0);
+  const availabilityState: 'loading' | 'error' | 'ready' = useMemo(() => {
+    const forced = injectedSectionStatus('booking');
+    if (forced === 'loading' || forced === 'error') return forced;
+    return 'ready';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availabilityRetry, selectedDateKey, slotService?.id]);
+
+  const slots: BookingSlot[] = useMemo(() => {
+    if (!slotService || !selectedDate) return [];
+    return bookingSlotsForDay(data, themeId, slotService, selectedDate, now, slotExtras);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, themeId, slotService?.id, selectedDateKey, now.getTime(), holdsVersion, slotExtras]);
 
   const visibleServices = useMemo(
     () => (categoryFilter ? services.filter((item) => item.category === categoryFilter) : services),
@@ -275,12 +405,56 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     return () => window.removeEventListener(BOOKING_HOLD_EVENT, bump);
   }, []);
 
+  /* PHASE 16.1 — keep the salon+theme-scoped draft in sync with progress.
+   * Idempotent upsert (one row per business/theme/browser), so refreshes
+   * and re-renders never duplicate anything. Later phases convert a
+   * `summary_ready` draft into the real payment/confirmation records. */
+  useEffect(() => {
+    // Sitting on the salon confirmation card is not progress yet — only
+    // steps after it write the draft (keeps a plain open/close side-effect free).
+    if (step === 'salon') return;
+    // PHASE 16.2 — the draft snapshots EVERY selected line plus the totals;
+    // the 16.1 single-service fields mirror the first line + summed values
+    // so earlier consumers keep working unchanged.
+    const firstLine = selection.lines[0] || null;
+    saveBookingDraft({
+      businessId: salonContext.businessId,
+      themeId,
+      status: step === 'summary' ? 'summary_ready' : 'in_progress',
+      step,
+      serviceId: firstLine?.service.id ?? null,
+      serviceName: firstLine?.service.name ?? null,
+      servicePrice: selection.count > 0 ? selection.totalPrice : null,
+      serviceDurationMinutes: selection.count > 0 ? selection.totalDurationMinutes : null,
+      services: selection.lines.map((line) => ({
+        serviceId: line.service.id,
+        serviceName: line.service.name,
+        category: line.service.category,
+        price: line.finalPrice,
+        durationMinutes: line.durationMinutes,
+      })),
+      totalPrice: selection.count > 0 ? selection.totalPrice : null,
+      totalDurationMinutes: selection.count > 0 ? selection.totalDurationMinutes : null,
+      dateKey: selectedDateKey,
+      startMinutes: selectedSlotMinutes,
+      endMinutes:
+        selectedSlotMinutes != null && selection.count > 0
+          ? selectedSlotMinutes + selection.totalDurationMinutes
+          : null,
+      customer,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selection, selectedDateKey, selectedSlotMinutes, customer, salonContext.businessId, themeId]);
+
   /* ---------- slot picking + double-booking guard ---------- */
   const pickSlot = useCallback(
     (slot: BookingSlot) => {
-      if (!selectedService || !selectedDateKey) return;
+      if (!slotService || !selectedDateKey) return;
       if (slot.state === 'past' || slot.state === 'taken') return;
-      const result = reserveBookingSlot(themeId, selectedService, selectedDateKey, slot.minutes);
+      // PHASE 16.2 — the hold covers the COMBINED sitting (summed duration),
+      // so a multi-service appointment blocks its entire span for others.
+      // PHASE 16.3 — extras: booked spans + staff windows + salon stamp.
+      const result = reserveBookingSlot(themeId, slotService, selectedDateKey, slot.minutes, slotExtras);
       if (!result.ok || !result.hold) {
         setHoldsVersion((v) => v + 1);
         onShowToast?.(T.slotLost);
@@ -291,40 +465,65 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       setSelectedSlotMinutes(slot.minutes);
       setHoldsVersion((v) => v + 1);
     },
-    [themeId, selectedService, selectedDateKey, holdKey, onShowToast, T],
+    [themeId, slotService, selectedDateKey, holdKey, onShowToast, T, slotExtras],
   );
 
   /* Entering the time step always lands on a valid, held slot. */
   useEffect(() => {
-    if (step !== 'time' || !selectedService || !selectedDate) return;
+    if (step !== 'time' || !slotService || !selectedDate) return;
+    if (availabilityState !== 'ready') return; // 16.3 — no auto-hold while loading / error
     if (
       selectedSlotMinutes != null
-      && bookingSlotIsStillAvailable(data, themeId, selectedService, selectedDate, selectedSlotMinutes, now)
+      && bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now, slotExtras)
     ) {
       return;
     }
-    const first = bookingSlotsForDay(data, themeId, selectedService, selectedDate, now).find(
+    // PHASE 16.3 — the visitor HAD a slot and lost it (someone booked the
+    // span meanwhile). Never silently swap their time: clear the dead
+    // selection, release the dead hold and tell them to pick again.
+    if (selectedSlotMinutes != null) {
+      onShowToast?.(T.slotLost);
+      if (holdKey) releaseBookingSlot(holdKey);
+      setHoldKey(null);
+      setSelectedSlotMinutes(null);
+      setHoldsVersion((v) => v + 1);
+      return;
+    }
+    // Initial entry with no selection yet: auto-hold the first open slot.
+    const first = bookingSlotsForDay(data, themeId, slotService, selectedDate, now, slotExtras).find(
       (slot) => slot.state === 'available' || slot.state === 'held',
     );
-    if (first) {
-      pickSlot(first);
-    } else if (selectedSlotMinutes != null) {
-      setSelectedSlotMinutes(null);
-    }
+    if (first) pickSlot(first);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, selectedDateKey, selectedServiceId, now.getTime()]);
+  }, [step, selectedDateKey, slotService?.id, now.getTime(), recordsVersion, availabilityState]);
 
+  /* PHASE 16.2 — toggle a service in/out of the multi-selection. Any change
+   * to the selection invalidates the held slot (the sitting length changed). */
   const selectService = useCallback(
     (service: Service) => {
-      if (service.id === selectedServiceId) return;
+      const result = toggleBookingService(selectedServiceIds, service.id);
+      if (!result.changed) {
+        if (result.reason === 'limit') {
+          onShowToast?.(fillBookingText(T['service.limitNote'], { max: BOOKING_MAX_SERVICES }));
+        }
+        return;
+      }
       if (holdKey) releaseBookingSlot(holdKey);
-      setSelectedServiceId(service.id);
+      setSelectedServiceIds(result.ids);
       setSelectedSlotMinutes(null);
       setHoldKey(null);
       setHoldsVersion((v) => v + 1);
     },
-    [selectedServiceId, holdKey],
+    [selectedServiceIds, holdKey, onShowToast, T],
   );
+
+  const clearSelectedServices = useCallback(() => {
+    if (holdKey) releaseBookingSlot(holdKey);
+    setSelectedServiceIds([]);
+    setSelectedSlotMinutes(null);
+    setHoldKey(null);
+    setHoldsVersion((v) => v + 1);
+  }, [holdKey]);
 
   const selectDate = useCallback(
     (day: BookingDayInfo) => {
@@ -345,19 +544,24 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   const stepIndex = BOOKING_STEP_IDS.indexOf(step);
 
   const canContinue = (() => {
-    if (step === 'service') return !!selectedService;
+    if (step === 'salon') return salonContext.hasServices;
+    if (step === 'service') return selection.count > 0;
     if (step === 'date') {
       const day = days.find((item) => item.dateKey === selectedDateKey);
       return !!day && day.selectable;
     }
-    if (step === 'time') return selectedSlotMinutes != null;
+    if (step === 'time') return availabilityState === 'ready' && selectedSlotMinutes != null;
     if (step === 'details') return detailsValid;
     return true;
   })();
 
   const goNext = () => {
     if (!canContinue) return;
-    if (step === 'service' && selectedService) {
+    if (step === 'salon') {
+      setStep('service');
+      return;
+    }
+    if (step === 'service' && selection.count > 0) {
       if (!selectedDateKey) {
         const firstOpen = days.find((day) => day.selectable);
         if (firstOpen) setSelectedDateKey(firstOpen.dateKey);
@@ -370,8 +574,8 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       return;
     }
     if (step === 'time') {
-      if (!selectedService || !selectedDate || selectedSlotMinutes == null) return;
-      if (!bookingSlotIsStillAvailable(data, themeId, selectedService, selectedDate, selectedSlotMinutes, now)) {
+      if (!slotService || !selectedDate || selectedSlotMinutes == null) return;
+      if (!bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now, slotExtras)) {
         onShowToast?.(T.slotLost);
         setStep('time');
         return;
@@ -404,6 +608,10 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       setStep('service');
       return;
     }
+    if (step === 'service') {
+      setStep('salon');
+      return;
+    }
   };
 
   const jumpToStep = (target: BookingStepId) => {
@@ -415,10 +623,15 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
 
   /* ---------- derived display data ---------- */
   const serviceDisplay = selectedService ? displayService(selectedService, locale) : null;
-  const servicePricing = selectedService ? serviceDisplayPrice(selectedService, data.offers) : null;
-  const serviceDuration = selectedService
-    ? selectedService.pricingVariants?.find((v) => v.status === 'active')?.duration ?? selectedService.duration
-    : 0;
+  // PHASE 16.2 — totals come from the selection summary (offer-aware,
+  // variant-aware); single-selection values equal the 10.6 ones exactly.
+  const totalPrice = selection.totalPrice;
+  const totalDuration = selection.totalDurationMinutes;
+  const isMultiService = selection.count > 1;
+  const minuteLabel = locale === 'hi' ? 'मिनट' : 'min';
+  const selectionCountLabel = selection.count === 1
+    ? T['service.totalService']
+    : fillBookingText(T['service.totalServices'], { count: selection.count });
 
   const dateLabel = (date: Date) =>
     date.toLocaleDateString(locale === 'hi' ? 'hi-IN' : 'en-IN', {
@@ -539,7 +752,112 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
           data-testid="booking-body"
           className="max-w-5xl mx-auto w-full px-4 md:px-6 py-5 md:py-6 grid grid-cols-1 lg:grid-cols-12 gap-5"
         >
-            {/* ===================== STEP 1 · SERVICE ===================== */}
+            {/* ===================== STEP 1 · SALON (PHASE 16.1) ===================== */}
+            {step === 'salon' && (
+              <motion.div
+                key="step-salon"
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="lg:col-span-12 flex flex-col gap-4"
+              >
+                <div className="flex items-center gap-2.5">
+                  {D.flourish(s)}
+                  <div>
+                    <h1 className={`text-lg md:text-xl ${D.stepTitle}`} style={{ color: s.textStrong }}>
+                      {T['salon.title']}
+                    </h1>
+                    <p className="text-[11px] mt-0.5 font-medium" style={{ color: s.muted }}>
+                      {T['salon.subtitle']}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  data-testid="booking-salon-card"
+                  data-business-id={salonContext.businessId}
+                  data-theme-id={salonContext.themeId}
+                  className={`${D.card} p-4 md:p-5 flex flex-col gap-3`}
+                  style={{ backgroundColor: s.card, borderColor: s.line }}
+                >
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-base md:text-lg font-bold" style={nameStyle}>
+                      {salonName}
+                    </span>
+                    <SiteSalonStatus themeId={themeId} data={data} placement="booking" compact />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="flex items-start gap-2 text-xs font-semibold" style={{ color: s.text }}>
+                      <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.accent }} />
+                      <span>
+                        <span className={`${D.label} block`} style={{ color: s.muted }}>{T['salon.address']}</span>
+                        {salonContext.address || T['salon.addressPending']}
+                      </span>
+                    </span>
+                    {salonContext.phone && (
+                      <span className="flex items-start gap-2 text-xs font-semibold" style={{ color: s.text }}>
+                        <Phone className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.accent }} />
+                        <span>
+                          <span className={`${D.label} block`} style={{ color: s.muted }}>{T['salon.phone']}</span>
+                          {salonContext.phone}
+                        </span>
+                      </span>
+                    )}
+                    <span className="flex items-start gap-2 text-xs font-semibold" style={{ color: s.text }}>
+                      <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.accent }} />
+                      <span>
+                        <span className={`${D.label} block`} style={{ color: s.muted }}>{T['salon.theme']}</span>
+                        {THEME_LABELS[themeId] || themeId}
+                      </span>
+                    </span>
+                  </div>
+
+                  {salonContext.hasServices ? (
+                    <p
+                      data-testid="booking-salon-ready"
+                      className="text-[11px] font-bold flex items-center gap-1.5 mt-1 p-2.5"
+                      style={{ backgroundColor: s.successSoft, color: s.success, borderRadius: 10 }}
+                    >
+                      <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+                      {fillBookingText(T['salon.servicesReady'], { count: services.length })}
+                    </p>
+                  ) : (
+                    <p
+                      data-testid="booking-salon-no-services"
+                      className="text-[11px] font-bold flex items-center gap-1.5 mt-1 p-2.5"
+                      style={{ backgroundColor: s.well, color: s.muted, borderRadius: 10 }}
+                    >
+                      {T['salon.noServices']}
+                    </p>
+                  )}
+
+                  {draftResumed && (
+                    <p
+                      data-testid="booking-draft-resumed"
+                      className="text-[10px] font-semibold p-2.5 border"
+                      style={{ backgroundColor: s.well, borderColor: s.chipLine, color: s.muted, borderRadius: 10 }}
+                    >
+                      {T['salon.resume']}
+                    </p>
+                  )}
+
+                  <p className="text-[10px] font-semibold" style={{ color: s.muted }}>
+                    {T['salon.confirm']}
+                  </p>
+                </div>
+
+                {/* PHASE 16.7 — this visitor's OWN bookings at THIS salon
+                    (renders nothing when they have never booked here). */}
+                <SiteMyBookings
+                  themeId={themeId}
+                  data={data}
+                  businessId={salonContext.businessId}
+                  onShowToast={onShowToast}
+                />
+              </motion.div>
+            )}
+
+            {/* ===================== STEP 2 · SERVICE ===================== */}
             {step === 'service' && (
               <motion.div
                 key="step-service"
@@ -559,7 +877,49 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                   </div>
                 </div>
 
-                {services.length === 0 ? (
+                {/* PHASE 16.2 — the booking service list honours the SAME
+                    shared section-state seam the website 'services' section
+                    uses (loading / error / empty), no second state system. */}
+                {serviceListState === 'loading' ? (
+                  <div
+                    data-testid="booking-loading-services"
+                    className={`${D.card} p-8 flex flex-col items-center gap-3`}
+                    style={{ backgroundColor: s.card, borderColor: s.line }}
+                    aria-busy="true"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className={`${D.serviceRow} h-16 animate-pulse`}
+                          style={{ backgroundColor: s.well, borderColor: s.chipLine }}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs font-semibold" style={{ color: s.muted }}>
+                      {T['service.loading']}
+                    </p>
+                  </div>
+                ) : serviceListState === 'error' ? (
+                  <div
+                    data-testid="booking-error-services"
+                    className={`${D.card} p-8 text-center flex flex-col items-center gap-3`}
+                    style={{ backgroundColor: s.card, borderColor: s.line }}
+                  >
+                    <p className="text-xs font-semibold" style={{ color: s.danger }}>
+                      {T['service.error']}
+                    </p>
+                    <button
+                      type="button"
+                      data-testid="booking-retry-services"
+                      onClick={() => setServiceListRetry((v) => v + 1)}
+                      className={`${D.secondary} px-4 py-2 cursor-pointer`}
+                      style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
+                    >
+                      {T['service.retry']}
+                    </button>
+                  </div>
+                ) : services.length === 0 ? (
                   <div
                     data-testid="booking-empty-services"
                     className={`${D.card} p-8 text-center text-xs font-semibold`}
@@ -602,11 +962,16 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                       ))}
                     </div>
 
+                    {/* PHASE 16.2 — multi-select hint. */}
+                    <p className="text-[10px] font-semibold -mt-1" style={{ color: s.muted }}>
+                      {T['service.multiHint']}
+                    </p>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {visibleServices.map((service, index) => {
                         const shown = displayService(service, locale);
                         const pricing = serviceDisplayPrice(service, data.offers);
-                        const isSelected = service.id === selectedServiceId;
+                        const isSelected = selectedServiceIds.includes(service.id);
                         return (
                           <button
                             key={service.id}
@@ -663,12 +1028,82 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                               className="shrink-0 text-[9px] font-extrabold uppercase tracking-wider px-2 py-1 mt-0.5"
                               style={{ backgroundColor: isSelected ? s.accent : s.chip, color: isSelected ? s.accentText : s.muted }}
                             >
-                              {isSelected ? T['service.selected'] : T['service.select']}
+                              {isSelected ? T['service.added'] : T['service.add']}
                             </span>
                           </button>
                         );
                       })}
                     </div>
+
+                    {/* PHASE 16.2 — live selection totals (auto-calculated). */}
+                    {selection.count > 0 && (
+                      <div
+                        data-testid="booking-selection-totals"
+                        data-count={selection.count}
+                        data-total-price={totalPrice}
+                        data-total-duration={totalDuration}
+                        className={`${D.card} p-4 md:p-5 flex flex-col gap-2`}
+                        style={{ backgroundColor: s.well, borderColor: s.accentLine }}
+                      >
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <h2 className={D.sectionTitle} style={{ color: s.accent }}>
+                            {T['service.totalTitle']} · {selectionCountLabel}
+                          </h2>
+                          <button
+                            type="button"
+                            data-testid="booking-selection-clear"
+                            onClick={clearSelectedServices}
+                            className="text-[10px] font-extrabold uppercase tracking-wider cursor-pointer"
+                            style={{ color: s.muted }}
+                          >
+                            {T['service.clearAll']}
+                          </button>
+                        </div>
+                        {selection.lines.map((line) => (
+                          <div
+                            key={line.service.id}
+                            data-testid={`booking-selection-line-${line.service.id}`}
+                            className="flex items-center justify-between gap-3 text-xs font-bold"
+                            style={{ color: s.text }}
+                          >
+                            <span className="min-w-0 flex items-center gap-2">
+                              <span className="truncate">{displayService(line.service, locale).name}</span>
+                              <span className="text-[10px] font-semibold shrink-0" style={{ color: s.muted }}>
+                                {line.durationMinutes} {minuteLabel}
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-2.5 shrink-0">
+                              <span>{formatCurrency(line.finalPrice)}</span>
+                              <button
+                                type="button"
+                                data-testid={`booking-selection-remove-${line.service.id}`}
+                                onClick={() => selectService(line.service)}
+                                aria-label={`${T['service.remove']}: ${displayService(line.service, locale).name}`}
+                                className="text-[9px] font-extrabold uppercase tracking-wider cursor-pointer"
+                                style={{ color: s.danger }}
+                              >
+                                {T['service.remove']}
+                              </button>
+                            </span>
+                          </div>
+                        ))}
+                        <div
+                          className="flex items-center justify-between text-sm font-extrabold pt-2 border-t"
+                          style={{ color: s.textStrong, borderColor: s.chipLine }}
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" style={{ color: s.accent }} />
+                            {totalDuration} {minuteLabel}
+                          </span>
+                          <span data-testid="booking-selection-total-price">{formatCurrency(totalPrice)}</span>
+                        </div>
+                        {selection.count >= BOOKING_MAX_SERVICES && (
+                          <p className="text-[10px] font-semibold" style={{ color: s.muted }}>
+                            {fillBookingText(T['service.limitNote'], { max: BOOKING_MAX_SERVICES })}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </motion.div>
@@ -797,7 +1232,45 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     )}
                   </div>
 
-                  {slots.length === 0 ? (
+                  {/* PHASE 16.3 — availability loading / error / empty states. */}
+                  {availabilityState === 'loading' ? (
+                    <div
+                      data-testid="booking-loading-slots"
+                      className="p-4 flex flex-col items-center gap-3"
+                      aria-busy="true"
+                    >
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-2.5 w-full">
+                        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                          <div
+                            key={i}
+                            className={`${D.slot} h-10 animate-pulse`}
+                            style={{ backgroundColor: s.well, borderColor: s.chipLine }}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs font-semibold" style={{ color: s.muted }}>
+                        {T['time.loading']}
+                      </p>
+                    </div>
+                  ) : availabilityState === 'error' ? (
+                    <div
+                      data-testid="booking-error-slots"
+                      className="p-6 text-center flex flex-col items-center gap-3"
+                    >
+                      <p className="text-xs font-semibold" style={{ color: s.danger }}>
+                        {T['time.error']}
+                      </p>
+                      <button
+                        type="button"
+                        data-testid="booking-retry-slots"
+                        onClick={() => setAvailabilityRetry((v) => v + 1)}
+                        className={`${D.secondary} px-4 py-2 cursor-pointer`}
+                        style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
+                      >
+                        {T['time.retry']}
+                      </button>
+                    </div>
+                  ) : slots.length === 0 ? (
                     <div
                       data-testid="booking-empty-slots"
                       className="p-6 text-center text-xs font-semibold"
@@ -843,10 +1316,19 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     </div>
                   )}
 
-                  {selectedSlot && !disabledSlot(selectedSlot) && (
+                  {availabilityState === 'ready' && selectedSlot && !disabledSlot(selectedSlot) && (
                     <p className="mt-3 text-[10px] font-semibold flex items-start gap-1.5" style={{ color: s.muted }}>
                       <CalendarCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: s.success }} />
                       {T['time.holdNote']}
+                    </p>
+                  )}
+                  {availabilityState === 'ready' && slots.some((slot) => slot.state === 'taken') && (
+                    <p
+                      data-testid="booking-booked-note"
+                      className="mt-2 text-[10px] font-semibold"
+                      style={{ color: s.muted }}
+                    >
+                      {T['time.bookedNote']}
                     </p>
                   )}
                 </div>
@@ -998,7 +1480,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                   <div className={`${D.card} p-4 md:p-5 flex flex-col gap-1`} style={{ backgroundColor: s.card, borderColor: s.line }}>
                     <div className="flex items-center justify-between mb-1">
                       <h2 className={D.sectionTitle} style={{ color: s.accent }}>
-                        {T['summary.service']}
+                        {isMultiService ? T['summary.services'] : T['summary.service']}
                       </h2>
                       <button
                         type="button"
@@ -1010,21 +1492,49 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                         {T['summary.change']}
                       </button>
                     </div>
+                    {/* PHASE 16.2 — every selected service, each with its own
+                        category / duration / price, then the totals. */}
+                    {selection.lines.map((line) => {
+                      const shown = displayService(line.service, locale);
+                      return (
+                        <div
+                          key={line.service.id}
+                          data-testid={`booking-summary-service-${line.service.id}`}
+                          className="py-2 border-b last:border-b-0"
+                          style={{ borderColor: s.chipLine }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: s.muted }} />
+                              <span className="text-xs font-semibold truncate" style={{ color: s.textStrong }}>
+                                {shown.name}
+                              </span>
+                            </span>
+                            <span className="text-xs font-semibold shrink-0" style={{ color: s.textStrong }}>
+                              {formatCurrency(line.finalPrice)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 pl-5">
+                            <span className="text-[10px] font-semibold" style={{ color: s.muted }}>
+                              {translateCategory(line.service.category, locale)}
+                            </span>
+                            <span className="text-[10px] font-semibold inline-flex items-center gap-1" style={{ color: s.muted }}>
+                              <Clock className="w-3 h-3" />
+                              {line.durationMinutes} {minuteLabel}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                     {summaryLine(
-                      <Sparkles className="w-3.5 h-3.5" />,
-                      T['summary.service'],
-                      serviceDisplay?.name || '—',
+                      <Clock className="w-3.5 h-3.5" />,
+                      T['service.totalDuration'],
+                      `${totalDuration} ${minuteLabel}`,
                     )}
-                    {summaryLine(
-                      <Check className="w-3.5 h-3.5" />,
-                      T['summary.category'],
-                      serviceDisplay ? translateCategory(serviceDisplay.category, locale) : '—',
-                    )}
-                    {summaryLine(<Clock className="w-3.5 h-3.5" />, T['summary.duration'], `${serviceDuration} ${locale === 'hi' ? 'मिनट' : 'min'}`)}
                     {summaryLine(
                       <CreditCard className="w-3.5 h-3.5" />,
-                      T['summary.price'],
-                      servicePricing ? formatCurrency(servicePricing.finalPrice) : '—',
+                      T['service.totalPrice'],
+                      selection.count > 0 ? formatCurrency(totalPrice) : '—',
                     )}
                   </div>
 
@@ -1081,13 +1591,23 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     <h2 className={D.sectionTitle} style={{ color: s.accent }}>
                       {T['summary.price']}
                     </h2>
-                    <div className="flex items-center justify-between text-sm font-extrabold" style={{ color: s.textStrong }}>
-                      <span>{serviceDisplay?.name || '—'}</span>
-                      <span>{servicePricing ? formatCurrency(servicePricing.finalPrice) : '—'}</span>
+    {selection.lines.map((line) => (
+                      <div key={line.service.id} className="flex items-center justify-between text-xs font-bold" style={{ color: s.text }}>
+                        <span className="truncate pr-3">{displayService(line.service, locale).name}</span>
+                        <span className="shrink-0">{formatCurrency(line.finalPrice)}</span>
+                      </div>
+                    ))}
+                    <div
+                      data-testid="booking-summary-total"
+                      className="flex items-center justify-between text-sm font-extrabold pt-1 border-t"
+                      style={{ color: s.textStrong, borderColor: s.chipLine }}
+                    >
+                      <span>{selectionCountLabel} · {totalDuration} {minuteLabel}</span>
+                      <span>{selection.count > 0 ? formatCurrency(totalPrice) : '—'}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs font-bold" style={{ color: s.muted }}>
                       <span>{T['summary.payAtSalon']}</span>
-                      <span>{servicePricing ? formatCurrency(servicePricing.finalPrice) : '—'}</span>
+                      <span>{selection.count > 0 ? formatCurrency(totalPrice) : '—'}</span>
                     </div>
                     <p
                       className="text-[10px] font-semibold mt-2 p-2.5 border"
@@ -1098,7 +1618,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                         borderRadius: 10,
                       }}
                     >
-                      {T['summary.confirmNote']}
+                      {onProceedToPayment ? T['summary.paymentNext'] : T['summary.confirmNote']}
                     </p>
                   </div>
                 </div>
@@ -1116,8 +1636,8 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
           type="button"
           data-testid="booking-back"
           onClick={goBack}
-          disabled={step === 'service'}
-          className={`${D.secondary} px-4 flex items-center gap-1.5 ${step === 'service' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
+          disabled={step === 'salon'}
+          className={`${D.secondary} px-4 flex items-center gap-1.5 ${step === 'salon' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
           style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -1129,12 +1649,25 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
             type="button"
             data-testid="booking-confirm"
             onClick={() => {
-              if (onProceedToPayment && selectedService && selectedDateKey && selectedSlotMinutes != null) {
+              // PHASE 16.5 — single AND multi-service selections hand off to
+              // the EXISTING payment architecture. The full line items travel
+              // with the payload so the payment engine prices the REAL total
+              // (sum of offer-aware line prices — never hardcoded).
+              if (
+                onProceedToPayment
+                && selectedService && selectedDateKey && selectedSlotMinutes != null
+              ) {
                 onProceedToPayment({
                   service: { id: selectedService.id },
+                  serviceLines: selection.lines.map((line) => ({
+                    serviceId: line.service.id,
+                    serviceName: line.service.name,
+                    price: line.finalPrice,
+                    durationMinutes: line.durationMinutes,
+                  })),
                   dateKey: selectedDateKey,
                   startMinutes: selectedSlotMinutes,
-                  endMinutes: selectedSlotMinutes + (selectedService.duration || 30),
+                  endMinutes: selectedSlotMinutes + totalDuration,
                   customer,
                 });
                 return;

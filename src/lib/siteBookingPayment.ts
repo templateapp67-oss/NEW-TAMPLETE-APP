@@ -42,7 +42,8 @@ export type PaymentMethod = 'card' | 'upi' | 'netbanking' | 'wallet' | 'salon';
 export const PAYMENT_METHODS: PaymentMethod[] = ['card', 'upi', 'netbanking', 'wallet'];
 
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'failed' | 'cancelled' | 'refunded';
-export type BookingStatus = 'pending_payment' | 'confirmed' | 'pay_at_salon' | 'failed' | 'cancelled';
+/** PHASE 16.7 — `completed` added additively (owner marks a served booking). */
+export type BookingStatus = 'pending_payment' | 'confirmed' | 'pay_at_salon' | 'failed' | 'cancelled' | 'completed';
 
 export type GatewayOutcome = 'success' | 'failure' | 'cancellation' | 'timeout';
 
@@ -140,6 +141,8 @@ export interface PaymentRecord {
   bookingId: string;
   serviceId: string;
   serviceName: string;
+  /** PHASE 16.5 — all selected services (absent = single-service booking). */
+  services?: PaymentServiceLine[];
   /** Snapshot of the slot at the moment of booking. */
   dateKey: string;
   startMinutes: number;
@@ -177,6 +180,20 @@ export interface BookingCustomerSnapshot {
   mobile: string;
   email?: string;
   notes?: string;
+}
+
+/**
+ * PHASE 16.5 — one selected service inside a multi-service booking record.
+ * Optional + additive: pre-16.5 rows without `services` parse unchanged and
+ * mean a single-service booking (the existing serviceId/serviceName fields).
+ * This is the browser-local sandbox store — NOT a database column.
+ */
+export interface PaymentServiceLine {
+  serviceId: string;
+  serviceName: string;
+  /** Offer-aware price actually charged for this line (existing pricing). */
+  price: number;
+  durationMinutes: number;
 }
 
 export interface PersistedPaymentStore {
@@ -319,6 +336,8 @@ export interface CreatePaymentRecordInput {
   businessId: string;
   themeId: SiteHeaderThemeId;
   service: Service;
+  /** PHASE 16.5 — full multi-service line items (optional + additive). */
+  services?: PaymentServiceLine[];
   bookingId: string;
   dateKey: string;
   startMinutes: number;
@@ -384,6 +403,9 @@ function createBookingRecordInternal(
     bookingId: input.bookingId,
     serviceId: input.service.id,
     serviceName: input.service.name,
+    ...(input.services && input.services.length > 0
+      ? { services: input.services.map((line) => ({ ...line })) }
+      : {}),
     dateKey: input.dateKey,
     startMinutes: input.startMinutes,
     endMinutes: input.endMinutes,
@@ -693,6 +715,8 @@ export interface ReceiptView {
   createdAt: number;
   paidAt?: number;
   serviceName: string;
+  /** PHASE 16.5 — line items of a multi-service booking (absent = single). */
+  services?: PaymentServiceLine[];
   dateKey: string;
   startLabel: string;
   endLabel: string;
@@ -734,7 +758,10 @@ export function toReceiptView(record: PaymentRecord, locale: AppLocale = 'en'): 
     currency: record.currency,
     createdAt: record.createdAt,
     paidAt: record.paymentStatus === 'paid' ? record.updatedAt : undefined,
-    serviceName: record.serviceName,
+    serviceName: record.services && record.services.length > 1
+      ? record.services.map((line) => line.serviceName).join(' + ')
+      : record.serviceName,
+    services: record.services,
     dateKey: record.dateKey,
     startLabel,
     endLabel,

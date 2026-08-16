@@ -4,8 +4,9 @@ import SiteBookingFlow from './SiteBookingFlow';
 import SiteBookingPaymentFlow from './SiteBookingPaymentFlow';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { closeSiteBooking } from '../lib/siteBooking';
-import { releaseBookingSlot, bookingSlotKey } from '../lib/siteBookingFlow';
-import type { PaymentRecord } from '../lib/siteBookingPayment';
+import { releaseBookingSlot, bookingSlotKey, bookingBusinessId } from '../lib/siteBookingFlow';
+import { clearBookingDraft } from '../lib/siteBookingDraft';
+import type { PaymentRecord, PaymentServiceLine } from '../lib/siteBookingPayment';
 import { findPaymentRecord, readPaymentRecordsForBusiness } from '../lib/siteBookingPayment';
 
 /**
@@ -28,6 +29,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   const [phase, setPhase] = useState<'entry' | 'payment'>('entry');
   const [summary, setSummary] = useState<null | {
     serviceId: string;
+    /** PHASE 16.5 — every selected service line (offer-aware). */
+    serviceLines?: PaymentServiceLine[];
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
@@ -36,6 +39,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
 
   const handleConfirmEntry = useCallback((payload: {
     service: { id: string };
+    serviceLines?: Array<{ serviceId: string; serviceName: string; price: number; durationMinutes: number }>;
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
@@ -43,6 +47,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   }) => {
     setSummary({
       serviceId: payload.service.id,
+      serviceLines: payload.serviceLines,
       dateKey: payload.dateKey,
       startMinutes: payload.startMinutes,
       endMinutes: payload.endMinutes,
@@ -51,12 +56,19 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     setPhase('payment');
   }, []);
 
+  // PHASE 16.5 — backing out of payment returns to the SUMMARY (selection
+  // restored from the 16.1 draft), not to the start of the wizard.
+  const [resumeAtSummary, setResumeAtSummary] = useState(false);
   const handleBackToSummary = useCallback(() => {
+    setResumeAtSummary(true);
     setPhase('entry');
   }, []);
 
-  const handleBookingConfirmed = useCallback((_record: PaymentRecord) => {
-    // The payment flow now drives confirmation; nothing to do here.
+  const handleBookingConfirmed = useCallback((record: PaymentRecord) => {
+    // PHASE 16.1 — the entry-flow draft has served its purpose once the
+    // existing Phase 10.7 confirmation owns the record; drop it so a
+    // later plain open starts fresh instead of resuming stale progress.
+    clearBookingDraft(record.businessId, record.themeId);
   }, []);
 
   const handleStartNewBooking = useCallback(() => {
@@ -64,7 +76,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     setPhase('entry');
   }, []);
 
-  const businessId = ((data.services?.[0]?.businessId as string) || (data as unknown as { businessId?: string }).businessId) || 'public-site';
+  // PHASE 16.1 — single tenant-resolution rule shared with the entry flow.
+  const businessId = bookingBusinessId(data);
   // Resume a confirmed booking for the same business+theme so a refresh
   // during confirmation does not lose the user's confirmed row. The
   // most-recent confirmed/pay_at_salon record for this business+theme
@@ -89,6 +102,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     if (shouldAutoResume && existingConfirmed) {
       setSummary({
         serviceId: existingConfirmed.serviceId,
+        // PHASE 16.5 — resumed records restore their persisted line items.
+        serviceLines: existingConfirmed.services,
         dateKey: existingConfirmed.dateKey,
         startMinutes: existingConfirmed.startMinutes,
         endMinutes: existingConfirmed.endMinutes,
@@ -112,6 +127,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
           data={data}
           onBackToWebsite={closeSiteBooking}
           onProceedToPayment={handleConfirmEntry}
+          resumeAtSummary={resumeAtSummary}
         />
       )}
       {phase === 'payment' && summary && (
@@ -148,6 +164,7 @@ function SiteBookingPaymentFlowWrapper({
   data: SalonData;
   summary: {
     serviceId: string;
+    serviceLines?: PaymentServiceLine[];
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
@@ -178,6 +195,7 @@ function SiteBookingPaymentFlowWrapper({
       themeId={themeId}
       data={data}
       service={service}
+      serviceLines={summary.serviceLines}
       dateKey={summary.dateKey}
       startMinutes={summary.startMinutes}
       endMinutes={summary.endMinutes}

@@ -17,8 +17,9 @@
  * later phases. The engine reuses the Phase 10.5 salon clock
  * (`salonStatus.salonNow`) so status and booking agree on "now".
  */
-import type { SalonData, SalonHoliday, SalonOpeningHours, Service } from '../types';
+import type { SalonData, SalonHoliday, SalonOpeningHours, Service, ServiceOffer } from '../types';
 import { digitsOnly } from './siteBooking';
+import { serviceDisplayPrice } from './pricing';
 import { activeCatalogItems } from './siteStructure';
 import type { SiteHeaderThemeId } from './siteNavigation';
 import {
@@ -37,13 +38,69 @@ import {
 /* Steps + holds                                                       */
 /* ------------------------------------------------------------------ */
 
-export type BookingStepId = 'service' | 'date' | 'time' | 'details' | 'summary';
-export const BOOKING_STEP_IDS: BookingStepId[] = ['service', 'date', 'time', 'details', 'summary'];
+/**
+ * PHASE 16.1 — the flow gains a leading `salon` confirmation step:
+ *   Salon → Service → Date → Time → Customer Details → Booking Summary.
+ * The salon step never lets the visitor pick a different salon — it
+ * confirms the ACTIVE salon (the one whose website is open) so every
+ * later selection stays isolated to that salon + theme.
+ */
+export type BookingStepId = 'salon' | 'service' | 'date' | 'time' | 'details' | 'summary';
+export const BOOKING_STEP_IDS: BookingStepId[] = ['salon', 'service', 'date', 'time', 'details', 'summary'];
 
 export const BOOKING_HOLDS_KEY = 'nexora_site_booking_holds';
 export const BOOKING_BROWSER_KEY = 'nexora_site_booking_browser';
 export const BOOKING_HOLD_EVENT = 'nexora:booking-holds';
 export const BOOKING_HOLD_MINUTES = 15;
+
+/* ------------------------------------------------------------------ */
+/* PHASE 16.1 — salon context (step 1 of the flow)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tenant id for the salon whose website is open. Resolution reuses the
+ * EXISTING Phase 10.7 rule (the payment engine's tenant ownership):
+ * provenance on the salon's own service rows first, then an explicit
+ * `businessId` on the data payload, then the shared public-site
+ * fallback. No salon id is ever invented, hardcoded or user-supplied.
+ */
+export function bookingBusinessId(data: SalonData): string {
+  const fromServices = (data.services || [])
+    .map((service) => (service as Service & { businessId?: string }).businessId)
+    .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  if (fromServices) return fromServices;
+  const explicit = (data as SalonData & { businessId?: string }).businessId;
+  if (typeof explicit === 'string' && explicit.trim().length > 0) return explicit;
+  return 'public-site';
+}
+
+export interface BookingSalonContext {
+  /** Tenant that owns every record this flow produces. */
+  businessId: string;
+  /** Active theme — bookings stay isolated to this salon + theme. */
+  themeId: string;
+  salonName: string;
+  address: string;
+  phone: string;
+  /** Whether the active theme has at least one bookable service. */
+  hasServices: boolean;
+}
+
+/**
+ * The salon the visitor is booking at — ALWAYS the salon whose website
+ * is open, derived from existing data only (never a picker over foreign
+ * salons, never an invented id). The salon confirmation step renders it.
+ */
+export function bookingSalonContext(data: SalonData, themeId: string): BookingSalonContext {
+  return {
+    businessId: bookingBusinessId(data),
+    themeId,
+    salonName: (data.salonName || '').trim(),
+    address: (data.address?.fullAddress || '').trim(),
+    phone: (data.phone || '').trim(),
+    hasServices: bookingServicesForTheme(data, themeId).length > 0,
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Theme-isolated service list                                         */
@@ -71,6 +128,131 @@ export function bookingServicesByCategory(services: readonly Service[]): Array<{
     else map.set(category, [service]);
   }
   return Array.from(map.entries()).map(([category, items]) => ({ category, services: items }));
+}
+
+/* ------------------------------------------------------------------ */
+/* PHASE 16.2 — multi-service selection (one appointment, N services)  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Maximum services per single appointment. A guard, not a business rule:
+ * the appointment stays one continuous sitting, so runaway selections
+ * (and absurd total durations) are prevented at the engine level.
+ */
+export const BOOKING_MAX_SERVICES = 6;
+
+export interface BookingSelectionLine {
+  service: Service;
+  /** Offer-aware price actually charged (existing Phase 9.1 pricing). */
+  finalPrice: number;
+  /** Pre-offer price for strikethrough display. */
+  basePrice: number;
+  /** Duration in minutes (active pricing-variant override wins, as in 10.6). */
+  durationMinutes: number;
+}
+
+export interface BookingSelectionSummary {
+  lines: BookingSelectionLine[];
+  /** Sum of offer-aware final prices. */
+  totalPrice: number;
+  /** Sum of pre-offer base prices (>= totalPrice; equal when no offers). */
+  totalBasePrice: number;
+  /** Total appointment length in minutes. */
+  totalDurationMinutes: number;
+  count: number;
+}
+
+/** Duration for one service — active variant override first, as in 10.6. */
+export function bookingServiceDuration(service: Service): number {
+  const variant = service.pricingVariants?.find((v) => v.status === 'active');
+  return Math.max(variant?.duration ?? service.duration ?? 30, 1);
+}
+
+/**
+ * Resolves the ordered id list against the ACTIVE theme's own service list.
+ * Unknown / foreign / stale ids are silently dropped — a selection can never
+ * contain a service the active theme does not itself offer.
+ */
+export function bookingSelectedServices(
+  services: readonly Service[],
+  selectedIds: readonly string[],
+): Service[] {
+  const seen = new Set<string>();
+  const result: Service[] = [];
+  for (const id of selectedIds) {
+    if (seen.has(id)) continue;
+    const service = services.find((item) => item.id === id);
+    if (!service) continue;
+    seen.add(id);
+    result.push(service);
+  }
+  return result;
+}
+
+/**
+ * Toggle one service in the ordered selection. Selecting an already-selected
+ * service removes it; adding beyond `BOOKING_MAX_SERVICES` is refused (the
+ * caller shows the limit note). Never invents ids — the id must exist in the
+ * theme's own list at resolve time (`bookingSelectedServices`).
+ */
+export function toggleBookingService(
+  selectedIds: readonly string[],
+  serviceId: string,
+): { ids: string[]; changed: boolean; reason?: 'limit' } {
+  if (selectedIds.includes(serviceId)) {
+    return { ids: selectedIds.filter((id) => id !== serviceId), changed: true };
+  }
+  if (selectedIds.length >= BOOKING_MAX_SERVICES) {
+    return { ids: selectedIds.slice(), changed: false, reason: 'limit' };
+  }
+  return { ids: [...selectedIds, serviceId], changed: true };
+}
+
+/**
+ * Totals for the selection: offer-aware price (Phase 9.1 `serviceDisplayPrice`,
+ * same function every service card already uses) and variant-aware duration.
+ * Prices and durations are read from the existing rows only — never invented.
+ */
+export function bookingSelectionSummary(
+  selectedServices: readonly Service[],
+  offers: readonly ServiceOffer[] | undefined,
+): BookingSelectionSummary {
+  const lines: BookingSelectionLine[] = selectedServices.map((service) => {
+    const pricing = serviceDisplayPrice(service, (offers || []) as ServiceOffer[]);
+    return {
+      service,
+      finalPrice: pricing.finalPrice,
+      basePrice: pricing.basePrice,
+      durationMinutes: bookingServiceDuration(service),
+    };
+  });
+  return {
+    lines,
+    totalPrice: lines.reduce((sum, line) => sum + line.finalPrice, 0),
+    totalBasePrice: lines.reduce((sum, line) => sum + line.basePrice, 0),
+    totalDurationMinutes: lines.reduce((sum, line) => sum + line.durationMinutes, 0),
+    count: lines.length,
+  };
+}
+
+/**
+ * The combined selection acts as ONE bookable sitting for the existing
+ * slot/hold engine (id = stable joined ids, duration = summed minutes).
+ * Single-service selections collapse to the service itself, so all
+ * pre-16.2 hold keys, tests and behaviours stay byte-identical.
+ */
+export function bookingCombinedSlotService(
+  selectedServices: readonly Service[],
+): Pick<Service, 'id' | 'duration'> | null {
+  if (selectedServices.length === 0) return null;
+  if (selectedServices.length === 1) {
+    return { id: selectedServices[0].id, duration: bookingServiceDuration(selectedServices[0]) };
+  }
+  const ids = selectedServices.map((service) => service.id);
+  return {
+    id: ids.slice().sort().join('+'),
+    duration: selectedServices.reduce((sum, service) => sum + bookingServiceDuration(service), 0),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -234,6 +416,71 @@ export interface BookingHold {
   startMinutes: number;
   endMinutes: number;
   expiresAt: number;
+  /** PHASE 16.3 — salon that owns the hold. Legacy holds without it keep
+   * blocking the same theme (fail-closed backward compatibility). */
+  businessId?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* PHASE 16.3 — availability extras (booked spans + staff windows)     */
+/* ------------------------------------------------------------------ */
+
+/** A span already taken by a real booking record (same salon + theme). */
+export interface BookingBlockedSpan {
+  dateKey: string;
+  startMinutes: number;
+  endMinutes: number;
+}
+
+/** Minutes-from-midnight window in which qualified staff are working. */
+export interface BookingStaffWindow {
+  startMinutes: number;
+  endMinutes: number;
+}
+
+/**
+ * Optional availability context threaded through the slot engine:
+ *   - `blockedSpans`  — spans taken by confirmed/pending booking records
+ *                       (derived from the EXISTING 10.7 payment store);
+ *   - `staffWindows`  — when non-null, a slot must fit fully inside one
+ *                       window (staff availability); `null`/undefined =
+ *                       salon hours alone govern (no mapping exists);
+ *   - `businessId`    — the active salon. Holds stamped with a DIFFERENT
+ *                       salon id never block this salon's slots.
+ * All fields optional → every pre-16.3 call site behaves identically.
+ */
+export interface BookingSlotExtras {
+  blockedSpans?: readonly BookingBlockedSpan[];
+  staffWindows?: readonly BookingStaffWindow[] | null;
+  businessId?: string;
+}
+
+function spanBlocked(
+  extras: BookingSlotExtras | undefined,
+  dateKey: string,
+  startMinutes: number,
+  endMinutes: number,
+): boolean {
+  if (!extras?.blockedSpans) return false;
+  return extras.blockedSpans.some(
+    (span) => span.dateKey === dateKey && span.startMinutes < endMinutes && span.endMinutes > startMinutes,
+  );
+}
+
+function outsideStaffWindows(
+  extras: BookingSlotExtras | undefined,
+  startMinutes: number,
+  endMinutes: number,
+): boolean {
+  const windows = extras?.staffWindows;
+  if (windows == null) return false; // no staff constraint for this selection
+  return !windows.some((win) => win.startMinutes <= startMinutes && win.endMinutes >= endMinutes);
+}
+
+/** A hold blocks this salon unless it is explicitly stamped with another salon. */
+function holdBlocksBusiness(hold: BookingHold, extras: BookingSlotExtras | undefined): boolean {
+  if (!hold.businessId || !extras?.businessId) return true; // legacy fail-closed
+  return hold.businessId === extras.businessId;
 }
 
 export function bookingSlotKey(
@@ -321,6 +568,7 @@ export function reserveBookingSlot(
   service: Pick<Service, 'id' | 'duration'>,
   dateKey: string,
   startMinutes: number,
+  extras?: BookingSlotExtras,
 ): BookingHoldResult {
   const duration = Math.max(service.duration || 30, 1);
   const endMinutes = startMinutes + duration;
@@ -329,8 +577,14 @@ export function reserveBookingSlot(
   const now = Date.now();
   const holds = activeBookingHolds(now);
 
+  // PHASE 16.3 — a span already taken by a REAL booking record can never
+  // be held, even if no live hold exists for it.
+  if (spanBlocked(extras, dateKey, startMinutes, endMinutes)) {
+    return { ok: false, reason: 'taken' };
+  }
+
   const existing = holds.find((hold) => hold.key === key);
-  if (existing && existing.browserId !== myId) {
+  if (existing && existing.browserId !== myId && holdBlocksBusiness(existing, extras)) {
     return { ok: false, reason: 'taken' };
   }
   const rest = holds.filter((hold) => hold.key !== key);
@@ -339,7 +593,8 @@ export function reserveBookingSlot(
       hold.themeId === themeId
       && hold.dateKey === dateKey
       && hold.startMinutes < endMinutes
-      && hold.endMinutes > startMinutes,
+      && hold.endMinutes > startMinutes
+      && holdBlocksBusiness(hold, extras),
   );
   if (overlapping) {
     return { ok: false, reason: 'taken' };
@@ -354,6 +609,7 @@ export function reserveBookingSlot(
     startMinutes,
     endMinutes,
     expiresAt: now + BOOKING_HOLD_MINUTES * 60_000,
+    ...(extras?.businessId ? { businessId: extras.businessId } : {}),
   };
   writeBookingHolds([...rest, hold]);
   return { ok: true, hold };
@@ -381,6 +637,7 @@ export function bookingSlotsForDay(
   service: Pick<Service, 'id' | 'duration'>,
   date: Date,
   now: Date = salonNow(),
+  extras?: BookingSlotExtras,
 ): BookingSlot[] {
   const info = bookingDayInfo(data, date, now);
   if (!info.selectable) return [];
@@ -404,6 +661,14 @@ export function bookingSlotsForDay(
     if (info.isToday && start < nowMinutes + minNoticeMinutes) {
       // Started already, or inside the minimum-notice window.
       state = 'past';
+    } else if (
+      // PHASE 16.3 — a span taken by a REAL booking record (same salon +
+      // theme) or outside every qualified staff member's working window
+      // is unavailable regardless of holds.
+      spanBlocked(extras, info.dateKey, start, end)
+      || outsideStaffWindows(extras, start, end)
+    ) {
+      state = 'taken';
     } else {
       const mine = holds.find((hold) => hold.key === key && hold.browserId === myId);
       const foreign = holds.find(
@@ -412,7 +677,8 @@ export function bookingSlotsForDay(
           && hold.dateKey === info.dateKey
           && hold.startMinutes < end
           && hold.endMinutes > start
-          && !(hold.key === key && hold.browserId === myId),
+          && !(hold.key === key && hold.browserId === myId)
+          && holdBlocksBusiness(hold, extras),
       );
       if (foreign) state = 'taken';
       else if (mine) state = 'held';
@@ -436,8 +702,9 @@ export function bookingSlotIsStillAvailable(
   date: Date,
   startMinutes: number,
   now: Date = salonNow(),
+  extras?: BookingSlotExtras,
 ): boolean {
-  const slot = bookingSlotsForDay(data, themeId, service, date, now).find(
+  const slot = bookingSlotsForDay(data, themeId, service, date, now, extras).find(
     (item) => item.minutes === startMinutes,
   );
   return !!slot && (slot.state === 'available' || slot.state === 'held');

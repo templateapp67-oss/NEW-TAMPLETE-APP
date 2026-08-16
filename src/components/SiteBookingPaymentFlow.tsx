@@ -69,6 +69,7 @@ import type {
   PaymentMethod,
   PaymentOption,
   PaymentRecord,
+  PaymentServiceLine,
   ReceiptView,
 } from '../lib/siteBookingPayment';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
@@ -78,6 +79,14 @@ interface Props {
   data: SalonData;
   /** Pricing context passed in from the entry flow. */
   service: Service;
+  /**
+   * PHASE 16.5 — full multi-service selection (optional + additive).
+   * When present, the booking total is the sum of these offer-aware line
+   * prices (computed by the EXISTING 16.2 selection engine) and the 25%
+   * advance derives from that real total. Absent = single-service booking,
+   * byte-identical to the 10.7 behaviour.
+   */
+  serviceLines?: PaymentServiceLine[];
   dateKey: string;
   startMinutes: number;
   endMinutes: number;
@@ -300,6 +309,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
     themeId,
     data,
     service,
+    serviceLines,
     dateKey,
     startMinutes,
     endMinutes,
@@ -313,6 +323,13 @@ export default function SiteBookingPaymentFlow(props: Props) {
     onShowToast,
     initialRecord,
   } = props;
+
+  // PHASE 16.5 — normalised multi-service context. A single-line array is
+  // treated as a plain single-service booking (10.7-identical).
+  const multiLines = useMemo(
+    () => (serviceLines && serviceLines.length > 1 ? serviceLines : null),
+    [serviceLines],
+  );
 
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
@@ -345,6 +362,10 @@ export default function SiteBookingPaymentFlow(props: Props) {
   const [gatewaySecondsLeft, setGatewaySecondsLeft] = useState<number | null>(null);
   const attemptRef = useRef<GatewayAttempt | null>(null);
   const [hasCopiedId, setHasCopiedId] = useState(false);
+  // PHASE 16.5 — synchronous double-submit lock: two clicks inside the same
+  // render tick can both see gatewayPhase === 'idle', so the guard must not
+  // depend on React state alone. Cleared when the attempt resolves.
+  const submitLockRef = useRef(false);
 
   // Pre-fill the gateway form with the chosen method so the user doesn't
   // have to re-pick the method every retry.
@@ -456,9 +477,20 @@ export default function SiteBookingPaymentFlow(props: Props) {
     }
     return best;
   }, [service, offers, themeId]);
+  // PHASE 16.5 — the REAL booking total: for a multi-service booking it is
+  // the sum of the offer-aware line prices computed by the EXISTING 16.2
+  // selection engine (never hardcoded); otherwise the single service price.
+  const bookingTotal = useMemo(
+    () => (multiLines ? multiLines.reduce((sum, line) => sum + line.price, 0) : finalPrice),
+    [multiLines, finalPrice],
+  );
+  const bookingBaseTotal = useMemo(
+    () => (multiLines ? bookingTotal : basePrice),
+    [multiLines, bookingTotal, basePrice],
+  );
   const amounts = useMemo(
-    () => calculatePaymentAmounts(option, { price: basePrice, finalPrice }, data.bookingRules),
-    [option, basePrice, finalPrice, data.bookingRules],
+    () => calculatePaymentAmounts(option, { price: bookingBaseTotal, finalPrice: bookingTotal }, data.bookingRules),
+    [option, bookingBaseTotal, bookingTotal, data.bookingRules],
   );
 
   // -----------------------------------------------------------------
@@ -476,6 +508,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
         businessId,
         themeId,
         service,
+        ...(multiLines ? { services: multiLines } : {}),
         bookingId,
         dateKey,
         startMinutes,
@@ -520,6 +553,10 @@ export default function SiteBookingPaymentFlow(props: Props) {
   // Gateway attempt + timeout
   // -----------------------------------------------------------------
   const startGatewayAttempt = useCallback((overrideMethod?: PaymentMethod) => {
+    // PHASE 16.5 — duplicate-submission guard (double-click / double-tap):
+    // one live attempt at a time, enforced synchronously via a ref.
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     if (!record && option !== 'pay_at_salon') {
       // First attempt — create a pending record BEFORE the user sees the
       // payment form, so a refresh during processing still has a row to
@@ -529,6 +566,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
         businessId,
         themeId,
         service,
+        ...(multiLines ? { services: multiLines } : {}),
         bookingId,
         dateKey,
         startMinutes,
@@ -572,6 +610,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
       }
       if (!activeRec) {
         setGatewayPhase('done');
+        submitLockRef.current = false;
         setGatewayResult({
           outcome: 'failure',
           reason: 'Could not start payment session — please try again',
@@ -594,6 +633,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
           setStep('result');
         }
         setGatewayPhase('done');
+        submitLockRef.current = false;
         setGatewaySecondsLeft(null);
       });
     }, 50);
@@ -637,6 +677,9 @@ export default function SiteBookingPaymentFlow(props: Props) {
 
   const retryGateway = useCallback((method: PaymentMethod) => {
     if (!record) return;
+    // PHASE 16.5 — same duplicate-submission guard as the first attempt.
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setGatewayMethod(method);
     setGatewayForm((prev) => ({ ...prev, method }));
     setGatewayPhase('processing');
@@ -656,6 +699,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
           setStep('result');
         }
         setGatewayPhase('done');
+        submitLockRef.current = false;
         setGatewaySecondsLeft(null);
       });
     }, 50);
@@ -862,6 +906,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
                 locale={locale}
                 serviceDisplay={serviceDisplay}
                 service={service}
+                serviceLines={multiLines}
                 data={data}
                 dateKey={dateKey}
                 startMinutes={startMinutes}
@@ -1657,6 +1702,7 @@ function BookingSummaryCard({
   locale,
   serviceDisplay,
   service,
+  serviceLines,
   data,
   dateKey,
   startMinutes,
@@ -1669,6 +1715,8 @@ function BookingSummaryCard({
   s: PaymentFlowSurface;
   T: Record<string, string>;
   locale: 'en' | 'hi';
+  /** PHASE 16.5 — all selected services for a multi-service booking. */
+  serviceLines?: PaymentServiceLine[] | null;
   serviceDisplay: { name: string; category: string };
   service: Service;
   data: SalonData;
@@ -1702,23 +1750,66 @@ function BookingSummaryCard({
         </span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-        <SummaryRow D={D} s={s} icon={<Sparkles className="w-3.5 h-3.5" />} label={T['receipt.service']} value={serviceDisplay.name} />
+        <SummaryRow
+          D={D}
+          s={s}
+          icon={<Sparkles className="w-3.5 h-3.5" />}
+          label={T['receipt.service']}
+          value={serviceLines && serviceLines.length > 1
+            ? fillPaymentText(T['summary.servicesCount'], { count: serviceLines.length })
+            : serviceDisplay.name}
+        />
         <SummaryRow D={D} s={s} icon={<Calendar className="w-3.5 h-3.5" />} label={T['receipt.date']} value={dateLabelText} />
         <SummaryRow D={D} s={s} icon={<Hourglass className="w-3.5 h-3.5" />} label={T['receipt.time']} value={`${startLabel} – ${endLabel}`} />
         <SummaryRow D={D} s={s} icon={<User className="w-3.5 h-3.5" />} label={T['receipt.staff']} value={staffName || T['confirm.anyStaff']} />
         <SummaryRow D={D} s={s} icon={<Building2 className="w-3.5 h-3.5" />} label={T['receipt.salon']} value={salonName} />
         <SummaryRow D={D} s={s} icon={<ReceiptIcon className="w-3.5 h-3.5" />} label={T['receipt.amount']} value={formatCurrency(amounts.baseAmount)} />
       </div>
+      {/* PHASE 16.5 — every selected service with its own price. */}
+      {serviceLines && serviceLines.length > 1 && (
+        <div
+          data-testid="payment-summary-services"
+          className="flex flex-col gap-1.5 border-t pt-3"
+          style={{ borderColor: s.line }}
+        >
+          {serviceLines.map((line) => (
+            <div
+              key={line.serviceId}
+              data-testid={`payment-summary-service-${line.serviceId}`}
+              className="flex items-center justify-between gap-3 text-xs font-bold"
+              style={{ color: s.textStrong }}
+            >
+              <span className="min-w-0 truncate flex items-center gap-2">
+                <span className="truncate">{line.serviceName}</span>
+                <span className="text-[10px] font-semibold shrink-0" style={{ color: s.muted }}>
+                  {line.durationMinutes} {locale === 'hi' ? 'मिनट' : 'min'}
+                </span>
+              </span>
+              <span className="shrink-0">{formatCurrency(line.price)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* PHASE 16.5 — explicit money breakdown: total / advance now / remaining. */}
       <div
-        className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1 border-t pt-3"
+        data-testid="payment-amount-breakdown"
+        className="flex flex-col gap-1.5 mt-1 border-t pt-3"
         style={{ borderColor: s.line }}
       >
+        <div className="flex items-center justify-between text-sm font-extrabold" style={{ color: s.textStrong }}>
+          <span className={`${D.label}`} style={{ color: s.muted }}>{T['summary.totalAmount']}</span>
+          <span data-testid="payment-total-amount">{formatCurrency(amounts.baseAmount)}</span>
+        </div>
         <div className="flex items-center justify-between text-xs font-bold" style={{ color: s.textStrong }}>
-          <span className={`${D.label}`} style={{ color: s.muted }}>{T['option.dueNow']}</span>
+          <span className={`${D.label}`} style={{ color: s.muted }}>
+            {option === 'advance'
+              ? `${T['summary.advanceAmount']} (${fillPaymentText(T['option.advancePct'], { pct: amounts.advancePercent })})`
+              : T['option.dueNow']}
+          </span>
           <span data-testid="payment-due-now" style={{ color: s.accent }}>{formatCurrency(amounts.amountDue)}</span>
         </div>
         <div className="flex items-center justify-between text-xs font-bold" style={{ color: s.textStrong }}>
-          <span className={`${D.label}`} style={{ color: s.muted }}>{T['option.dueAtSalon']}</span>
+          <span className={`${D.label}`} style={{ color: s.muted }}>{T['summary.remainingAmount']}</span>
           <span data-testid="payment-due-at-salon">{formatCurrency(amounts.remainingAmount)}</span>
         </div>
       </div>

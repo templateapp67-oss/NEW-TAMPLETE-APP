@@ -1,10 +1,201 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-15** (session `arena/01a006bc-new-tamplete-app`).
+> Last updated: **2026-08-16** (session `arena/01a006f4-new-tamplete-app`, Phase 16.7).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.7 — BOOKING MANAGEMENT: COMPLETE (38 tests).**
+  - Booking management over the EXISTING booking/payment/auth architecture
+    (the 10.7/16.5 record store IS the booking list — no duplicate system,
+    no new tables; `bookings`/M08 stays an unapplied draft that this layer
+    mirrors).
+  - **Customer "My Bookings"** (`SiteMyBookings`, mounted in the booking
+    flow's salon step): own rows ONLY — `readMyBookings` reads the browser
+    identity INSIDE the helper, so another customer's private rows are
+    structurally unreachable. Status chip + salon/services/date/time/
+    total/advance/remaining/payment-status + cancel (own, not-yet-completed
+    rows). Renders nothing for first-time visitors.
+  - **Owner panel** (`BookingManagementPanel` in the dashboard bookings
+    tab): session-resolved actor via the EXISTING `useAuth` +
+    `resolveOwnerSalonId` chain (14.6/15.6 pattern); tenant =
+    `bookingBusinessId(data)` — never typed in. Full detail rows, status
+    filters, actions per the machine, denial card for unauthorized actors.
+    The old demo planner stays untouched below the real panel.
+  - **Status machine** (draft-spec aligned; `completed` added additively to
+    `BookingStatus`): pending→confirm/cancel; confirmed/pay-at-salon→
+    complete/cancel; terminal immutable. Completing settles the remaining
+    balance at the salon; owner-cancel keeps paid amounts (no invented
+    refunds). All transitions validated in `bookingManagement.ts` —
+    permission + row ownership + legality re-checked inside every
+    read/mutation, not just hidden buttons.
+  - Isolation verified: foreign-salon rows `not-found` even for authorized
+    actors; unauthorized actors get refusals, never data; foreign-theme /
+    foreign-customer rows never render.
+  - Loading / error(+Retry) / empty / cancelled states via the shared
+    'booking' seam; EN/HI full tables; light/dark via existing surfaces;
+    responsive card layouts.
+  - NOT in 16.7: Call/WhatsApp protection, notifications, final acceptance,
+    DB execution, refunds.
+  - Validation: `test:phase-16.7` **38/38**; 16.1 55, 16.2 55, 16.3 36,
+    16.5 24; 10.6 107; 10.7 66; Phases 10–15 fully green;
+    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
+    verify-22-screens 25/25. Details:
+    `docs/phase-16.7-booking-management.md`.
+
+- **PHASE 16.5 — ADVANCE PAYMENT / DEPOSIT: COMPLETE (24 tests).**
+  - The 16.x booking flow is connected to the EXISTING Phase 10.7 payment
+    architecture — single AND multi-service selections now hand off to the
+    same payment flow (the 16.2 "later phase" placeholder is closed).
+  - **Real-total math**: booking total = Σ offer-aware line prices from the
+    16.2 selection engine; the 25% advance derives from that total via the
+    EXISTING `calculatePaymentAmounts` + `bookingRules.advanceDepositPercentage`
+    (default 25, clamped; configured percentages honoured). Never hardcoded.
+  - The option step shows the complete booking summary (every line for
+    multi-service) plus an explicit **Total / Advance now (pct) / Remaining**
+    breakdown (`payment-amount-breakdown`).
+  - Additive store shape: `PaymentServiceLine` + optional
+    `PaymentRecord.services` / `ReceiptView.services`; pre-16.5 rows parse
+    unchanged; resumed records restore their lines. Still the browser-local
+    SANDBOX store — no payment tables/columns/credentials invented (M09
+    stays an unapplied draft; Razorpay is later server work). Static-scan
+    test enforces no service-role/gateway-secret strings in frontend code.
+  - **No-confirm-before-payment** invariant re-verified for advance:
+    pending → `pending_payment`; success → `paid`+`confirmed` together;
+    failure/cancel/timeout → never confirmed; retry reuses the SAME row.
+  - **Duplicate-submission guard**: synchronous ref lock on
+    `startGatewayAttempt` + `retryGateway` (two clicks in one tick → one
+    record, one attempt), on top of the existing idempotency keys.
+  - Context preserved end-to-end (salon/theme/lines/date/slot/customer into
+    the record + confirm screen); back-from-payment lands on the Booking
+    Summary with the 16.1-draft-restored selection (`resumeAtSummary`).
+  - EN/HI additions (`summary.totalAmount/advanceAmount/remainingAmount/
+    servicesCount`, `summary.paymentNext`); light/dark via existing
+    surfaces; responsive unchanged. Sandbox labels kept (EN+HI).
+  - NOT in 16.5: confirmation extras, notifications, booking management,
+    Call/WhatsApp protection, real Razorpay/M09 execution.
+  - Validation: `test:phase-16.5` **24/24**; 16.2 updated hand-off test
+    55/55; 16.1 55/55; 16.3 36/36; 10.6 107/107; 10.7 66/66; Phases 10–15
+    fully green; `validate:migrations` 27/27 ×2 + 21/21; lint 0; build
+    green; verify-22-screens 25/25. Details:
+    `docs/phase-16.5-advance-payment-deposit.md`.
+
+- **PHASE 16.3 — DATE & TIME SLOT SELECTION: COMPLETE (36 tests).**
+  - The Date + Time step shows only **genuinely available** slots, derived
+    from EXISTING data sources only (schema audited first: booking/staff
+    tables are unapplied drafts M05/M08, so no tables/columns invented).
+  - **Booked spans** — real booking records from the EXISTING 10.7 payment
+    store, tenant+theme keyed (`bookedSpansForSalon`): `confirmed` /
+    `pay_at_salon` / `pending_payment` block their span; `failed` /
+    `cancelled` never; `excludeBookingId` for resumed bookings. Exact
+    boundary starts/ends stay available.
+  - **Staff availability** — EXISTING `TeamMember.assignedServiceIds` +
+    `TeamMember.schedule` (WeeklySchedule) + `status`: when the mapping
+    covers the whole selection, the sitting must fit a qualified member's
+    window; `On Leave`/`Inactive` never count; no mapping → salon hours
+    alone (nothing invented). Duration-aware for the 16.2 combined sitting.
+  - **Salon isolation** — holds now stamp `businessId`; another salon's
+    holds/records can never block this salon (legacy un-stamped holds stay
+    blocking — fail-closed).
+  - **Double-booking**: grid disable + `reserveBookingSlot` refusal (no
+    hold row written over a booked span) + leave-step re-check; a record
+    landing while the grid is open (PAYMENT_EVENT) recalculates instantly
+    and clears a dead selection with a toast — never a silent swap.
+  - Engine changes are additive (`BookingSlotExtras` optional on
+    `bookingSlotsForDay` / `bookingSlotIsStillAvailable` /
+    `reserveBookingSlot`) — every pre-16.3 call site byte-identical.
+  - Availability loading / error(+Retry) / empty states via the shared
+    'booking' section seam; EN/HI (`time.loading/error/retry/bookedNote`);
+    light/dark; the 10.6 responsive grid unchanged.
+  - New file: `src/lib/siteBookingAvailability.ts` (derivation layer above
+    siteBookingFlow + siteBookingPayment — no import cycle).
+  - Explicitly NOT in 16.3: customer details (16.4+), payment/advance/
+    confirmation/notifications/management, server-authoritative
+    availability (drafts stay unapplied), explicit staff selection.
+  - Validation: `test:phase-16.3` **36/36**; 16.1 55/55; 16.2 55/55;
+    10.6 107/107; 10.7 66/66; Phases 10–15 fully green; 9.1 9/9;
+    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
+    verify-22-screens 25/25. Details:
+    `docs/phase-16.3-date-time-slot-selection.md`.
+
+- **PHASE 16.2 — SERVICE SELECTION: COMPLETE (55 tests).**
+  - The booking Service step is wired to the EXISTING theme-specific service
+    system and gains **multi-service selection with automatic totals** —
+    same single booking architecture, nothing rebuilt.
+  - Rows show name, category, offer-aware price (`serviceDisplayPrice`) and
+    duration; the list is still `bookingServicesForTheme` (active rows,
+    theme provenance enforced — foreign/inactive rows can never render,
+    resolve or total). No new IDs/tables/columns/prices/fake services.
+  - Engine additions (`siteBookingFlow.ts`, additive): `toggleBookingService`
+    (ordered toggle, cap `BOOKING_MAX_SERVICES` = 6), `bookingSelectedServices`
+    (resolve against the active theme list only), `bookingSelectionSummary`
+    (auto price+duration totals; variant-aware durations),
+    `bookingCombinedSlotService` — the selection acts as ONE sitting for the
+    EXISTING slot/hold engine (stable sorted-id key + summed duration; a
+    single selection collapses to the plain service, so 10.6 hold keys and
+    the 10.7 payment hand-off stay byte-identical).
+  - UI: multi-select service cards (Add/Added), live totals panel (per-line
+    price/duration + Remove, total price/duration, Clear all, limit note),
+    summary line items + totals; selection changes release the held slot and
+    the time step re-holds the new span. Multi-service Confirm stays on the
+    summary with a localized "payment in a later phase" note (the 10.7
+    engine prices exactly one service; no fake hand-off).
+  - Draft store v2 (additive): `services` line items + `totalPrice` +
+    `totalDurationMinutes`; 16.1 fields mirror line 1 + totals; resume
+    restores the whole selection; theme/tenant isolation unchanged.
+  - Loading / error(+Retry) / empty states through the SAME shared section
+    seam the website 'services' section uses. EN/HI + light/dark + the
+    existing responsive structure.
+  - Explicitly NOT in 16.2: time slots (16.3+), payment/advance/confirmation,
+    notifications, management, multi-service payment, database execution.
+  - Validation: `test:phase-16.2` **55/55**; 16.1 55/55; 10.6 107/107;
+    10.7 66/66; Phases 10–15 fully green; 9.1 9/9; `validate:migrations`
+    27/27 ×2 + 21/21; lint 0; build green; verify-22-screens 25/25.
+    Details: `docs/phase-16.2-service-selection.md`.
+
+- **PHASE 16.1 — BOOKING FOUNDATION: COMPLETE (55 tests).**
+  - The public-site booking flow gains its foundation shape:
+    **Salon → Service → Date → Time → Customer Details → Booking Summary**
+    — still exactly ONE booking architecture (the Phase 10.6/10.7 flow was
+    extended, not rebuilt).
+  - New leading **Salon confirmation step** (all five themes, themed): the
+    ACTIVE salon only — name + live status chip, address, phone, theme label,
+    bookable-service count, no-services empty state. Never a salon picker;
+    context comes from `bookingSalonContext(data, themeId)` over existing
+    data (no invented salon/user ids, no DB reads).
+  - `bookingBusinessId(data)` is now the single tenant-resolution rule
+    (service-row provenance → explicit payload id → `public-site` fallback),
+    shared by the entry flow and the 10.7 orchestrator (which previously
+    inlined the same logic).
+  - **`src/lib/siteBookingDraft.ts`** — salon+theme-scoped booking drafts:
+    ONE row per (business, theme, `bookingBrowserId()`), idempotent upsert,
+    versioned localStorage store (`nexora_site_booking_drafts`), 24h
+    staleness, `nexora:booking-draft` event, test injection. Tracks
+    `in_progress` → `summary_ready`; reopening the flow resumes the
+    visitor's own draft (localized resume notice); the 10.7 confirmation
+    clears it. Later phases attach here: 16.2+ slot verification, advance
+    payment converting a `summary_ready` draft into the existing
+    `PaymentRecord`, confirmation clearing it — no rebuild needed.
+  - Phase 12.3 service prefill opens on the Service step (salon implicit)
+    but Back reaches the salon step — one flow. Sitting on the salon step
+    writes nothing, so plain open/close is side-effect free.
+  - States: no-services / no-address / broken- or disabled-localStorage /
+    corrupted store all degrade gracefully. Desktop/tablet/mobile (same
+    mobile-first grid + sticky bar), EN/HI (`salon.*` keys), light/dark via
+    existing `bookingSurfaces`.
+  - Explicitly NOT in 16.1: server time slots, 25% advance logic, payment
+    changes, notifications, booking management, WhatsApp/Call protection,
+    any database execution (M01–M27 stay unapplied drafts; no new tables).
+  - Test updates for the 6-step structure: `test:phase-10.6` → 107/107
+    (salon-first assertions added; every original behaviour kept),
+    `test:phase-10.7` walk updated (66/66).
+  - Validation: `test:phase-16.1` **55/55**; Phase 10 all green (10.6 107,
+    10.7 66, 10.13 339, 10.12 178, …); Phase 11 2398; Phase 12 582;
+    Phase 13 220; Phase 14 180; Phase 15 244; 9.1 9/9;
+    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
+    verify-22-screens 25/25. Details:
+    `docs/phase-16.1-booking-foundation.md`.
 
 - **PHASE 15.10 — FINAL 5-THEME VIDEO ACCEPTANCE: COMPLETE (73 tests).**
   - Full acceptance gate over the entire Phase 15 video system across all
@@ -1272,6 +1463,11 @@ npm run test:phase-15.7    # exact original-platform video player/redirect (11 t
 npm run test:phase-15.8    # likes + weekly most-liked videos (24 tests)
 npm run test:phase-15.10   # final 5-theme video acceptance (73 tests)
 npm run test:phase-15      # every Phase 15 suite (244 tests)
+npm run test:phase-16.1    # booking foundation: Salon → Service → Date → Time → Details → Summary (55 tests)
+npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
+npm run test:phase-16.3    # date & time slot availability (36 tests)
+npm run test:phase-16.5    # advance payment / deposit (24 tests)
+npm run test:phase-16.7    # booking management (38 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1283,7 +1479,7 @@ Expected output:
 - `test:phase-9.1`: 9/9 passed across all five themes
 - `test:phase-10.1`: 80/80 passed · `test:phase-10.2`: 49/49
 - `test:phase-10.3`: 86/86 passed · `test:phase-10.4`: 118/118
-- `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 102/102
+- `test:phase-10.5`: 56/56 passed · `test:phase-10.6`: 107/107 (6 steps since 16.1)
 - `test:phase-11.1`: 215/215 passed (unique hero design, all five themes)
 - `test:phase-11.2`: 138/138 passed (hero headline & content, EN + HI)
 - `test:phase-11.3`: 249/249 passed (hero media & CTA, all five themes)
@@ -1317,6 +1513,12 @@ Expected output:
 - `test:phase-15.8`: 24/24 passed (likes + weekly most-liked videos)
 - `test:phase-15.10`: 73/73 passed (final 5-theme video acceptance)
 - `test:phase-15`: 244 tests, all green — PHASE 15 ACCEPTED
+- `test:phase-16.1`: 55/55 passed (booking foundation, all five themes)
+- `test:phase-16.2`: 55/55 passed (multi-service selection + auto totals)
+- `test:phase-16.3`: 36/36 passed (date & time slot availability)
+- `test:phase-16.5`: 24/24 passed (advance payment / deposit)
+- `test:phase-16.7`: 38/38 passed (booking management)
+- `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
 - `test:phase-10`: 593 tests, all green

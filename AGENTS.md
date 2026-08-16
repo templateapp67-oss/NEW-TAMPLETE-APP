@@ -64,7 +64,7 @@ npm run test:phase-10.2     # global EN/HI language + per-theme dark mode
 npm run test:phase-10.3     # canonical section order + responsive structure
 npm run test:phase-10.4     # final CTA, footer & floating actions
 npm run test:phase-10.5     # announcement bar & live salon status
-npm run test:phase-10.6     # Book Appointment entry flow (Service → Date → Slot → Details → Summary)
+npm run test:phase-10.6     # Book Appointment entry flow (Salon → Service → Date → Slot → Details → Summary since 16.1)
 npm run test:phase-10.7     # Advance payment & booking confirmation
 npm run test:phase-10.8     # Reviews, ratings & social / latest-work feed
 npm run test:phase-10       # all Phase 10 suites
@@ -97,6 +97,11 @@ npm run test:phase-15.7    # original-platform video player/redirect (11 tests)
 npm run test:phase-15.8    # likes + weekly most-liked videos (24 tests)
 npm run test:phase-15.10   # final 5-theme video acceptance gate (73 tests)
 npm run test:phase-15      # every Phase 15 suite (244 tests)
+npm run test:phase-16.1    # booking foundation: Salon → Service → Date → Time → Details → Summary (55 tests)
+npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
+npm run test:phase-16.3    # date & time slot availability (36 tests)
+npm run test:phase-16.5    # advance payment / deposit (24 tests)
+npm run test:phase-16.7    # booking management (38 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```

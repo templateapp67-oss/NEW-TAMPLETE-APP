@@ -214,7 +214,8 @@ function renderFlow(themeId, extras = {}) {
 /** Walks service (default) → date → time → details → summary. */
 async function walkToStep(target, utils) {
   const flow = utils.getByTestId('booking-flow');
-  const steps = ['service', 'date', 'time', 'details', 'summary'];
+  // PHASE 16.1 — the flow gained a leading `salon` confirmation step.
+  const steps = ['salon', 'service', 'date', 'time', 'details', 'summary'];
   while (flow.dataset.step !== target && steps.indexOf(flow.dataset.step) < steps.indexOf(target)) {
     const btn = utils.getByTestId('booking-continue');
     assert.equal(btn.disabled, false, `Continue disabled on ${flow.dataset.step}`);
@@ -522,13 +523,24 @@ section('UI — five-theme entry-flow journey');
 
     const { utils, toasts } = renderFlow(theme.id);
 
-    await test(`${theme.id}: flow mounts with themed frame + five steps`, () => {
+    await test(`${theme.id}: flow mounts with themed frame + six steps (salon first)`, () => {
       const flow = utils.getByTestId('booking-flow');
       assert.equal(flow.dataset.theme, theme.id);
-      assert.equal(flow.dataset.step, 'service');
+      // PHASE 16.1 — a plain open starts on the salon confirmation step.
+      assert.equal(flow.dataset.step, 'salon');
       assert.equal(flow.dataset.locale, 'en');
-      assert.equal(utils.getByTestId('booking-stepper').querySelectorAll('[data-testid^="booking-step-"]').length, 5);
+      assert.equal(utils.getByTestId('booking-stepper').querySelectorAll('[data-testid^="booking-step-"]').length, 6);
       assert.ok(utils.getByTestId('booking-close'));
+      // The salon card confirms the ACTIVE salon — never a foreign one.
+      const salonCard = utils.getByTestId('booking-salon-card');
+      assert.equal(salonCard.dataset.themeId, theme.id);
+      assert.ok(salonCard.textContent.includes(`${theme.id} Test Salon`), 'salon name missing on the salon step');
+      assert.ok(utils.getByTestId('booking-salon-ready'));
+    });
+
+    await test(`${theme.id}: continue moves salon → service`, async () => {
+      await act(async () => { fireEvent.click(utils.getByTestId('booking-continue')); });
+      assert.equal(utils.getByTestId('booking-flow').dataset.step, 'service');
     });
 
     await test(`${theme.id}: only ACTIVE-theme services list, with price + duration`, () => {
@@ -704,9 +716,12 @@ section('UI — language & dark mode reuse the global systems');
   setSalonClockForTests(THU_OPEN);
   const { utils } = renderFlow('beauty_skin_spa');
 
-  await test('Hindi locale repaints the whole flow through the global system', () => {
+  await test('Hindi locale repaints the whole flow through the global system', async () => {
     const flow = utils.getByTestId('booking-flow');
     assert.equal(flow.dataset.locale, 'hi');
+    // PHASE 16.1 — salon step first: confirm its Hindi copy, then continue.
+    assert.ok(flow.textContent.includes('अपना सैलून पक्का करें'), 'Hindi salon title missing');
+    await act(async () => { fireEvent.click(utils.getByTestId('booking-continue')); });
     const text = flow.textContent;
     assert.ok(text.includes('सेवा चुनें'), 'Hindi service title missing');
     assert.ok(text.includes('तारीख़'), 'Hindi date step label missing');
@@ -756,7 +771,7 @@ section('UI — language & dark mode reuse the global systems');
 /* ================================================================== */
 section('UI — theme-specific visuals for all five themes');
 {
-  await test('flow card designs differ pairwise across the five themes', () => {
+  await test('flow card designs differ pairwise across the five themes', async () => {
     const signatures = [];
     for (const theme of THEMES) {
       cleanup();
@@ -765,6 +780,8 @@ section('UI — theme-specific visuals for all five themes');
       setSiteLocale('en');
       const { utils } = renderFlow(theme.id);
       const flow = utils.getByTestId('booking-flow');
+      // PHASE 16.1 — pass the salon confirmation step to reach the service cards.
+      await act(async () => { fireEvent.click(utils.getByTestId('booking-continue')); });
       const firstCard = flow.querySelector('[data-testid^="booking-service-"]');
       const stepChip = utils.getByTestId('booking-step-service');
       signatures.push(`${flow.style.backgroundColor}|${firstCard.className}|${stepChip.className}|${utils.getByTestId('booking-continue').className}`);

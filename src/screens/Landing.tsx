@@ -72,6 +72,13 @@ import { weeklyTopVideos, formatLikeCount, videoLikeBusinessId } from '../lib/vi
 import { openOriginalVideoDestination } from '../lib/originalVideoDestination';
 import { normalizeThemeId } from '../lib/themeServices';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
+import BookingManagementPanel from '../components/BookingManagementPanel';
+import { resolveBookingActor } from '../lib/bookingManagement';
+import type { BookingActorContext } from '../lib/bookingManagement';
+import { bookingBusinessId } from '../lib/siteBookingFlow';
+import { useAuth } from '../lib/useAuth';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { resolveOwnerSalonId } from '../lib/ownerSalon';
 import { videoGalleryChrome } from '../lib/siteVideoGalleryI18n';
 import { useSiteLocale } from '../components/SiteHeader';
 
@@ -311,6 +318,41 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
 
   const locale = useSiteLocale();
   const chrome = videoGalleryChrome(currentThemeId, locale);
+
+  // PHASE 16.7 — booking-management actor: the EXISTING session → ownership
+  // chain (useAuth + resolveOwnerSalonId). The panel receives the resolved
+  // permission; the data layer re-checks it on every read/mutation. The
+  // tenant key is the same bookingBusinessId every booking row was stamped
+  // with — never typed in, never taken from the URL.
+  const { user: authUser, loading: authLoading } = useAuth();
+  const [bookingActor, setBookingActor] = useState<BookingActorContext>(() =>
+    resolveBookingActor({ supabaseConfigured: isSupabaseConfigured, userPresent: false, resolution: null }),
+  );
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setBookingActor(resolveBookingActor({ supabaseConfigured: false, userPresent: false, resolution: null }));
+      return;
+    }
+    if (authLoading) return;
+    let cancelled = false;
+    resolveOwnerSalonId()
+      .then((resolution) => {
+        if (cancelled) return;
+        setBookingActor(resolveBookingActor({ supabaseConfigured: true, userPresent: !!authUser, resolution }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBookingActor(resolveBookingActor({ supabaseConfigured: true, userPresent: !!authUser, resolution: { status: 'error' } }));
+      });
+    return () => { cancelled = true; };
+  }, [authUser, authLoading]);
+  const bookingTenantId = bookingBusinessId(data);
+  const [bookingToast, setBookingToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!bookingToast) return;
+    const id = window.setTimeout(() => setBookingToast(null), 2500);
+    return () => window.clearTimeout(id);
+  }, [bookingToast]);
 
   const handleOwnerPhotoFile = async (file: File | undefined) => {
     if (!file) return;
@@ -2840,6 +2882,24 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
                 exit={{ opacity: 0, y: 15 }}
                 className="space-y-6 max-w-5xl mx-auto"
               >
+                {/* PHASE 16.7 — real website bookings for THIS salon only
+                    (session-resolved actor; data layer re-checks access). */}
+                <BookingManagementPanel
+                  actor={bookingActor}
+                  businessId={bookingTenantId}
+                  themeId={currentThemeId}
+                  onShowToast={(msg) => { setBookingToast(msg); }}
+                />
+                {bookingToast && (
+                  <div
+                    data-testid="booking-management-toast"
+                    className="bg-gray-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    {bookingToast}
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
                   <div>
                     <h3 className="font-bold text-gray-900 text-sm">On-Call Client Planner</h3>
