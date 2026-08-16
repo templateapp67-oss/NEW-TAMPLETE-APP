@@ -199,10 +199,14 @@ function resetState() {
   setSiteAppearance('light');
 }
 
+// PHASE 16.9 — the toast seam now carries typed notices; harnesses keep
+// asserting on the message text only.
+const toastText = (m) => (typeof m === 'string' ? m : m.message);
+
 function renderOwnerPanel(actor, businessId, themeId) {
   const toasts = [];
   const utils = render(React.createElement(BookingManagementPanel, {
-    actor, businessId, themeId, onShowToast: (m) => toasts.push(m),
+    actor, businessId, themeId, onShowToast: (m) => toasts.push(toastText(m)),
   }));
   return { utils, toasts };
 }
@@ -210,7 +214,7 @@ function renderOwnerPanel(actor, businessId, themeId) {
 function renderMyBookings(themeId, businessId, extras = {}) {
   const toasts = [];
   const utils = render(React.createElement(SiteMyBookings, {
-    themeId, data: richData(themeId, extras), businessId, onShowToast: (m) => toasts.push(m),
+    themeId, data: richData(themeId, extras), businessId, onShowToast: (m) => toasts.push(toastText(m)),
   }));
   return { utils, toasts };
 }
@@ -597,16 +601,34 @@ section('Customer UI — My Bookings per theme');
     });
   }
 
-  await test('customer cancel button flips the row to cancelled (and persists)', async () => {
+  await test('customer cancel asks for confirmation, then flips the row (and persists)', async () => {
     resetState();
     const me = bookingBrowserId();
     seedRecords([paymentRecord({ bookingId: 'NX-CXL', customerId: me })]);
     const { utils, toasts } = renderMyBookings('beauty_skin_spa', 'public-site');
+    // PHASE 16.9 — the first click opens the inline confirmation; the
+    // booking is untouched until the explicit confirm button runs.
     await act(async () => { fireEvent.click(utils.getByTestId('my-booking-cancel-NX-CXL')); });
+    assert.ok(Boolean(utils.getByTestId('my-booking-cancel-confirm-NX-CXL')), 'confirmation must appear');
+    assert.equal(readPaymentRecords()[0].bookingStatus, 'confirmed', 'nothing cancelled yet');
+    await act(async () => { fireEvent.click(utils.getByTestId('my-booking-cancel-yes-NX-CXL')); });
     assert.equal(utils.getByTestId('my-booking-status-NX-CXL').textContent, 'Cancelled');
     assert.equal(utils.container.querySelector('[data-testid="my-booking-cancel-NX-CXL"]'), null, 'no second cancel');
     assert.ok(toasts.some((m) => m.includes('cancelled')));
     assert.equal(readPaymentRecords()[0].bookingStatus, 'cancelled');
+    cleanup(); seedRecords(null);
+  });
+
+  await test('customer cancel confirmation can be dismissed without cancelling', async () => {
+    resetState();
+    const me = bookingBrowserId();
+    seedRecords([paymentRecord({ bookingId: 'NX-KEEP', customerId: me })]);
+    const { utils } = renderMyBookings('beauty_skin_spa', 'public-site');
+    await act(async () => { fireEvent.click(utils.getByTestId('my-booking-cancel-NX-KEEP')); });
+    await act(async () => { fireEvent.click(utils.getByTestId('my-booking-cancel-keep-NX-KEEP')); });
+    assert.equal(readPaymentRecords()[0].bookingStatus, 'confirmed', 'keep leaves the booking active');
+    assert.equal(utils.container.querySelector('[data-testid="my-booking-cancel-confirm-NX-KEEP"]'), null);
+    assert.ok(Boolean(utils.getByTestId('my-booking-cancel-NX-KEEP')), 'cancel still offered');
     cleanup(); seedRecords(null);
   });
 

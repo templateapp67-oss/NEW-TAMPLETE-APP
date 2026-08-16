@@ -59,7 +59,6 @@ import {
 } from '../lib/siteBookingPaymentI18n';
 import {
   PAYMENT_EVENT,
-  PAYMENT_GATEWAY_TIMEOUT_MS,
   calculatePaymentAmounts,
   createPayAtSalonRecord,
   createPendingBookingRecord,
@@ -67,6 +66,7 @@ import {
   formatMinutesLabel,
   generateBookingId,
   maskPaymentForm,
+  paymentGatewayTimeoutMs,
   retryPayment,
   simulateGateway,
   toReceiptView,
@@ -81,6 +81,8 @@ import type {
   PaymentServiceLine,
   ReceiptView,
 } from '../lib/siteBookingPayment';
+import type { BookingNoticeInput } from '../lib/siteBookingNotices';
+import { bookingNoticesText, fillNoticeText } from '../lib/siteBookingNoticesI18n';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 
 interface Props {
@@ -110,8 +112,12 @@ interface Props {
   onBackToWebsite: () => void;
   /** Called when the visitor starts a new booking from the confirmation screen. */
   onStartNewBooking: () => void;
-  /** Surfaces a toast (used for duplicate-payment / refresh / retry hints). */
-  onShowToast?: (msg: string) => void;
+  /**
+   * PHASE 16.9 — the EXISTING toast seam, upgraded to typed notices.
+   * Used for duplicate-payment / refresh / retry hints and every payment
+   * outcome; plain strings keep working and render as `info`.
+   */
+  onShowToast?: (input: BookingNoticeInput) => void;
   /** Tests can stub the gateway scenario. */
   initialScenario?: 'all_success' | 'mixed' | 'force_failure' | 'force_timeout';
   /** Resumes a previously-persisted payment/booking row (e.g. on refresh). */
@@ -343,6 +349,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const T = paymentFlowText(locale);
+  const NT = bookingNoticesText(locale);
   const s = paymentSurfaces(themeId, appearance);
   const D = PAYMENT_DESIGNS[themeId];
 
@@ -375,6 +382,18 @@ export default function SiteBookingPaymentFlow(props: Props) {
   // render tick can both see gatewayPhase === 'idle', so the guard must not
   // depend on React state alone. Cleared when the attempt resolves.
   const submitLockRef = useRef(false);
+  // PHASE 16.9 — same guard for the option step (Pay-at-Salon creates the
+  // booking row synchronously on Continue, so double-clicks need the ref).
+  const optionLockRef = useRef(false);
+  useEffect(() => {
+    optionLockRef.current = false;
+  }, [step]);
+  // PHASE 16.9 — gateway cancellation asks for confirmation first. The
+  // confirm prompt resets whenever the gateway leaves the processing state.
+  const [cancelArmed, setCancelArmed] = useState(false);
+  useEffect(() => {
+    if (gatewayPhase !== 'processing') setCancelArmed(false);
+  }, [gatewayPhase]);
 
   // Pre-fill the gateway form with the chosen method so the user doesn't
   // have to re-pick the method every retry.
@@ -397,6 +416,8 @@ export default function SiteBookingPaymentFlow(props: Props) {
         setStep('confirm');
       } else if (initialRecord.bookingStatus === 'pending_payment') {
         setStep('gateway');
+        // PHASE 16.9 — payment-pending feedback on resume (recovery path).
+        onShowToast?.({ kind: 'info', message: NT['notice.completePayment'] });
       } else if (initialRecord.bookingStatus === 'failed' || initialRecord.bookingStatus === 'cancelled') {
         setStep('result');
         setGatewayResult({
@@ -427,6 +448,8 @@ export default function SiteBookingPaymentFlow(props: Props) {
         setStep('confirm');
       } else if (found.bookingStatus === 'pending_payment') {
         setStep('gateway');
+        // PHASE 16.9 — payment-pending feedback on resume (recovery path).
+        onShowToast?.({ kind: 'info', message: NT['notice.completePayment'] });
       } else if (found.bookingStatus === 'failed' || found.bookingStatus === 'cancelled') {
         setStep('result');
         setGatewayResult({
@@ -537,12 +560,20 @@ export default function SiteBookingPaymentFlow(props: Props) {
     setOption(existing.paymentOption);
     setReceipt(toReceiptView(existing, locale));
     setStep('confirm');
-    onShowToast?.(bookingConfirmationText(locale)['duplicate.notice']);
+    // PHASE 16.9 — duplicate protection announced through the same seam.
+    onShowToast?.({
+      kind: 'info',
+      message: bookingConfirmationText(locale)['duplicate.notice'],
+    });
     onBookingConfirmed(existing);
     return true;
   }, [locale, onShowToast, onBookingConfirmed]);
 
   const proceedFromOption = useCallback(() => {
+    // PHASE 16.9 — duplicate-submission guard on the option step (a
+    // double-click must not create a second booking row).
+    if (optionLockRef.current) return;
+    optionLockRef.current = true;
     // PHASE 16.6 — never create a second booking for the same context.
     const duplicate = record || findLiveDuplicate();
     if (duplicate && reuseConfirmedDuplicate(duplicate)) return;
@@ -577,9 +608,18 @@ export default function SiteBookingPaymentFlow(props: Props) {
       setReceipt(toReceiptView(created, locale));
       setStep('confirm');
       onBookingConfirmed(created);
+      // PHASE 16.9 — booking-success feedback derived from the REAL
+      // persisted row (pay-at-salon path never invents a payment).
+      onShowToast?.({
+        kind: 'success',
+        message: fillNoticeText(NT['notice.bookingConfirmed'], { reference: created.bookingId }),
+      });
+      // The lock was only needed for this synchronous branch.
+      optionLockRef.current = false;
       return;
     }
     setStep('gateway');
+    // Lock released by the step-change effect.
   }, [
     option,
     record,
@@ -595,6 +635,8 @@ export default function SiteBookingPaymentFlow(props: Props) {
     staffName,
     customer,
     locale,
+    NT,
+    onShowToast,
     onBookingConfirmed,
     findLiveDuplicate,
     reuseConfirmedDuplicate,
@@ -603,11 +645,50 @@ export default function SiteBookingPaymentFlow(props: Props) {
   // -----------------------------------------------------------------
   // Gateway attempt + timeout
   // -----------------------------------------------------------------
+  /**
+   * PHASE 16.9 — ONE handler for every attempt outcome (first attempt and
+   * retry share it), so success/failure/cancellation/timeout feedback and
+   * the busy state can never drift apart. Success claims are made from the
+   * PERSISTED row the engine patched — never from UI state alone.
+   */
+  const handleAttemptResult = useCallback((result: GatewayAttemptResult) => {
+    setGatewayResult(result);
+    setRecord(result.record);
+    if (result.outcome === 'success' && result.record.paymentStatus === 'paid') {
+      setReceipt(toReceiptView(result.record, locale));
+      setStep('confirm');
+      onBookingConfirmed(result.record);
+      onShowToast?.({ kind: 'success', message: NT['notice.paymentSuccess'] });
+    } else {
+      if (result.outcome === 'success') {
+        // Engine returned success without a paid row — fail closed.
+        onShowToast?.({ kind: 'error', message: NT['notice.paymentFailedNoReason'] });
+      } else if (result.outcome === 'cancellation') {
+        onShowToast?.({ kind: 'warning', message: NT['notice.paymentCancelled'] });
+      } else if (result.outcome === 'timeout') {
+        onShowToast?.({ kind: 'error', message: NT['notice.paymentTimedOut'] });
+      } else {
+        onShowToast?.({
+          kind: 'error',
+          message: result.reason
+            ? fillNoticeText(NT['notice.paymentFailed'], { reason: result.reason })
+            : NT['notice.paymentFailedNoReason'],
+        });
+      }
+      setStep('result');
+    }
+    setGatewayPhase('done');
+    submitLockRef.current = false;
+    setGatewaySecondsLeft(null);
+  }, [locale, onBookingConfirmed, onShowToast, NT]);
+
   const startGatewayAttempt = useCallback((overrideMethod?: PaymentMethod) => {
     // PHASE 16.5 — duplicate-submission guard (double-click / double-tap):
     // one live attempt at a time, enforced synchronously via a ref.
     if (submitLockRef.current) return;
     submitLockRef.current = true;
+    // PHASE 16.9 — payment-pending feedback the moment an attempt starts.
+    onShowToast?.({ kind: 'info', message: NT['notice.paymentPending'] });
     // PHASE 16.6 — a live booking already exists for this exact context
     // (refresh / retry / returning to the page): re-use it instead of
     // creating a second booking. An already-confirmed one goes straight
@@ -618,7 +699,10 @@ export default function SiteBookingPaymentFlow(props: Props) {
       if (reuseConfirmedDuplicate(liveDuplicate)) return;
       setRecord(liveDuplicate);
       setOption(liveDuplicate.paymentOption);
-      onShowToast?.(bookingConfirmationText(locale)['duplicate.notice']);
+      onShowToast?.({
+        kind: 'info',
+        message: bookingConfirmationText(locale)['duplicate.notice'],
+      });
       return;
     }
     if (!record && option !== 'pay_at_salon') {
@@ -655,7 +739,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
     setGatewayForm((prev) => ({ ...prev, method: target }));
     setGatewayPhase('processing');
     setGatewayResult(null);
-    setGatewaySecondsLeft(Math.floor(PAYMENT_GATEWAY_TIMEOUT_MS / 1000));
+    setGatewaySecondsLeft(Math.floor(paymentGatewayTimeoutMs() / 1000));
 
     // Run after the current render so the form state is committed.
     setTimeout(() => {
@@ -686,20 +770,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
       const form: Partial<GatewayForm> = { ...gatewayForm, method: target };
       const attempt = simulateGateway(activeRec, form);
       attemptRef.current = attempt;
-      attempt.promise.then((result) => {
-        setGatewayResult(result);
-        setRecord(result.record);
-        if (result.outcome === 'success') {
-          setReceipt(toReceiptView(result.record, locale));
-          setStep('confirm');
-          onBookingConfirmed(result.record);
-        } else {
-          setStep('result');
-        }
-        setGatewayPhase('done');
-        submitLockRef.current = false;
-        setGatewaySecondsLeft(null);
-      });
+      attempt.promise.then(handleAttemptResult);
     }, 50);
   }, [
     record,
@@ -717,9 +788,9 @@ export default function SiteBookingPaymentFlow(props: Props) {
     customer,
     gatewayMethod,
     gatewayForm,
-    locale,
-    onBookingConfirmed,
     onShowToast,
+    NT,
+    handleAttemptResult,
     findLiveDuplicate,
     reuseConfirmedDuplicate,
   ]);
@@ -729,8 +800,9 @@ export default function SiteBookingPaymentFlow(props: Props) {
     if (gatewayPhase !== 'processing') return undefined;
     if (gatewaySecondsLeft == null) return undefined;
     if (gatewaySecondsLeft <= 0) {
-      // Mark the current attempt as a timeout.
-      attemptRef.current?.cancel('Payment timed out — please retry');
+      // PHASE 16.9 — an expired attempt is a TIMEOUT (record → failed),
+      // distinct from the customer cancelling (record → cancelled).
+      attemptRef.current?.cancel('Payment timed out — please retry', 'timeout');
       return undefined;
     }
     const id = window.setTimeout(() => {
@@ -740,7 +812,11 @@ export default function SiteBookingPaymentFlow(props: Props) {
   }, [gatewayPhase, gatewaySecondsLeft]);
 
   const cancelGateway = useCallback(() => {
-    attemptRef.current?.cancel('Payment cancelled by customer');
+    // PHASE 16.9 — cancel exactly once; the confirm prompt guards the rest.
+    const attempt = attemptRef.current;
+    if (!attempt) return;
+    attemptRef.current = null;
+    attempt.cancel('Payment cancelled by customer');
   }, []);
 
   const retryGateway = useCallback((method: PaymentMethod) => {
@@ -748,30 +824,21 @@ export default function SiteBookingPaymentFlow(props: Props) {
     // PHASE 16.5 — same duplicate-submission guard as the first attempt.
     if (submitLockRef.current) return;
     submitLockRef.current = true;
+    // PHASE 16.9 — payment-pending feedback on retry too.
+    onShowToast?.({ kind: 'info', message: NT['notice.paymentPending'] });
     setGatewayMethod(method);
     setGatewayForm((prev) => ({ ...prev, method }));
     setGatewayPhase('processing');
-    setGatewayResult(null);
-    setGatewaySecondsLeft(Math.floor(PAYMENT_GATEWAY_TIMEOUT_MS / 1000));
+    // PHASE 16.9 — the previous result stays visible while the retry runs
+    // (the result card flips into its busy state), so the visitor never
+    // sees a blank screen mid-retry. The new result replaces it on resolve.
+    setGatewaySecondsLeft(Math.floor(paymentGatewayTimeoutMs() / 1000));
     setTimeout(() => {
       const attempt = retryPayment(record, { ...gatewayForm, method });
       attemptRef.current = attempt;
-      attempt.promise.then((result) => {
-        setGatewayResult(result);
-        setRecord(result.record);
-        if (result.outcome === 'success') {
-          setReceipt(toReceiptView(result.record, locale));
-          setStep('confirm');
-          onBookingConfirmed(result.record);
-        } else {
-          setStep('result');
-        }
-        setGatewayPhase('done');
-        submitLockRef.current = false;
-        setGatewaySecondsLeft(null);
-      });
+      attempt.promise.then(handleAttemptResult);
     }, 50);
-  }, [record, gatewayForm, locale, onBookingConfirmed]);
+  }, [record, gatewayForm, onShowToast, NT, handleAttemptResult]);
 
   // -----------------------------------------------------------------
   // Receipt helpers
@@ -953,6 +1020,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
                 type="button"
                 data-testid={`payment-step-${s2.id}`}
                 data-state={isDone ? 'done' : isCurrent ? 'current' : 'upcoming'}
+                aria-current={isCurrent ? 'step' : undefined}
                 disabled
                 className={`${isDone ? D.stepChipDone : D.stepChip} px-2.5 md:px-3 py-1.5 flex items-center gap-1.5 whitespace-nowrap`}
                 style={stepChipStyle(s2.id)}
@@ -1109,14 +1177,16 @@ export default function SiteBookingPaymentFlow(props: Props) {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {GATEWAY_METHODS.map((method) => {
                     const selected = method === gatewayMethod;
+                    const processing = gatewayPhase === 'processing';
                     return (
                       <button
                         key={method}
                         type="button"
                         data-testid={`payment-method-${method}`}
                         data-selected={selected}
+                        disabled={processing}
                         onClick={() => setGatewayMethod(method)}
-                        className={`${D.chip} px-3 py-3 flex flex-col items-center gap-1.5 text-[11px] font-bold cursor-pointer`}
+                        className={`${D.chip} px-3 py-3 flex flex-col items-center gap-1.5 text-[11px] font-bold ${processing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                         style={selected ? D.methodSelectedStyle(s) : D.methodIdleStyle(s)}
                       >
                         {METHOD_ICONS[method]}
@@ -1344,21 +1414,31 @@ export default function SiteBookingPaymentFlow(props: Props) {
                   </button>
                 ) : (
                   <>
+                    {/* PHASE 16.9 — while a retry is processing, ONLY the
+                        retry itself is busy: the other actions disable so
+                        the visitor cannot fork a second attempt. */}
                     <button
                       type="button"
                       data-testid="payment-retry"
                       onClick={() => retryGateway(gatewayResult.method)}
-                      className={`${D.primary} px-6 flex-1 flex items-center justify-center gap-2 cursor-pointer`}
+                      disabled={gatewayPhase === 'processing'}
+                      aria-busy={gatewayPhase === 'processing'}
+                      className={`${D.primary} px-6 flex-1 flex items-center justify-center gap-2 ${
+                        gatewayPhase === 'processing' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+                      }`}
                       style={primaryBtnStyle}
                     >
-                      <RefreshCw className="w-4 h-4" />
-                      {T['result.retry']}
+                      <RefreshCw className={`w-4 h-4 ${gatewayPhase === 'processing' ? 'animate-spin' : ''}`} />
+                      {gatewayPhase === 'processing' ? T['gateway.processing'] : T['result.retry']}
                     </button>
                     <button
                       type="button"
                       data-testid="payment-try-different"
                       onClick={() => setStep('gateway')}
-                      className={`${D.secondary} px-6 flex-1 flex items-center justify-center gap-2 cursor-pointer`}
+                      disabled={gatewayPhase === 'processing'}
+                      className={`${D.secondary} px-6 flex-1 flex items-center justify-center gap-2 ${
+                        gatewayPhase === 'processing' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+                      }`}
                       style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
                     >
                       <CreditCard className="w-4 h-4" />
@@ -1368,7 +1448,10 @@ export default function SiteBookingPaymentFlow(props: Props) {
                       type="button"
                       data-testid="payment-change-option"
                       onClick={goToOption}
-                      className={`${D.secondary} px-6 flex-1 flex items-center justify-center gap-2 cursor-pointer`}
+                      disabled={gatewayPhase === 'processing'}
+                      className={`${D.secondary} px-6 flex-1 flex items-center justify-center gap-2 ${
+                        gatewayPhase === 'processing' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+                      }`}
                       style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
                     >
                       {T['result.backToOptions']}
@@ -1624,7 +1707,10 @@ export default function SiteBookingPaymentFlow(props: Props) {
               type="button"
               data-testid="payment-gateway-back"
               onClick={goToOption}
-              className={`${D.secondary} px-4 flex items-center gap-1.5 cursor-pointer`}
+              disabled={gatewayPhase === 'processing'}
+              className={`${D.secondary} px-4 flex items-center gap-1.5 ${
+                gatewayPhase === 'processing' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+              }`}
               style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -1642,17 +1728,51 @@ export default function SiteBookingPaymentFlow(props: Props) {
                 {fillPaymentText(T['gateway.payNow'], { amount: formatCurrency(amounts.amountDue) })}
               </button>
             )}
-            {gatewayPhase === 'processing' && (
+            {gatewayPhase === 'processing' && !cancelArmed && (
               <button
                 type="button"
                 data-testid="payment-gateway-cancel"
-                onClick={cancelGateway}
+                onClick={() => setCancelArmed(true)}
+                aria-haspopup="dialog"
                 className={`${D.secondary} px-6 md:px-8 flex items-center gap-2 cursor-pointer`}
                 style={{ backgroundColor: s.dangerSoft, borderColor: s.danger, color: s.danger }}
               >
                 <X className="w-4 h-4" />
                 {T['gateway.cancel']}
               </button>
+            )}
+            {/* PHASE 16.9 — confirmation before cancelling an in-flight
+                payment (a destructive action on the pending booking). */}
+            {gatewayPhase === 'processing' && cancelArmed && (
+              <div
+                data-testid="payment-gateway-cancel-confirm"
+                role="alertdialog"
+                aria-label={T['gateway.cancelConfirm']}
+                className="flex flex-wrap items-center justify-end gap-2 max-w-full"
+              >
+                <span className="text-[10px] font-bold text-right" style={{ color: s.danger }}>
+                  {T['gateway.cancelConfirm']}
+                </span>
+                <button
+                  type="button"
+                  data-testid="payment-gateway-cancel-keep"
+                  onClick={() => setCancelArmed(false)}
+                  className={`${D.secondary} px-4 flex items-center gap-1.5 cursor-pointer`}
+                  style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
+                >
+                  {T['gateway.keepWaiting']}
+                </button>
+                <button
+                  type="button"
+                  data-testid="payment-gateway-cancel-yes"
+                  onClick={cancelGateway}
+                  className={`${D.secondary} px-4 flex items-center gap-1.5 cursor-pointer`}
+                  style={{ backgroundColor: s.dangerSoft, borderColor: s.danger, color: s.danger }}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  {T['gateway.confirmCancel']}
+                </button>
+              </div>
             )}
           </>
         )}

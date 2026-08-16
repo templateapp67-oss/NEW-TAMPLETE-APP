@@ -1,10 +1,73 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-16** (session `arena/01a00b45-new-tamplete-app`, Phase 16.8).
+> Last updated: **2026-08-16** (session `arena/01a00c01-new-tamplete-app`, Phase 16.9).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.9 — BOOKING NOTIFICATIONS & UX: COMPLETE (47 tests).**
+  - UX hardening over the EXISTING booking journey (Salon → Service →
+    Date → Time → Customer → Payment → Confirmation) on the existing
+    10.6/16.x entry flow + 10.7/16.5 payment engine + 16.6/16.7 status
+    layers. No invented tables/columns/ids, no fake success states, no
+    DB execution.
+  - **Notices wire the EXISTING `onShowToast` seam** (10.6/10.7/16.6/16.7
+    already emitted through it; the public-site host dropped those
+    messages). One presenter (`SiteBookingNotices`, mounted by
+    `SiteBookingFullFlow`) renders typed notices — success / warning /
+    error / info — colour-coded from the existing payment surfaces
+    (Light/Dark + five themes), `aria-live="polite"` + `role="status"`,
+    labelled dismiss, auto-dismiss (paused on hover/focus), capped
+    stack, reduced-motion respected. Legacy string callers normalize to
+    `info` — no new notification bus/store/event invented.
+  - **Feedback for every outcome, derived from persisted records**:
+    booking success (real reference), payment success (only when the
+    row is `paid`+`confirmed` — a success without a paid row fails
+    closed), payment pending (attempt start / retry / resumed pending
+    row), payment failed (human-readable reason), payment timed out
+    (record → `failed`, now distinct from cancellation via the engine's
+    `cancel(reason, outcome)`), payment cancelled, booking cancelled
+    (customer + owner), booking errors (slot lost, service limits,
+    duplicates, service-missing). No notice ever contains customer,
+    salon or payment identifiers (test-enforced).
+  - **Duplicate submissions**: entry-flow navigation lock (no step
+    skipping on double-click), guarded summary hand-off, option-step
+    ref guard (one pay-at-salon row), the existing 16.5 gateway lock
+    unchanged (one pending notice per attempt).
+  - **Data preservation**: draft still clears ONLY on confirmation;
+    failure keeps record + draft; back-to-summary and re-open restore
+    everything; retry reuses the same row. The result screen **stays
+    visible during a retry** (fixed: `retryGateway` used to blank it by
+    clearing `gatewayResult`).
+  - **Loading states disable only the processing action**: gateway
+    processing disables methods + back, keeps cancel; retry-in-flight
+    disables only the sibling actions (spinner + `aria-busy` on retry).
+  - **Empty/error states**: services + slots re-verified; NEW date-step
+    loading/error(+Retry)/empty states on their own test seam (separate
+    from the 16.3 `booking` flag); bookings loading/error/empty
+    re-verified; the orchestrator's hardcoded "Service not found"
+    fallback is now a localized, themed recovery card.
+  - **Confirm before destructive cancellation**: gateway cancel (two
+    step), customer booking cancel (inline themed panel replaces
+    `window.confirm`), owner booking cancel (inline panel). Confirm /
+    Complete stay one click.
+  - **Validation + a11y**: details errors now surface on blur per field
+    with `aria-invalid`/`aria-describedby` (the 10.6 gating contract is
+    unchanged — Continue only enables when valid); steppers carry
+    `aria-current="step"`; dismiss buttons have localized aria-labels
+    and 44px targets.
+  - NOT in 16.9: final acceptance testing (16.10), DB execution.
+  - Earlier walk updates (no tests deleted): 10.7/16.5/16.6/16.7 now
+    confirm gateway cancellations; 10.7's engine timeout assertion
+    expects the explicit `timeout` → `failed` outcome; 16.7 gained a
+    keep-booking test (38 → 39); 10.6/16.1/16.2/16.3 harnesses
+    normalize typed notices to message text.
+  - Validation: `test:phase-16.9` **47/47**; 16.1 55, 16.2 55, 16.3 36,
+    16.5 24, 16.6 54, 16.7 39, 16.8 74; 10.4 118, 10.6 107, 10.7 67,
+    10.9 77; 11.3 249, 11.6 377, 11.8 450; 12.3 74; lint 0; build
+    green; verify-22-screens 25/25. Details:
+    `docs/phase-16.9-booking-notifications-ux.md`.
 
 - **PHASE 16.8 — CALL / WHATSAPP / BOOK ACTION PROTECTION: COMPLETE (74 tests).**
   - Call, WhatsApp and Book Online are protected by the EXISTING
@@ -1558,7 +1621,8 @@ npm run test:phase-16.1    # booking foundation: Salon → Service → Date → 
 npm run test:phase-16.2    # multi-service selection + auto totals (55 tests)
 npm run test:phase-16.3    # date & time slot availability (36 tests)
 npm run test:phase-16.5    # advance payment / deposit (24 tests)
-npm run test:phase-16.7    # booking management (38 tests)
+npm run test:phase-16.7    # booking management (39 tests)
+npm run test:phase-16.9    # booking notifications & UX (47 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1608,7 +1672,8 @@ Expected output:
 - `test:phase-16.2`: 55/55 passed (multi-service selection + auto totals)
 - `test:phase-16.3`: 36/36 passed (date & time slot availability)
 - `test:phase-16.5`: 24/24 passed (advance payment / deposit)
-- `test:phase-16.7`: 38/38 passed (booking management)
+- `test:phase-16.7`: 39/39 passed (booking management)
+- `test:phase-16.9`: 47/47 passed (booking notifications & UX)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed

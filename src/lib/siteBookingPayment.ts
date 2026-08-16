@@ -128,6 +128,15 @@ export const PAYMENT_STORE_VERSION = 1;
 /** Inactivity timer for the mock gateway (mirrors a real "session expired"). */
 export const PAYMENT_GATEWAY_TIMEOUT_MS = 30_000;
 
+/** Test-only override for the inactivity window (the UI counter reads this). */
+let gatewayTimeoutOverride: number | null = null;
+export function setPaymentGatewayTimeoutForTests(ms: number | null): void {
+  gatewayTimeoutOverride = ms;
+}
+export function paymentGatewayTimeoutMs(): number {
+  return gatewayTimeoutOverride ?? PAYMENT_GATEWAY_TIMEOUT_MS;
+}
+
 export interface PaymentRecord {
   /** Internal row id. */
   id: string;
@@ -468,8 +477,13 @@ export interface GatewayAttempt {
   startedAt: number;
   /** Resolves when the gateway returns. */
   promise: Promise<GatewayAttemptResult>;
-  /** Cancel the attempt. */
-  cancel: (reason?: string) => void;
+  /**
+   * Cancel the attempt. `outcome` selects how the record resolves:
+   * `cancellation` (default — the customer stopped the payment) or
+   * `timeout` (the inactivity window expired — the record lands in
+   * `failed`, never `confirmed`).
+   */
+  cancel: (reason?: string, outcome?: GatewayOutcome) => void;
 }
 
 export interface GatewayAttemptResult {
@@ -541,7 +555,7 @@ export function simulateGateway(record: PaymentRecord, form: Partial<GatewayForm
   let cancelTimer: ReturnType<typeof setTimeout> | null = null;
   let cancelled = false;
   let cancelReason: string | undefined;
-  let cancelHook: ((reason?: string) => void) | null = null;
+  let cancelHook: ((reason?: string, outcome?: GatewayOutcome) => void) | null = null;
 
   // Move the record into the `pending` state immediately.
   patchRecord(record.id, {
@@ -647,11 +661,11 @@ export function simulateGateway(record: PaymentRecord, form: Partial<GatewayForm
       resolveNow();
     }, 250);
 
-    cancelHook = (reason?: string) => {
+    cancelHook = (reason?: string, outcome: GatewayOutcome = 'cancellation') => {
       cancelled = true;
       cancelReason = reason;
       if (cancelTimer) clearTimeout(cancelTimer);
-      finish(resolve, 'cancellation', reason);
+      finish(resolve, outcome, reason);
     };
   });
 
@@ -660,8 +674,8 @@ export function simulateGateway(record: PaymentRecord, form: Partial<GatewayForm
     recordId: record.id,
     startedAt,
     promise,
-    cancel(reason?: string) {
-      cancelHook?.(reason);
+    cancel(reason?: string, outcome?: GatewayOutcome) {
+      cancelHook?.(reason, outcome);
     },
   };
 }

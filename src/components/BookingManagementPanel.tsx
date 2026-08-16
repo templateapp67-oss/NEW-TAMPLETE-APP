@@ -72,6 +72,9 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
   const [version, setVersion] = useState(0);
   const [retry, setRetry] = useState(0);
   const [filter, setFilter] = useState<StatusFilter>('all');
+  // PHASE 16.9 — cancellation asks for an inline confirmation first; the
+  // booking row is untouched until the explicit confirm button runs.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
@@ -107,7 +110,12 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
 
   const changeStatus = useCallback((record: PaymentRecord, next: BookingStatus) => {
     const result = ownerUpdateBookingStatus(actor, businessId, themeId, record.bookingId, next);
-    onShowToast?.(result.ok ? T['owner.updated'] : T['owner.updateFailed']);
+    onShowToast?.(
+      result.ok
+        ? (next === 'cancelled' ? T['owner.cancelled'] : T['owner.updated'])
+        : T['owner.updateFailed'],
+    );
+    setConfirmingId(null);
     setVersion((v) => v + 1);
   }, [actor, businessId, themeId, onShowToast, T]);
 
@@ -282,13 +290,49 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
                   <button
                     type="button"
                     data-testid={`owner-booking-cancel-${record.bookingId}`}
-                    onClick={() => changeStatus(record, 'cancelled')}
+                    aria-expanded={confirmingId === record.bookingId}
+                    onClick={() => setConfirmingId((current) => (current === record.bookingId ? null : record.bookingId))}
                     className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 inline-flex items-center gap-1.5"
                   >
                     <CalendarX className="w-3 h-3" />
                     {T['owner.cancel']}
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* PHASE 16.9 — confirmation before the destructive
+                owner-side cancellation; the row is untouched until
+                the explicit confirm button runs. */}
+            {confirmingId === record.bookingId && transitions.includes('cancelled') && (
+              <div
+                data-testid={`owner-booking-cancel-confirm-${record.bookingId}`}
+                role="alertdialog"
+                aria-label={T['owner.cancelConfirm']}
+                className="flex flex-wrap items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-2.5"
+              >
+                <ShieldAlert className="w-4 h-4 shrink-0 text-red-600" aria-hidden />
+                <span className="flex-1 min-w-[12rem] text-[10px] font-bold text-gray-700 leading-relaxed">
+                  {T['owner.cancelConfirm']}
+                </span>
+                <button
+                  type="button"
+                  data-testid={`owner-booking-cancel-keep-${record.bookingId}`}
+                  autoFocus
+                  onClick={() => setConfirmingId(null)}
+                  className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 inline-flex items-center gap-1.5"
+                >
+                  {T['owner.keepBooking']}
+                </button>
+                <button
+                  type="button"
+                  data-testid={`owner-booking-cancel-yes-${record.bookingId}`}
+                  onClick={() => changeStatus(record, 'cancelled')}
+                  className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 inline-flex items-center gap-1.5"
+                >
+                  <CalendarX className="w-3 h-3" />
+                  {T['owner.cancel']}
+                </button>
               </div>
             )}
           </div>

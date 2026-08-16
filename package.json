@@ -50,6 +50,7 @@
     "test:phase-16.6": "tsx scripts/test-phase-16.6.mjs",
     "test:phase-16.8": "tsx scripts/test-phase-16.8.mjs",
     "test:phase-16.7": "tsx scripts/test-phase-16.7.mjs",
+    "test:phase-16.9": "tsx scripts/test-phase-16.9.mjs",
     "test:phase-11.1": "tsx scripts/test-phase-11.1.mjs",
     "test:phase-11.2": "tsx scripts/test-phase-11.2.mjs",
     "test:phase-11.3": "tsx scripts/test-phase-11.3.mjs",

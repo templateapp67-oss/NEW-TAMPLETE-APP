@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { motion } from 'motion/react';
 import {
@@ -41,6 +41,7 @@ import {
   BOOKING_MAX_SERVICES,
   BOOKING_STEP_IDS,
   bookingCombinedSlotService,
+  bookingDatesStatus,
   bookingDayList,
   bookingSalonContext,
   bookingSelectedServices,
@@ -59,6 +60,7 @@ import { injectedSectionStatus } from '../lib/siteStructure';
 import type { SectionStatus } from '../lib/siteStructure';
 import { THEME_LABELS } from '../lib/themeServices';
 import type { BookingDayInfo, BookingSlot, BookingStepId } from '../lib/siteBookingFlow';
+import type { BookingNoticeInput } from '../lib/siteBookingNotices';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 
 interface Props {
@@ -66,7 +68,11 @@ interface Props {
   themeId: SiteHeaderThemeId;
   data: SalonData;
   onBackToWebsite: () => void;
-  onShowToast?: (msg: string) => void;
+  /**
+   * PHASE 16.9 — the EXISTING toast seam, upgraded to typed notices.
+   * Plain strings (every pre-16.9 caller) still work and render as `info`.
+   */
+  onShowToast?: (input: BookingNoticeInput) => void;
   /**
    * PHASE 10.7 — handed the resolved booking context when the user taps
    * the Confirm button on the Summary step. The host swaps the entry flow
@@ -314,8 +320,27 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     () => initialDraft?.customer ?? { name: '', mobile: '', email: '', notes: '' },
   );
   const [formTouched, setFormTouched] = useState(false);
+  // PHASE 16.9 — per-field touch so validation messages appear as soon as
+  // the visitor leaves an invalid field (the Continue button stays gated
+  // exactly as in 10.6/16.1 — a disabled action is never used to hide the
+  // reason the form cannot proceed).
+  const [touchedFields, setTouchedFields] = useState<{ name: boolean; mobile: boolean; email: boolean }>({
+    name: false,
+    mobile: false,
+    email: false,
+  });
+  const showFieldError = (field: 'name' | 'mobile' | 'email'): boolean =>
+    formTouched || touchedFields[field];
   const draftResumed = !initialPrefill && !!initialDraft
     && !!(initialDraft.serviceId || initialDraft.services?.length || initialDraft.customer?.name || initialDraft.customer?.mobile);
+
+  /* PHASE 16.9 — navigation lock: set by every step transition, cleared
+   * once the new step has rendered (see the effect below). Guards against
+   * double-click/double-tap skipping a step. */
+  const stepLockRef = useRef(false);
+  useEffect(() => {
+    stepLockRef.current = false;
+  }, [step]);
 
   /* PHASE 16.2 — service-list state through the EXISTING shared section
    * seam ('services'): loading / error / empty / ready. Retry re-reads the
@@ -393,6 +418,16 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, themeId, slotService?.id, selectedDateKey, now.getTime(), holdsVersion, slotExtras]);
 
+  /* PHASE 16.9 — date-step state through its OWN seam (loading / error
+   * forceable for tests + future async sources), independent of the
+   * 'booking' seam the 16.3 slot states use. Retry re-reads the seam. */
+  const [dateRetry, setDateRetry] = useState(0);
+  const dateState: 'loading' | 'error' | 'ready' = useMemo(
+    () => bookingDatesStatus(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dateRetry, selectedDateKey],
+  );
+
   const visibleServices = useMemo(
     () => (categoryFilter ? services.filter((item) => item.category === categoryFilter) : services),
     [services, categoryFilter],
@@ -457,7 +492,8 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       const result = reserveBookingSlot(themeId, slotService, selectedDateKey, slot.minutes, slotExtras);
       if (!result.ok || !result.hold) {
         setHoldsVersion((v) => v + 1);
-        onShowToast?.(T.slotLost);
+        // PHASE 16.9 — booking-error feedback through the EXISTING toast seam.
+        onShowToast?.({ kind: 'error', message: T.slotLost });
         return;
       }
       if (holdKey && holdKey !== result.hold.key) releaseBookingSlot(holdKey);
@@ -482,7 +518,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     // span meanwhile). Never silently swap their time: clear the dead
     // selection, release the dead hold and tell them to pick again.
     if (selectedSlotMinutes != null) {
-      onShowToast?.(T.slotLost);
+      onShowToast?.({ kind: 'error', message: T.slotLost });
       if (holdKey) releaseBookingSlot(holdKey);
       setHoldKey(null);
       setSelectedSlotMinutes(null);
@@ -504,7 +540,10 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
       const result = toggleBookingService(selectedServiceIds, service.id);
       if (!result.changed) {
         if (result.reason === 'limit') {
-          onShowToast?.(fillBookingText(T['service.limitNote'], { max: BOOKING_MAX_SERVICES }));
+          onShowToast?.({
+            kind: 'info',
+            message: fillBookingText(T['service.limitNote'], { max: BOOKING_MAX_SERVICES }),
+          });
         }
         return;
       }
@@ -556,8 +595,13 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   })();
 
   const goNext = () => {
+    // PHASE 16.9 — duplicate-submission guard for step navigation: two
+    // rapid clicks must not skip a step. The lock clears once the new
+    // step has rendered (see the effect below).
+    if (stepLockRef.current) return;
     if (!canContinue) return;
     if (step === 'salon') {
+      stepLockRef.current = true;
       setStep('service');
       return;
     }
@@ -566,58 +610,70 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
         const firstOpen = days.find((day) => day.selectable);
         if (firstOpen) setSelectedDateKey(firstOpen.dateKey);
       }
+      stepLockRef.current = true;
       setStep('date');
       return;
     }
     if (step === 'date') {
+      stepLockRef.current = true;
       setStep('time');
       return;
     }
     if (step === 'time') {
       if (!slotService || !selectedDate || selectedSlotMinutes == null) return;
       if (!bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now, slotExtras)) {
-        onShowToast?.(T.slotLost);
+        onShowToast?.({ kind: 'error', message: T.slotLost });
         setStep('time');
         return;
       }
+      stepLockRef.current = true;
       setStep('details');
       return;
     }
     if (step === 'details') {
       setFormTouched(true);
       if (!detailsValid) return;
+      stepLockRef.current = true;
       setStep('summary');
       return;
     }
   };
 
   const goBack = () => {
+    if (stepLockRef.current) return;
     if (step === 'summary') {
+      stepLockRef.current = true;
       setStep('details');
       return;
     }
     if (step === 'details') {
+      stepLockRef.current = true;
       setStep('time');
       return;
     }
     if (step === 'time') {
+      stepLockRef.current = true;
       setStep('date');
       return;
     }
     if (step === 'date') {
+      stepLockRef.current = true;
       setStep('service');
       return;
     }
     if (step === 'service') {
+      stepLockRef.current = true;
       setStep('salon');
       return;
     }
   };
 
   const jumpToStep = (target: BookingStepId) => {
+    if (stepLockRef.current) return;
     const targetIndex = BOOKING_STEP_IDS.indexOf(target);
     if (targetIndex >= stepIndex) return; // only backward jumps are free
     if (target === 'summary') return; // summary is reached through details
+    stepLockRef.current = true;
     setStep(target);
   };
 
@@ -734,6 +790,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                 type="button"
                 data-testid={`booking-step-${id}`}
                 data-state={isDone ? 'done' : isCurrent ? 'current' : 'upcoming'}
+                aria-current={isCurrent ? 'step' : undefined}
                 onClick={() => jumpToStep(id)}
                 className={`${isDone ? D.stepChipDone : D.stepChip} px-2.5 md:px-3 py-1.5 flex items-center gap-1.5 whitespace-nowrap transition-colors ${isDone ? 'cursor-pointer' : isCurrent ? '' : 'cursor-default'}`}
                 style={stepChipStyle(id)}
@@ -1129,6 +1186,56 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                   </div>
                 </div>
 
+                {/* PHASE 16.9 — date loading / error / empty states through the
+                    date step's own seam (independent of the 16.3 slot seam). */}
+                {dateState === 'loading' ? (
+                  <div
+                    data-testid="booking-loading-dates"
+                    className={`${D.card} p-4 md:p-5 flex flex-col items-center gap-3`}
+                    style={{ backgroundColor: s.card, borderColor: s.line }}
+                    aria-busy="true"
+                  >
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 w-full">
+                      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                        <div
+                          key={i}
+                          className={`${D.dateCard} h-16 animate-pulse`}
+                          style={{ backgroundColor: s.well, borderColor: s.chipLine }}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs font-semibold" style={{ color: s.muted }}>
+                      {T['date.loading']}
+                    </p>
+                  </div>
+                ) : dateState === 'error' ? (
+                  <div
+                    data-testid="booking-error-dates"
+                    className={`${D.card} p-6 text-center flex flex-col items-center gap-3`}
+                    style={{ backgroundColor: s.card, borderColor: s.line }}
+                  >
+                    <p className="text-xs font-semibold" style={{ color: s.danger }}>
+                      {T['date.error']}
+                    </p>
+                    <button
+                      type="button"
+                      data-testid="booking-retry-dates"
+                      onClick={() => setDateRetry((v) => v + 1)}
+                      className={`${D.secondary} px-4 py-2 cursor-pointer`}
+                      style={{ backgroundColor: 'transparent', borderColor: s.chipLine, color: s.text }}
+                    >
+                      {T['date.retry']}
+                    </button>
+                  </div>
+                ) : days.every((day) => !day.selectable) ? (
+                  <div
+                    data-testid="booking-empty-dates"
+                    className={`${D.card} p-6 text-center text-xs font-semibold`}
+                    style={{ backgroundColor: s.card, borderColor: s.line, color: s.muted }}
+                  >
+                    {T['date.empty']}
+                  </div>
+                ) : (
                 <div className={`${D.card} p-4 md:p-5`} style={{ backgroundColor: s.card, borderColor: s.line }}>
                   <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                     {days.map((day) => {
@@ -1194,6 +1301,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     </p>
                   )}
                 </div>
+                )}
               </motion.div>
             )}
 
@@ -1365,16 +1473,19 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                       data-testid="booking-input-name"
                       value={customer.name}
                       onChange={(e) => setCustomer((c) => ({ ...c, name: e.target.value }))}
+                      onBlur={() => setTouchedFields((t) => ({ ...t, name: true }))}
                       placeholder={T['details.namePlaceholder']}
+                      aria-invalid={showFieldError('name') && Boolean(customerErrors.name)}
+                      aria-describedby={showFieldError('name') && customerErrors.name ? 'booking-err-name' : undefined}
                       className={`${D.input} w-full px-3.5 py-2.5 text-xs font-semibold outline-none transition-colors`}
                       style={{
                         backgroundColor: s.well,
-                        borderColor: formTouched && customerErrors.name ? s.danger : s.chipLine,
+                        borderColor: showFieldError('name') && customerErrors.name ? s.danger : s.chipLine,
                         color: s.textStrong,
                       }}
                     />
-                    {formTouched && customerErrors.name && (
-                      <span className="text-[10px] font-bold" style={{ color: s.danger }}>
+                    {showFieldError('name') && customerErrors.name && (
+                      <span id="booking-err-name" data-testid="booking-err-name" className="text-[10px] font-bold" style={{ color: s.danger }}>
                         {T['details.errName']}
                       </span>
                     )}
@@ -1392,17 +1503,20 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                         data-testid="booking-input-mobile"
                         value={customer.mobile}
                         onChange={(e) => setCustomer((c) => ({ ...c, mobile: e.target.value }))}
+                        onBlur={() => setTouchedFields((t) => ({ ...t, mobile: true }))}
                         placeholder={T['details.mobilePlaceholder']}
+                        aria-invalid={showFieldError('mobile') && Boolean(customerErrors.mobile)}
+                        aria-describedby={showFieldError('mobile') && customerErrors.mobile ? 'booking-err-mobile' : undefined}
                         className={`${D.input} w-full pl-9 pr-3.5 py-2.5 text-xs font-semibold outline-none transition-colors`}
                         style={{
                           backgroundColor: s.well,
-                          borderColor: formTouched && customerErrors.mobile ? s.danger : s.chipLine,
+                          borderColor: showFieldError('mobile') && customerErrors.mobile ? s.danger : s.chipLine,
                           color: s.textStrong,
                         }}
                       />
                     </div>
-                    {formTouched && customerErrors.mobile && (
-                      <span className="text-[10px] font-bold" style={{ color: s.danger }}>
+                    {showFieldError('mobile') && customerErrors.mobile && (
+                      <span id="booking-err-mobile" data-testid="booking-err-mobile" className="text-[10px] font-bold" style={{ color: s.danger }}>
                         {T['details.errMobile']}
                       </span>
                     )}
@@ -1419,17 +1533,20 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                         data-testid="booking-input-email"
                         value={customer.email}
                         onChange={(e) => setCustomer((c) => ({ ...c, email: e.target.value }))}
+                        onBlur={() => setTouchedFields((t) => ({ ...t, email: true }))}
                         placeholder={T['details.emailPlaceholder']}
+                        aria-invalid={showFieldError('email') && Boolean(customerErrors.email)}
+                        aria-describedby={showFieldError('email') && customerErrors.email ? 'booking-err-email' : undefined}
                         className={`${D.input} w-full pl-9 pr-3.5 py-2.5 text-xs font-semibold outline-none transition-colors`}
                         style={{
                           backgroundColor: s.well,
-                          borderColor: formTouched && customerErrors.email ? s.danger : s.chipLine,
+                          borderColor: showFieldError('email') && customerErrors.email ? s.danger : s.chipLine,
                           color: s.textStrong,
                         }}
                       />
                     </div>
-                    {formTouched && customerErrors.email && (
-                      <span className="text-[10px] font-bold" style={{ color: s.danger }}>
+                    {showFieldError('email') && customerErrors.email && (
+                      <span id="booking-err-email" data-testid="booking-err-email" className="text-[10px] font-bold" style={{ color: s.danger }}>
                         {T['details.errEmail']}
                       </span>
                     )}

@@ -1,13 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SalonData } from '../types';
 import SiteBookingFlow from './SiteBookingFlow';
 import SiteBookingPaymentFlow from './SiteBookingPaymentFlow';
+import SiteBookingNotices from './SiteBookingNotices';
+import type { ActiveBookingNotice } from './SiteBookingNotices';
+import { useSiteLocale, useThemeAppearance } from './SiteHeader';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { closeSiteBooking } from '../lib/siteBooking';
 import { releaseBookingSlot, bookingSlotKey, bookingBusinessId } from '../lib/siteBookingFlow';
 import { clearBookingDraft } from '../lib/siteBookingDraft';
 import type { PaymentRecord, PaymentServiceLine } from '../lib/siteBookingPayment';
 import { findPaymentRecord, readPaymentRecordsForBusiness } from '../lib/siteBookingPayment';
+import type { BookingNoticeInput } from '../lib/siteBookingNotices';
+import { newBookingNoticeId, normalizeNotice } from '../lib/siteBookingNotices';
+import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
+import { bookingFlowText } from '../lib/siteBookingI18n';
+import { bookingSurfaces } from '../lib/siteBookingTheme';
 
 /**
  * PHASE 10.7 — orchestrator for the full booking + payment + confirmation
@@ -37,6 +45,35 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     customer: { name: string; mobile: string; email: string; notes: string };
   }>(null);
 
+  /* ------------------------------------------------------------------ */
+  /* PHASE 16.9 — booking notices.                                       */
+  /*                                                                     */
+  /* The EXISTING `onShowToast` seam every booking surface already calls */
+  /* is finally wired to a visible presenter here in the host — before   */
+  /* 16.9 the public site dropped those messages on the floor. Kinds     */
+  /* (success / warning / error / info) come from the call sites; legacy */
+  /* strings keep working as `info`. No new notification system.         */
+  /* ------------------------------------------------------------------ */
+  const [notices, setNotices] = useState<ActiveBookingNotice[]>([]);
+  const dismissNotice = useCallback((id: string) => {
+    setNotices((prev) => prev.filter((notice) => notice.id !== id));
+  }, []);
+  const showNotice = useCallback((input: BookingNoticeInput) => {
+    const notice = normalizeNotice(input);
+    setNotices((prev) => {
+      // Keep the stack readable: cap at 4, drop the oldest first.
+      const next = prev.length >= 4 ? prev.slice(prev.length - 3) : prev;
+      return [...next, { id: newBookingNoticeId(), kind: notice.kind, message: notice.message }];
+    });
+  }, []);
+
+  // PHASE 16.9 — duplicate-submission guard on the summary hand-off: two
+  // rapid clicks on Confirm must not double-fire the phase switch.
+  const confirmLockRef = useRef(false);
+  useEffect(() => {
+    confirmLockRef.current = false;
+  }, [phase]);
+
   const handleConfirmEntry = useCallback((payload: {
     service: { id: string };
     serviceLines?: Array<{ serviceId: string; serviceName: string; price: number; durationMinutes: number }>;
@@ -45,6 +82,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     endMinutes: number;
     customer: { name: string; mobile: string; email: string; notes: string };
   }) => {
+    if (confirmLockRef.current) return;
+    confirmLockRef.current = true;
     setSummary({
       serviceId: payload.service.id,
       serviceLines: payload.serviceLines,
@@ -97,6 +136,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
           ) || null
         : null);
 
+  const locale = useSiteLocale();
+
   // If the host should auto-resume, swap into the payment phase.
   useEffect(() => {
     if (shouldAutoResume && existingConfirmed) {
@@ -110,6 +151,11 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
         customer: existingConfirmed.customer,
       });
       setPhase('payment');
+      // PHASE 16.9 — refresh recovery announced (no new record is made).
+      showNotice({
+        kind: 'info',
+        message: bookingConfirmationText(locale)['duplicate.notice'],
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -126,6 +172,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
           themeId={themeId}
           data={data}
           onBackToWebsite={closeSiteBooking}
+          onShowToast={showNotice}
           onProceedToPayment={handleConfirmEntry}
           resumeAtSummary={resumeAtSummary}
         />
@@ -140,8 +187,11 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
           onBookingConfirmed={handleBookingConfirmed}
           onBackToWebsite={closeSiteBooking}
           onStartNewBooking={handleStartNewBooking}
+          onShowToast={showNotice}
         />
       )}
+      {/* PHASE 16.9 — the notice presenter for the whole journey. */}
+      <SiteBookingNotices themeId={themeId} notices={notices} onDismiss={dismissNotice} />
     </div>
   );
 }
@@ -159,6 +209,7 @@ function SiteBookingPaymentFlowWrapper({
   onBookingConfirmed,
   onBackToWebsite,
   onStartNewBooking,
+  onShowToast,
 }: {
   themeId: SiteHeaderThemeId;
   data: SalonData;
@@ -175,18 +226,42 @@ function SiteBookingPaymentFlowWrapper({
   onBookingConfirmed: (record: PaymentRecord) => void;
   onBackToWebsite: () => void;
   onStartNewBooking: () => void;
+  onShowToast?: (input: BookingNoticeInput) => void;
 }) {
+  const locale = useSiteLocale();
+  const appearance = useThemeAppearance(themeId);
+  const T = bookingFlowText(locale);
+  const s = bookingSurfaces(themeId, appearance);
+
   const service = (data.services || []).find((s) => s.id === summary.serviceId);
   if (!service) {
+    // PHASE 16.9 — booking-error state: the service vanished from the
+    // salon's catalog. Localized, themed, keyboard-accessible recovery.
     return (
-      <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/40">
-        <button
-          type="button"
-          onClick={onBackToSummary}
-          className="px-4 py-2 text-xs font-bold bg-white text-black"
+      <div
+        data-testid="payment-service-missing"
+        data-locale={locale}
+        data-appearance={appearance}
+        className="absolute inset-0 z-[70] flex items-center justify-center p-4"
+        style={{ backgroundColor: s.page }}
+      >
+        <div
+          className="max-w-sm w-full p-5 flex flex-col items-center text-center gap-3 border rounded-2xl"
+          style={{ backgroundColor: s.card, borderColor: s.danger }}
         >
-          Service not found — back
-        </button>
+          <p className="text-xs font-semibold" style={{ color: s.danger }}>
+            {T['summary.serviceMissing']}
+          </p>
+          <button
+            type="button"
+            data-testid="payment-service-missing-back"
+            onClick={onBackToSummary}
+            className="px-4 py-2 text-[11px] font-bold border rounded-lg cursor-pointer"
+            style={{ backgroundColor: s.accent, color: s.accentText, borderColor: s.accent }}
+          >
+            {T.back}
+          </button>
+        </div>
       </div>
     );
   }
@@ -207,6 +282,7 @@ function SiteBookingPaymentFlowWrapper({
       onBookingConfirmed={onBookingConfirmed}
       onBackToWebsite={onBackToWebsite}
       onStartNewBooking={onStartNewBooking}
+      onShowToast={onShowToast}
     />
   );
 }

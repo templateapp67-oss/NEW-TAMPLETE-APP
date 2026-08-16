@@ -499,6 +499,27 @@ export function setBookingHoldsForTests(holds: BookingHold[] | null): void {
   injectedHolds = holds ? holds.slice() : null;
 }
 
+/* ------------------------------------------------------------------ */
+/* PHASE 16.9 — date-list state seam (loading / error / ready).        */
+/*                                                                     */
+/* The date step gets its OWN seam instead of sharing the 'booking'    */
+/* section flag the 16.3 slot states use, so forcing slot availability */
+/* loading never hides the date grid (and vice versa). The date list   */
+/* itself is computed synchronously today; the states exist for        */
+/* future async sources and for the 16.9 acceptance tests.             */
+/* ------------------------------------------------------------------ */
+
+let datesStateOverride: 'loading' | 'error' | null = null;
+
+export function setBookingDatesStateForTests(state: 'loading' | 'error' | null): void {
+  datesStateOverride = state;
+}
+
+export function bookingDatesStatus(): 'loading' | 'error' | 'ready' {
+  if (datesStateOverride === 'loading' || datesStateOverride === 'error') return datesStateOverride;
+  return 'ready';
+}
+
 /** Stable per-browser id so a visitor's own holds never block themselves. */
 export function bookingBrowserId(): string {
   if (typeof window === 'undefined') return 'booking-test';
