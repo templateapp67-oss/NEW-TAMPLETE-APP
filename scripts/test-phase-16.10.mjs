@@ -1283,6 +1283,7 @@ section('J. Static hygiene — no secrets, placeholder env, no invented stores')
       'nexora_dashboard_tab',
       'nexora_locale',
       'nexora_onboarding_state',
+      'nexora_owner_dashboard_section', // 17.1 — owner dashboard UI preference (never identity)
       'nexora_owner_salon_ids',
       'nexora_service_form_draft',
       'nexora_site_appearance',

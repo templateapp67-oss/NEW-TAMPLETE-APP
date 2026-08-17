@@ -19,6 +19,16 @@ The app contains:
 - **Post-launch dashboard (screens 18–25)** — tabs: overview, website,
   bookings, payments, share, settings, referral, branding
   (`src/components/PreviewPane.tsx` + dashboard tabs in `src/App.tsx`).
+- **Salon Owner Dashboard (screen 26, Phase 17.1)** —
+  `src/components/OwnerDashboard.tsx` over `src/lib/ownerDashboard.ts`:
+  sections for Overview, Today's / Upcoming Appointments, Customers,
+  Revenue/Payments, Calendar and Notifications, scoped to the signed-in
+  owner's OWN salon. Today's Appointments (17.2) and Upcoming Appointments
+  (17.3) are live, read-only over the existing booking records and sharing
+  ONE row renderer (`OwnerAppointmentRow.tsx`); the other four sections are
+  placeholders. It is a sibling
+  module of the 18–25 dashboard, **not** a replacement — do not fork a
+  second dashboard system.
 - **Booking confirmation** (dashboard demo screen
   `src/components/BookingConfirmation.tsx`, booking ID `NX-10482`; the REAL
   public-site confirmation is `src/components/SiteBookingConfirmation.tsx`
@@ -109,6 +119,9 @@ npm run test:phase-16.8    # call/WhatsApp/book action protection (74 tests)
 npm run test:phase-16.7    # booking management (39 tests)
 npm run test:phase-16.9    # booking notifications & UX (47 tests)
 npm run test:phase-16.10   # final booking acceptance gate for all of Phase 16 (68 tests)
+npm run test:phase-17.1    # salon owner dashboard foundation (56 tests)
+npm run test:phase-17.2    # owner dashboard today's appointments (49 tests)
+npm run test:phase-17.3    # owner dashboard upcoming appointments (50 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
@@ -151,6 +164,19 @@ node verify-22-screens.js   # static verification of all 25 screens/features
   that; `requireSupabase()` throws a readable error). Never use a
   `service_role` key client-side.
 - `useAuth.ts` — thin Supabase Auth wrapper (email/password session).
+- `ownerUpcomingAppointments.ts` — FUTURE bookings (strictly after the
+  salon-local day, cancelled/failed excluded) for the owner's own salon,
+  nearest-first and grouped by date. Reuses the 17.2 projection and tenant
+  resolution; never forks a second appointment model.
+- `ownerTodayAppointments.ts` — today's bookings for the owner's own salon,
+  projected from the EXISTING 10.7/16.5 payment records through 16.7's
+  `readSalonBookings` (permission re-checked, tenant-keyed). "Today" is the
+  salon-local day; statuses are the existing values only.
+- `ownerDashboard.ts` — the owner dashboard's only data entry point:
+  section registry + access model + `loadOwnerDashboardContext()`
+  (session → `resolveOwnerSalonId()` → one read of that salon over existing
+  columns). It takes **no** salon id from anywhere; unauthorized access
+  returns no salon data at all. Read-only — 17.1 added no DB objects.
 - `ownerSalon.ts` — resolves the salon owned by the signed-in user via the
   **existing** schema: `auth.users.id → organization_members (role='owner') →
   salons.organization_id`, using the DB helper `nexora_owner_salon_ids()` when
@@ -211,6 +237,11 @@ loads). All `.env*` files are gitignored except `.env.example`.
   pass it through `isSafeMediaUrl()` / `safeMediaUrl()` before it reaches a
   `src`/`href`, and fall back to theme media when it fails. Never rely on
   React's `javascript:` guard as the only defence.
+- **Owner-scoped surfaces must reuse `resolveOwnerSalonId()`.** Salon
+  ownership is `auth.users → organization_members (role='owner') →
+  salons.organization_id` and nothing else. `job_salon_members` is a
+  staff relationship and must never be used for ownership. Never accept a
+  salon id from a prop, URL, or localStorage.
 - **Never invent business facts.** Customer-facing surfaces must not hardcode
   counts, ratings, years or volumes a salon did not supply. Derive them from
   real data (see `heroStat()`) and render nothing when there is no data.
