@@ -1,10 +1,44 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-16** (session `arena/01a00c01-new-tamplete-app`, Phase 16.9).
+> Last updated: **2026-08-17** (session `arena/01a00dbb-new-tamplete-app`, Phase 16.10).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 16.10 — FINAL BOOKING ACCEPTANCE TESTING: COMPLETE (68 tests).**
+  - Final acceptance gate for the ENTIRE Phase 16 booking & appointment
+    system. **Acceptance-only: no product source changed** — one suite
+    (`scripts/test-phase-16.10.mjs`, `npm run test:phase-16.10`) plus
+    docs. Phase 16 is accepted and closed.
+  - Coverage: end-to-end journey on all five themes (pay-at-salon ×5 +
+    a full advance gateway journey, each ending on a persisted record);
+    theme/salon isolation (services, records, holds, drafts,
+    confirmations); real price/duration/advance math (offer-aware
+    Phase 13 pricing, multi-service totals, combined sitting, slot
+    interval, pct clamping); availability (window, closed days,
+    holidays, min notice, hours bounds, booked spans, holds, staff
+    windows, dead-slot re-validation); validation (model + blur-driven
+    UI errors, Continue gating); payment states with the
+    no-confirm-before-payment invariant (pending/paid/failed/
+    cancelled/timeout; `bookingConfirmationState` fails closed; no
+    invented refunds); duplicate protection (double-click locks,
+    idempotency keys, retry-reuses-the-same-row); customer/owner access
+    boundaries (actor matrix, tenant-keyed reads, status machine,
+    denied UI, no row leakage); Call/WhatsApp protection (16.8 gate:
+    only a real paid advance unlocks, pay_at_salon does not, expired/
+    cancelled re-lock, salon+theme scoped); hygiene scans (no secrets,
+    placeholder env, `nexora_*` store-key allowlist, schema-only record
+    fields); EN/HI + light/dark; responsive structure; Phase 10–15
+    integration spot checks (locale/appearance stores, catalog
+    filtering, 50-video catalog intact).
+  - Validation: `test:phase-16.10` **68/68**; regressions spot-checked
+    16.1 55/55 + 16.9 47/47 (no product source changed, the full 16.x
+    battery from the 16.9 session stands); lint 0; build green;
+    verify-22-screens 25/25. Details:
+    `docs/phase-16.10-final-acceptance.md`.
+  - NEXT: Phase 17. Do not modify the booking layers without re-running
+    `test:phase-16.10` plus the 16.1–16.9 suites.
 
 - **PHASE 16.9 — BOOKING NOTIFICATIONS & UX: COMPLETE (47 tests).**
   - UX hardening over the EXISTING booking journey (Salon → Service →
@@ -1623,6 +1657,7 @@ npm run test:phase-16.3    # date & time slot availability (36 tests)
 npm run test:phase-16.5    # advance payment / deposit (24 tests)
 npm run test:phase-16.7    # booking management (39 tests)
 npm run test:phase-16.9    # booking notifications & UX (47 tests)
+npm run test:phase-16.10   # final booking acceptance gate (68 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1674,6 +1709,7 @@ Expected output:
 - `test:phase-16.5`: 24/24 passed (advance payment / deposit)
 - `test:phase-16.7`: 39/39 passed (booking management)
 - `test:phase-16.9`: 47/47 passed (booking notifications & UX)
+- `test:phase-16.10`: 68/68 passed (final booking acceptance — PHASE 16 ACCEPTED)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
