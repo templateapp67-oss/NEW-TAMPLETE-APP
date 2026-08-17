@@ -41,7 +41,7 @@ import {
   bookingManageDeniedKey,
   bookingMoney,
   bookingServiceNames,
-  ownerAllowedTransitions,
+  ownerAllowedTransitionsForRecord,
   ownerUpdateBookingStatus,
   readSalonBookings,
   sortBookingsForList,
@@ -207,7 +207,7 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
       {state === 'ready' && records.map((record) => {
         const money = bookingMoney(record);
         const names = bookingServiceNames(record);
-        const transitions = ownerAllowedTransitions(record.bookingStatus);
+        const transitions = ownerAllowedTransitionsForRecord(record);
         const isTerminal = transitions.length === 0;
         return (
           <div

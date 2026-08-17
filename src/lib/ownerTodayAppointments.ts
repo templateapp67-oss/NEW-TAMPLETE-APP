@@ -42,6 +42,8 @@ import {
 import type { BookingActorContext, BookingManagePermission } from './bookingManagement';
 import type { BookingStatus, PaymentRecord, PaymentStatus } from './siteBookingPayment';
 import { localDateKey, salonNow } from './salonStatus';
+import { recordMatchesOwnerFilters } from './ownerDashboardFilters';
+import type { OwnerDashboardFilterState } from './ownerDashboardFilters';
 
 /* ------------------------------------------------------------------ */
 /* Status grouping — existing values only                              */
@@ -100,6 +102,13 @@ export interface TodayAppointment {
   /** Existing record id (store row) and the existing human booking id. */
   id: string;
   bookingId: string;
+  /**
+   * Existing immutable tenant locator. Status controls pass these exact values
+   * back to the mutation layer; they are never entered by the owner.
+   */
+  businessId: string;
+  themeId: PaymentRecord['themeId'];
+  paymentOption: PaymentRecord['paymentOption'];
   /** Customer snapshot the booking was created with (existing permissions). */
   customerName: string;
   customerMobile: string;
@@ -138,6 +147,9 @@ export function toTodayAppointment(record: PaymentRecord): TodayAppointment {
   return {
     id: record.id,
     bookingId: record.bookingId,
+    businessId: record.businessId,
+    themeId: record.themeId,
+    paymentOption: record.paymentOption,
     customerName: (record.customer?.name || '').trim(),
     customerMobile: (record.customer?.mobile || '').trim(),
     serviceNames: bookingServiceNames(record),
@@ -209,6 +221,7 @@ export function readTodayAppointments(
   businessIds: readonly string[],
   themeIds: readonly string[],
   now: Date = salonNow(),
+  filters?: OwnerDashboardFilterState,
 ): TodayAppointmentsResult {
   const dateKey = todayDateKey(now);
   const seen = new Set<string>();
@@ -222,6 +235,7 @@ export function readTodayAppointments(
       if (result.ok !== true) return { ok: false, reason: result.reason };
       for (const record of result.records) {
         if (!isTodayRecord(record, dateKey)) continue;
+        if (filters && !recordMatchesOwnerFilters(record, filters, 'appointment', now)) continue;
         if (seen.has(record.id)) continue;
         seen.add(record.id);
         rows.push(toTodayAppointment(record));

@@ -40,6 +40,8 @@ import { ownerDashboardCount, ownerDashboardTranslator } from '../lib/ownerDashb
 import { bookingManagementText } from '../lib/bookingManagementI18n';
 import { useSiteLocale } from './SiteHeader';
 import type { AppLocale } from '../lib/locale';
+import type { OwnerDashboardFilterState } from '../lib/ownerDashboardFilters';
+import { ownerFiltersActive } from '../lib/ownerDashboardFilters';
 
 interface Props {
   /** Session-resolved actor — the host ran the auth/ownership chain. */
@@ -50,6 +52,7 @@ interface Props {
   palette: AppointmentPalette;
   /** Test seam so the suite can exercise loading/error without mocking IO. */
   forcedState?: 'loading' | 'error' | 'ready';
+  filters?: OwnerDashboardFilterState;
 }
 
 /** Relative label for a day group — only real offsets, no invented buckets. */
@@ -65,6 +68,7 @@ export default function OwnerUpcomingAppointments({
   themeIds,
   palette,
   forcedState,
+  filters,
 }: Props) {
   const locale: AppLocale = useSiteLocale();
   const t = useMemo(() => ownerDashboardTranslator(locale), [locale]);
@@ -87,9 +91,9 @@ export default function OwnerUpcomingAppointments({
   const businessKey = businessIds.join('|');
   const themeKey = themeIds.join('|');
   const result = useMemo(
-    () => readUpcomingAppointments(actor, businessIds, themeIds),
+    () => readUpcomingAppointments(actor, businessIds, themeIds, undefined, filters),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [actor, businessKey, themeKey, version, retry],
+    [actor, businessKey, themeKey, version, retry, filters],
   );
 
   const state = forcedState ?? 'ready';
@@ -218,16 +222,16 @@ export default function OwnerUpcomingAppointments({
       <div className="space-y-4">
         {header}
         <div
-          data-testid="upcoming-appointments-empty"
+          data-testid={filters && ownerFiltersActive(filters) ? 'upcoming-appointments-no-results' : 'upcoming-appointments-empty'}
           className="space-y-2 rounded-2xl border p-8 text-center"
           style={{ backgroundColor: palette.panel, borderColor: palette.line }}
         >
           <Inbox className="mx-auto h-6 w-6" style={{ color: palette.muted }} />
           <p className="text-sm font-extrabold" style={{ color: palette.text }}>
-            {t('upcoming.empty.title')}
+            {filters && ownerFiltersActive(filters) ? t('filters.noResults.title') : t('upcoming.empty.title')}
           </p>
           <p className="text-xs font-semibold" style={{ color: palette.muted }}>
-            {t('upcoming.empty.body')}
+            {filters && ownerFiltersActive(filters) ? t('filters.noResults.body') : t('upcoming.empty.body')}
           </p>
         </div>
       </div>
@@ -279,6 +283,7 @@ export default function OwnerUpcomingAppointments({
                 <li key={row.id}>
                   <OwnerAppointmentRow
                     row={row}
+                    actor={actor}
                     palette={palette}
                     locale={locale}
                     t={t}

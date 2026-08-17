@@ -745,12 +745,9 @@ await test('17.1 foundation still works: all seven sections and their states', a
   for (const id of ['overview', 'today', 'upcoming', 'customers', 'revenue', 'calendar', 'notifications']) {
     assert.ok(utils.getByTestId(`owner-nav-${id}`), `section ${id} missing`);
   }
-  // The not-yet-built sections still show their foundation placeholder
-  // ('upcoming' gained its real implementation in 17.3).
-  for (const id of ['customers', 'revenue', 'calendar', 'notifications']) {
-    await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
-    assert.ok(utils.getByTestId(`owner-dashboard-placeholder-${id}`), `${id} must stay a placeholder in 17.2`);
-  }
+  // Notifications gained its real implementation in 17.8.
+  await act(async () => { fireEvent.click(utils.getByTestId('owner-nav-notifications')); });
+  assert.ok(utils.getByTestId('owner-notifications-empty'));
   cleanup();
 });
 

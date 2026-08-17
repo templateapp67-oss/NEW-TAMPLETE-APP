@@ -38,6 +38,8 @@ import { readSalonBookings } from './bookingManagement';
 import type { BookingActorContext, BookingManagePermission } from './bookingManagement';
 import type { PaymentRecord } from './siteBookingPayment';
 import { localDateKey, salonNow } from './salonStatus';
+import { recordMatchesOwnerFilters } from './ownerDashboardFilters';
+import type { OwnerDashboardFilterState } from './ownerDashboardFilters';
 import {
   isCancelledAppointment,
   toTodayAppointment,
@@ -200,6 +202,7 @@ export function readUpcomingAppointments(
   businessIds: readonly string[],
   themeIds: readonly string[],
   now: Date = salonNow(),
+  filters?: OwnerDashboardFilterState,
 ): UpcomingAppointmentsResult {
   const todayKey = todayDateKey(now);
   const seen = new Set<string>();
@@ -211,6 +214,7 @@ export function readUpcomingAppointments(
       if (result.ok !== true) return { ok: false, reason: result.reason };
       for (const record of result.records) {
         if (!isUpcomingRecord(record, todayKey)) continue;
+        if (filters && !recordMatchesOwnerFilters(record, filters, 'appointment', now)) continue;
         if (seen.has(record.id)) continue;
         seen.add(record.id);
         rows.push(toTodayAppointment(record));

@@ -1,7 +1,9 @@
 /**
- * PHASE 17.1 — SALON OWNER DASHBOARD · foundation shell.
+ * PHASE 17.1–17.9 — SALON OWNER DASHBOARD shell.
  *
- * ONE owner dashboard surface — this is the structure/navigation only.
+ * ONE owner dashboard surface — the 17.1 structure/navigation plus the real
+ * Today (17.2), Upcoming (17.3), booking-status controls (17.4), own-salon
+ * Customers (17.5), Revenue (17.6), Calendar (17.7), and Notifications (17.8).
  * It does NOT duplicate the existing post-launch dashboard (screens 18–25 in
  * `Landing.tsx`): that stays exactly as it is, and this shell is reached from
  * the same `App.tsx` module switcher / TopBar chrome.
@@ -12,16 +14,18 @@
  * input, prop, URL param or storage key anywhere in this component, so an
  * owner can only ever see their own salon. `job_salon_members` is not used.
  *
- * Implemented here (17.1):
- *   - Section registry + navigation (desktop sidebar, tablet rail, mobile
- *     drawer + pills) for Overview, Today's Appointments, Upcoming
- *     Appointments, Customers, Revenue/Payments, Calendar, Notifications.
- *   - Loading, empty, error (+retry) and unauthorized states.
- *   - English/Hindi and Light/Dark through the EXISTING preference system
- *     (`siteNavigation` locale/appearance events, same as the website chrome).
+ * Implemented through 17.9:
+ *   - Section registry + responsive navigation from 17.1.
+ *   - Real own-salon Today and Upcoming appointment lists from 17.2–17.3.
+ *   - Guarded booking status controls from 17.4.
+ *   - Own-salon customer directory and booking history from 17.5.
+ *   - Own-salon test-mode revenue/payment summary from 17.6.
+ *   - Own-salon day/week Calendar and booking detail selection from 17.7.
+ *   - Existing-event owner notifications from 17.8.
+ *   - Shared real-data filters, responsive and accessible UX from 17.9.
+ *   - Loading, empty, error (+retry), unauthorized, EN/HI and Light/Dark.
  *
- * Deliberately NOT implemented here (later phases): appointment lists,
- * customer management, revenue calculations, calendar logic, notifications.
+ * Phase 17.10 final acceptance testing is deliberately not implemented here.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
@@ -67,6 +71,13 @@ import type {
 import { ownerDashboardTranslator } from '../lib/ownerDashboardI18n';
 import OwnerTodayAppointments from './OwnerTodayAppointments';
 import OwnerUpcomingAppointments from './OwnerUpcomingAppointments';
+import OwnerCustomers from './OwnerCustomers';
+import OwnerRevenueSummary from './OwnerRevenueSummary';
+import OwnerCalendarSchedule from './OwnerCalendarSchedule';
+import OwnerNotifications from './OwnerNotifications';
+import OwnerDashboardFilters from './OwnerDashboardFilters';
+import { DEFAULT_OWNER_FILTERS } from '../lib/ownerDashboardFilters';
+import type { OwnerDashboardFilterState } from '../lib/ownerDashboardFilters';
 import { resolveBookingActor } from '../lib/bookingManagement';
 import type { BookingActorContext } from '../lib/bookingManagement';
 import { SITE_HEADER_THEME_IDS } from '../lib/siteNavigation';
@@ -479,6 +490,9 @@ export default function OwnerDashboard({ loadContext }: Props) {
   const [context, setContext] = useState<OwnerDashboardContext>(LOADING_OWNER_DASHBOARD_CONTEXT);
   const [active, setActive] = useState<OwnerDashboardSectionId>(() => readStoredOwnerDashboardSection());
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // PHASE 17.9 — one filter state shared by every real-data section. It is a
+  // transient UI preference only and never changes the session tenant scope.
+  const [filters, setFilters] = useState<OwnerDashboardFilterState>({ ...DEFAULT_OWNER_FILTERS });
 
   const load = useCallback(
     (signal?: { cancelled: boolean }) => {
@@ -517,17 +531,19 @@ export default function OwnerDashboard({ loadContext }: Props) {
   const canView = ownerDashboardCanView(access);
   const section = ownerDashboardSection(active);
 
-  // PHASE 17.2 — the booking actor mirrors the access already resolved by the
-  // EXISTING ownership chain, so the data layer re-checks the same decision.
+  const tenant = useMemo(() => ownerBookingTenant(context.salon), [context.salon]);
+  // PHASE 17.4 — permission and the concrete tenant scope both come from the
+  // EXISTING ownership chain. The mutation layer rejects a business key that
+  // is not in this session-resolved scope, even if a UI is crafted manually.
   const bookingActor: BookingActorContext = useMemo(
     () => resolveBookingActor({
       supabaseConfigured: true,
       userPresent: true,
       resolution: { status: access === 'authorized' ? 'resolved' : 'no-membership' },
+      allowedBusinessIds: tenant?.businessIds,
     }),
-    [access],
+    [access, tenant],
   );
-  const tenant = useMemo(() => ownerBookingTenant(context.salon), [context.salon]);
 
   const salonName = ownerSalonDisplayName(context.salon) ?? t('shell.salonFallback');
   const salonLocation = ownerSalonLocationLine(context.salon) ?? t('shell.noLocation');
@@ -619,6 +635,7 @@ export default function OwnerDashboard({ loadContext }: Props) {
           businessIds={tenant.businessIds}
           themeIds={THEME_IDS}
           palette={palette}
+          filters={filters}
         />
       );
     }
@@ -631,6 +648,60 @@ export default function OwnerDashboard({ loadContext }: Props) {
           businessIds={tenant.businessIds}
           themeIds={THEME_IDS}
           palette={palette}
+          filters={filters}
+        />
+      );
+    }
+    // PHASE 17.5 — Customers are projected only from the same own-salon real
+    // booking rows; no customer id or salon id is accepted from the UI.
+    if (active === 'customers' && tenant) {
+      return (
+        <OwnerCustomers
+          actor={bookingActor}
+          businessIds={tenant.businessIds}
+          themeIds={THEME_IDS}
+          palette={palette}
+          filters={filters}
+        />
+      );
+    }
+    // PHASE 17.6 — Financial totals are a read-only projection of the same
+    // own-salon booking/payment rows. Payment and booking statuses remain
+    // separate in the summary data layer.
+    if (active === 'revenue' && tenant) {
+      return (
+        <OwnerRevenueSummary
+          actor={bookingActor}
+          businessIds={tenant.businessIds}
+          themeIds={THEME_IDS}
+          palette={palette}
+          filters={filters}
+        />
+      );
+    }
+    // PHASE 17.7 — Day/week schedule over the same authorized appointment
+    // records. Appointment selection opens the existing details/status surface.
+    if (active === 'calendar' && tenant) {
+      return (
+        <OwnerCalendarSchedule
+          actor={bookingActor}
+          businessIds={tenant.businessIds}
+          themeIds={THEME_IDS}
+          palette={palette}
+          filters={filters}
+        />
+      );
+    }
+    // PHASE 17.8 — Existing booking/payment events only; no parallel store or
+    // click-generated notification path.
+    if (active === 'notifications' && tenant) {
+      return (
+        <OwnerNotifications
+          actor={bookingActor}
+          businessIds={tenant.businessIds}
+          themeIds={THEME_IDS}
+          palette={palette}
+          filters={filters}
         />
       );
     }
@@ -749,8 +820,8 @@ export default function OwnerDashboard({ loadContext }: Props) {
           })}
         </div>
 
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="mx-auto w-full max-w-6xl space-y-5">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-6">
+          <div className="mx-auto min-w-0 w-full max-w-6xl space-y-4 sm:space-y-5">
             {canView && (
               <div data-testid="owner-dashboard-section-heading">
                 <h2 className="text-base font-extrabold tracking-tight">{t(section.titleKey)}</h2>
@@ -758,6 +829,16 @@ export default function OwnerDashboard({ loadContext }: Props) {
                   {t(section.descriptionKey)}
                 </p>
               </div>
+            )}
+            {canView && tenant && active !== 'overview' && (
+              <OwnerDashboardFilters
+                actor={bookingActor}
+                businessIds={tenant.businessIds}
+                themeIds={THEME_IDS}
+                filters={filters}
+                onChange={setFilters}
+                palette={palette}
+              />
             )}
             {body}
           </div>

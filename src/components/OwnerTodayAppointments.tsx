@@ -46,6 +46,8 @@ import { ownerDashboardTranslator } from '../lib/ownerDashboardI18n';
 import { bookingManagementText } from '../lib/bookingManagementI18n';
 import { useSiteLocale } from './SiteHeader';
 import type { AppLocale } from '../lib/locale';
+import type { OwnerDashboardFilterState } from '../lib/ownerDashboardFilters';
+import { ownerFiltersActive } from '../lib/ownerDashboardFilters';
 
 /** The dashboard palette — shared with the appointment row component. */
 export type TodayPalette = AppointmentPalette;
@@ -59,6 +61,7 @@ interface Props {
   palette: TodayPalette;
   /** Test seam so the suite can exercise loading/error without mocking IO. */
   forcedState?: 'loading' | 'error' | 'ready';
+  filters?: OwnerDashboardFilterState;
 }
 
 export default function OwnerTodayAppointments({
@@ -67,6 +70,7 @@ export default function OwnerTodayAppointments({
   themeIds,
   palette,
   forcedState,
+  filters,
 }: Props) {
   const locale: AppLocale = useSiteLocale();
   const t = useMemo(() => ownerDashboardTranslator(locale), [locale]);
@@ -90,9 +94,9 @@ export default function OwnerTodayAppointments({
   const businessKey = businessIds.join('|');
   const themeKey = themeIds.join('|');
   const result = useMemo(
-    () => readTodayAppointments(actor, businessIds, themeIds),
+    () => readTodayAppointments(actor, businessIds, themeIds, undefined, filters),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [actor, businessKey, themeKey, version, retry],
+    [actor, businessKey, themeKey, version, retry, filters],
   );
 
   const state = forcedState ?? 'ready';
@@ -219,16 +223,16 @@ export default function OwnerTodayAppointments({
       <div className="space-y-4">
         {header}
         <div
-          data-testid="today-appointments-empty"
+          data-testid={filters && ownerFiltersActive(filters) ? 'today-appointments-no-results' : 'today-appointments-empty'}
           className="space-y-2 rounded-2xl border p-8 text-center"
           style={{ backgroundColor: palette.panel, borderColor: palette.line }}
         >
           <Inbox className="mx-auto h-6 w-6" style={{ color: palette.muted }} />
           <p className="text-sm font-extrabold" style={{ color: palette.text }}>
-            {t('today.empty.title')}
+            {filters && ownerFiltersActive(filters) ? t('filters.noResults.title') : t('today.empty.title')}
           </p>
           <p className="text-xs font-semibold" style={{ color: palette.muted }}>
-            {t('today.empty.body')}
+            {filters && ownerFiltersActive(filters) ? t('filters.noResults.body') : t('today.empty.body')}
           </p>
         </div>
       </div>
@@ -244,6 +248,7 @@ export default function OwnerTodayAppointments({
           <li key={row.id}>
             <OwnerAppointmentRow
               row={row}
+              actor={actor}
               palette={palette}
               locale={locale}
               t={t}
