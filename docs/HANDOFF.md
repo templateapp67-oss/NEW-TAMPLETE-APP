@@ -1,10 +1,58 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-17** (session `arena/01a00df7-new-tamplete-app`, Phase 17.1).
+> Last updated: **2026-08-17** (session `arena/01a00df7-new-tamplete-app`, Phase 17.2).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 17.2 — TODAY'S APPOINTMENTS: COMPLETE (49 tests).**
+  - The Today's Appointments section of the Owner Dashboard, over the
+    EXISTING booking/payment + ownership architecture. Upcoming
+    appointments, customer management, revenue, calendar and
+    notifications remain unimplemented (17.3+).
+  - **Source audited first**: bookings live in the Phase 10.7/16.5
+    payment-record store (`nexora_site_payment_records`) with tenant
+    keys, 16.5 service lines, slot snapshot, money snapshot and customer
+    snapshot. The draft `public.bookings` table (M08) is still
+    UNAPPLIED, so 17.2 reads the same source 16.7 does — no duplicate
+    store, table, column or id, and **no schema change**. The only
+    DB-facing delta is selecting the EXISTING `salons.organization_id`.
+  - **Own salon only**: actor + tenant keys are both session-derived
+    (`ownerBookingTenant()` → organization_id → salon id → the engine's
+    own `public-site` fallback); every read goes through 16.7's
+    `readSalonBookings()` which re-checks the permission and is
+    tenant-keyed. A refusal on any key refuses the whole read (never a
+    partial/silent empty list); rows de-duplicate by record id.
+    `job_salon_members` is not used.
+  - **Displayed** (all read from the record): customer name + mobile,
+    service(s) incl. multi-service lines, start–end time, duration
+    (slot span only), booking status, payment status, total, advance
+    paid, remaining, optional staff, booking id. Advance/remaining show
+    only when non-zero; a missing name falls back to neutral copy.
+  - **Chronological** by start time (ties: end time, then booking id).
+  - **Status groups from EXISTING values only**: pending
+    (`pending_payment`), confirmed (`confirmed`, `pay_at_salon`),
+    completed, cancelled (`cancelled`, `failed`) — four visually
+    distinct chips; cancelled rows dim, strike the time and carry a
+    "slot is free" note while keeping their chronological position.
+  - "Today" is the salon-local calendar day (`salonNow()` +
+    `localDateKey()`), never UTC. The list re-reads on the existing
+    `PAYMENT_EVENT` / `SALON_CLOCK_EVENT`.
+  - States: loading skeletons (`aria-busy`), empty, error + Retry, and
+    an unauthorized refusal card reusing 16.7's denial copy. Responsive
+    1/2/4-column field grid; EN/HI; light/dark.
+  - New: `src/lib/ownerTodayAppointments.ts`,
+    `src/components/OwnerTodayAppointments.tsx`,
+    `scripts/test-phase-17.2.mjs`. Additive: `ownerDashboard.ts`
+    (`organizationId`, `ownerBookingTenant`), `ownerDashboardI18n.ts`
+    (`today.*`), `OwnerDashboard.tsx`. Two 17.1 assertions updated for
+    the new reality (still 56/56).
+  - Validation: `test:phase-17.2` **49/49**; `test:phase-17.1` 56/56;
+    lint 0; verify-22-screens 25/25; build green; regressions 10.6
+    107/107, 14.6 26/26, 15.6 34/34, 16.7 39/39, 16.9 47/47, 16.10
+    68/68. Details: `docs/phase-17.2-today-appointments.md`.
+  - NEXT: Phase 17.3. Status mutations stay in 16.7's panel.
 
 - **PHASE 17.1 — SALON OWNER DASHBOARD FOUNDATION: COMPLETE (56 tests).**
   - The foundation + navigation of the Salon Owner Dashboard, built on
@@ -1569,7 +1617,9 @@
 - **Screen 26 (Phase 17.1)**: Salon Owner Dashboard foundation — sections for
   Overview, Today's Appointments, Upcoming Appointments, Customers,
   Revenue/Payments, Calendar and Notifications, scoped to the signed-in
-  owner's own salon via `organization_members → salons`.
+  owner's own salon via `organization_members → salons`. Today's Appointments
+  is implemented (17.2) over the existing booking records; the remaining five
+  sections are still foundation placeholders.
 - **Public customer discovery**: `/nearby` renders `NearbySalonSearch`.
 - **Current app persistence**: wizard/dashboard data is still primarily
   localStorage/in-memory; the draft DB schema is not yet wired to screens.
@@ -1712,6 +1762,7 @@ npm run test:phase-16.7    # booking management (39 tests)
 npm run test:phase-16.9    # booking notifications & UX (47 tests)
 npm run test:phase-16.10   # final booking acceptance gate (68 tests)
 npm run test:phase-17.1    # owner dashboard foundation (56 tests)
+npm run test:phase-17.2    # today's appointments (49 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1765,6 +1816,7 @@ Expected output:
 - `test:phase-16.9`: 47/47 passed (booking notifications & UX)
 - `test:phase-16.10`: 68/68 passed (final booking acceptance — PHASE 16 ACCEPTED)
 - `test:phase-17.1`: 56/56 passed (salon owner dashboard foundation)
+- `test:phase-17.2`: 49/49 passed (today's appointments)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed

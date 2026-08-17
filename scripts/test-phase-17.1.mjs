@@ -181,7 +181,12 @@ await test('App.tsx mounts OwnerDashboard without passing any salon identity', (
 });
 
 await test('salon read uses only existing, verified public.salons columns', () => {
-  assert.equal(OWNER_SALON_SUMMARY_COLUMNS, 'id, name, slug, address, city, is_active');
+  // `organization_id` joined the projection in 17.2 (existing tenant column,
+  // already used by the ownership chain) — still no invented column.
+  assert.equal(
+    OWNER_SALON_SUMMARY_COLUMNS,
+    'id, organization_id, name, slug, address, city, is_active',
+  );
   for (const bad of ['location_latitude', 'location_longitude', 'revenue', 'appointments_count']) {
     assert.ok(!OWNER_SALON_SUMMARY_COLUMNS.includes(bad), `${bad} must not be requested`);
   }
@@ -356,11 +361,15 @@ await test('desktop sidebar exposes every section and switches content', async (
   for (const id of OWNER_DASHBOARD_SECTION_IDS) {
     assert.ok(utils.getByTestId(`owner-nav-${id}`), `sidebar missing ${id}`);
   }
-  for (const id of OWNER_DASHBOARD_SECTION_IDS.filter((s) => s !== 'overview')) {
+  // 'today' gained its real implementation in 17.2; the rest remain
+  // foundation placeholders until their own phase.
+  for (const id of OWNER_DASHBOARD_SECTION_IDS.filter((s) => s !== 'overview' && s !== 'today')) {
     await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
     assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-section'), id);
     assert.ok(utils.getByTestId(`owner-dashboard-placeholder-${id}`), `${id} body missing`);
   }
+  await act(async () => { fireEvent.click(utils.getByTestId('owner-nav-today')); });
+  assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-section'), 'today');
   await act(async () => { fireEvent.click(utils.getByTestId('owner-nav-overview')); });
   assert.ok(utils.getByTestId('owner-dashboard-overview'));
   cleanup();

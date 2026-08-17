@@ -47,6 +47,7 @@ import {
 import {
   LOADING_OWNER_DASHBOARD_CONTEXT,
   OWNER_DASHBOARD_SECTIONS,
+  ownerBookingTenant,
   loadOwnerDashboardContext,
   normalizeOwnerDashboardSection,
   ownerDashboardCanRetry,
@@ -64,6 +65,10 @@ import type {
   OwnerDashboardSectionId,
 } from '../lib/ownerDashboard';
 import { ownerDashboardTranslator } from '../lib/ownerDashboardI18n';
+import OwnerTodayAppointments from './OwnerTodayAppointments';
+import { resolveBookingActor } from '../lib/bookingManagement';
+import type { BookingActorContext } from '../lib/bookingManagement';
+import { SITE_HEADER_THEME_IDS } from '../lib/siteNavigation';
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from '../lib/locale';
 import type { AppLocale } from '../lib/locale';
 import { setSiteAppearance, setSiteLocale } from '../lib/siteNavigation';
@@ -113,6 +118,9 @@ const DARK: DashboardPalette = {
 function paletteFor(appearance: SiteAppearance): DashboardPalette {
   return appearance === 'dark' ? DARK : LIGHT;
 }
+
+/** The five existing site themes a salon's booking rows may be stamped with. */
+const THEME_IDS: readonly string[] = SITE_HEADER_THEME_IDS;
 
 const ICONS: Record<OwnerDashboardIconKey, typeof LayoutDashboard> = {
   overview: LayoutDashboard,
@@ -508,6 +516,18 @@ export default function OwnerDashboard({ loadContext }: Props) {
   const canView = ownerDashboardCanView(access);
   const section = ownerDashboardSection(active);
 
+  // PHASE 17.2 — the booking actor mirrors the access already resolved by the
+  // EXISTING ownership chain, so the data layer re-checks the same decision.
+  const bookingActor: BookingActorContext = useMemo(
+    () => resolveBookingActor({
+      supabaseConfigured: true,
+      userPresent: true,
+      resolution: { status: access === 'authorized' ? 'resolved' : 'no-membership' },
+    }),
+    [access],
+  );
+  const tenant = useMemo(() => ownerBookingTenant(context.salon), [context.salon]);
+
   const salonName = ownerSalonDisplayName(context.salon) ?? t('shell.salonFallback');
   const salonLocation = ownerSalonLocationLine(context.salon) ?? t('shell.noLocation');
 
@@ -586,6 +606,19 @@ export default function OwnerDashboard({ loadContext }: Props) {
     if (active === 'overview') {
       return (
         <OverviewFoundation palette={palette} context={context} t={t} onSelect={selectSection} />
+      );
+    }
+    // PHASE 17.2 — Today's Appointments. The actor and tenant keys are BOTH
+    // derived from the session-resolved salon above; this component never
+    // accepts a salon id from the user.
+    if (active === 'today' && tenant) {
+      return (
+        <OwnerTodayAppointments
+          actor={bookingActor}
+          businessIds={tenant.businessIds}
+          themeIds={THEME_IDS}
+          palette={palette}
+        />
       );
     }
     return <SectionFoundation palette={palette} sectionId={active} t={t} />;

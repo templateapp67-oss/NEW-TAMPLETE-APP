@@ -23,7 +23,8 @@ The app contains:
   `src/components/OwnerDashboard.tsx` over `src/lib/ownerDashboard.ts`:
   sections for Overview, Today's / Upcoming Appointments, Customers,
   Revenue/Payments, Calendar and Notifications, scoped to the signed-in
-  owner's OWN salon. Foundation/navigation only so far. It is a sibling
+  owner's OWN salon. Today's Appointments is live (17.2, read-only over the
+  existing booking records); the other five sections are placeholders. It is a sibling
   module of the 18–25 dashboard, **not** a replacement — do not fork a
   second dashboard system.
 - **Booking confirmation** (dashboard demo screen
@@ -117,6 +118,7 @@ npm run test:phase-16.7    # booking management (39 tests)
 npm run test:phase-16.9    # booking notifications & UX (47 tests)
 npm run test:phase-16.10   # final booking acceptance gate for all of Phase 16 (68 tests)
 npm run test:phase-17.1    # salon owner dashboard foundation (56 tests)
+npm run test:phase-17.2    # owner dashboard today's appointments (49 tests)
 npm run clean        # remove dist/ and stray server.js
 node verify-22-screens.js   # static verification of all 25 screens/features
 ```
@@ -159,6 +161,10 @@ node verify-22-screens.js   # static verification of all 25 screens/features
   that; `requireSupabase()` throws a readable error). Never use a
   `service_role` key client-side.
 - `useAuth.ts` — thin Supabase Auth wrapper (email/password session).
+- `ownerTodayAppointments.ts` — today's bookings for the owner's own salon,
+  projected from the EXISTING 10.7/16.5 payment records through 16.7's
+  `readSalonBookings` (permission re-checked, tenant-keyed). "Today" is the
+  salon-local day; statuses are the existing values only.
 - `ownerDashboard.ts` — the owner dashboard's only data entry point:
   section registry + access model + `loadOwnerDashboardContext()`
   (session → `resolveOwnerSalonId()` → one read of that salon over existing

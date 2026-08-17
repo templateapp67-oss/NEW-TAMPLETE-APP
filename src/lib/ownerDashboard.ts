@@ -252,6 +252,8 @@ export function ownerDashboardCanRetry(access: OwnerDashboardAccess): boolean {
 /** The minimal salon identity the dashboard chrome shows. */
 export interface OwnerSalonSummary {
   id: string;
+  /** Existing tenant column on `public.salons` — used to key booking rows. */
+  organizationId: string | null;
   name: string | null;
   slug: string | null;
   address: string | null;
@@ -261,12 +263,15 @@ export interface OwnerSalonSummary {
 
 /**
  * Columns verified to exist on `public.salons` and already read elsewhere in
- * this app (`salonLocationService.ts`, `nearbySalons.ts`). Nothing new.
+ * this app (`salonLocationService.ts`, `nearbySalons.ts`, `ownerSalon.ts`).
+ * Nothing new.
  */
-export const OWNER_SALON_SUMMARY_COLUMNS = 'id, name, slug, address, city, is_active';
+export const OWNER_SALON_SUMMARY_COLUMNS =
+  'id, organization_id, name, slug, address, city, is_active';
 
 interface OwnerSalonRow {
   id: string;
+  organization_id: string | null;
   name: string | null;
   slug: string | null;
   address: string | null;
@@ -277,6 +282,10 @@ interface OwnerSalonRow {
 export function mapOwnerSalonRow(row: OwnerSalonRow): OwnerSalonSummary {
   return {
     id: row.id,
+    organizationId:
+      typeof row.organization_id === 'string' && row.organization_id.trim()
+        ? row.organization_id.trim()
+        : null,
     name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : null,
     slug: typeof row.slug === 'string' && row.slug.trim() ? row.slug.trim() : null,
     address: typeof row.address === 'string' && row.address.trim() ? row.address.trim() : null,
@@ -362,6 +371,49 @@ export async function loadOwnerDashboardContext(): Promise<OwnerDashboardContext
     return { access: 'permission-denied', salon: null };
   }
   return { access: 'error', salon: null };
+}
+
+/* ------------------------------------------------------------------ */
+/* Booking tenant keys for the owner's own salon                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tenant keys the owner's OWN booking rows can carry.
+ *
+ * Booking records are stamped at creation by the EXISTING engine rule
+ * (`bookingBusinessId()` in `siteBookingFlow.ts`): service provenance first,
+ * then an explicit `businessId` on the payload, then the shared `public-site`
+ * fallback. The dashboard therefore cannot assume a single key — it must ask
+ * for the SAME keys the owner's own site would have stamped.
+ *
+ * These candidates are all derived from the SESSION-RESOLVED salon (or the
+ * engine's own fallback). None is typed in by a user and none identifies
+ * another owner's salon: `organization_id` and `id` come from the row the
+ * ownership chain returned, and the `public-site` fallback only ever matches
+ * rows this browser created from this owner's own website.
+ *
+ * This adds no column and no id — it reads the keys that already exist.
+ */
+export interface OwnerBookingTenant {
+  /** Candidate business ids, most specific first. */
+  businessIds: string[];
+  /** Salon id, for traceability in the UI layer. */
+  salonId: string;
+}
+
+/** The shared fallback the booking engine uses when a site has no tenant. */
+export const BOOKING_FALLBACK_BUSINESS_ID = 'public-site';
+
+export function ownerBookingTenant(salon: OwnerSalonSummary | null): OwnerBookingTenant | null {
+  if (!salon) return null;
+  const candidates: string[] = [];
+  if (salon.organizationId) candidates.push(salon.organizationId);
+  if (salon.id) candidates.push(salon.id);
+  candidates.push(BOOKING_FALLBACK_BUSINESS_ID);
+  return {
+    businessIds: Array.from(new Set(candidates)),
+    salonId: salon.id,
+  };
 }
 
 /**
