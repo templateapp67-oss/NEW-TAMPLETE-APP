@@ -361,15 +361,14 @@ await test('desktop sidebar exposes every section and switches content', async (
   for (const id of OWNER_DASHBOARD_SECTION_IDS) {
     assert.ok(utils.getByTestId(`owner-nav-${id}`), `sidebar missing ${id}`);
   }
-  // 'today' (17.2) and 'upcoming' (17.3) have real implementations; the rest
-  // remain foundation placeholders until their own phase.
-  const IMPLEMENTED = ['overview', 'today', 'upcoming'];
+  // All seven dashboard sections now have their phased implementations.
+  const IMPLEMENTED = ['overview', 'today', 'upcoming', 'customers', 'revenue', 'calendar', 'notifications'];
   for (const id of OWNER_DASHBOARD_SECTION_IDS.filter((s) => !IMPLEMENTED.includes(s))) {
     await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
     assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-section'), id);
     assert.ok(utils.getByTestId(`owner-dashboard-placeholder-${id}`), `${id} body missing`);
   }
-  for (const id of ['today', 'upcoming']) {
+  for (const id of ['today', 'upcoming', 'customers', 'revenue', 'calendar', 'notifications']) {
     await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
     assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-section'), id);
   }
@@ -631,10 +630,12 @@ await test('content column scrolls independently and stays within a max width', 
 /* ================================================================== */
 section('10 · No duplicate dashboard system · Phases 10–16 preserved');
 
-await test('exactly one owner dashboard component exists', () => {
-  const dupes = fs.readdirSync('src/components')
-    .filter((f) => /dashboard/i.test(f) && f !== 'OwnerDashboard.tsx');
-  assert.deepEqual(dupes, [], `unexpected dashboard components: ${dupes.join(', ')}`);
+await test('exactly one owner dashboard shell exists', () => {
+  const dashboardFiles = fs.readdirSync('src/components')
+    .filter((f) => /dashboard/i.test(f));
+  assert.ok(dashboardFiles.includes('OwnerDashboard.tsx'));
+  assert.ok(dashboardFiles.includes('OwnerDashboardFilters.tsx'), '17.9 shared filter child missing');
+  assert.equal(dashboardFiles.filter((f) => f === 'OwnerDashboard.tsx').length, 1);
 });
 
 await test('the existing post-launch dashboard (screens 18–25) is untouched', () => {

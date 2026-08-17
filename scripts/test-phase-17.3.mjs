@@ -700,13 +700,11 @@ await test('unauthorized dashboard access never reaches the Upcoming section', a
   cleanup();
 });
 
-await test('the remaining four sections stay foundation placeholders', async () => {
+await test('the later Notifications section now uses its completed implementation', async () => {
   resetState();
   const utils = await renderDashboard();
-  for (const id of ['customers', 'revenue', 'calendar', 'notifications']) {
-    await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
-    assert.ok(utils.getByTestId(`owner-dashboard-placeholder-${id}`), `${id} must stay a placeholder`);
-  }
+  await act(async () => { fireEvent.click(utils.getByTestId('owner-nav-notifications')); });
+  assert.ok(utils.getByTestId('owner-notifications-empty'));
   cleanup();
 });
 

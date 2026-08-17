@@ -61,6 +61,12 @@ export type BookingManagePermission =
 
 export interface BookingActorContext {
   permission: BookingManagePermission;
+  /**
+   * Optional session-resolved tenant scope. Phase 17.4 supplies this from
+   * organization_members → salons; callers cannot expand it with a row id.
+   * Older Phase 16 local-preview callers omit it for backwards compatibility.
+   */
+  allowedBusinessIds?: readonly string[];
 }
 
 /**
@@ -72,6 +78,8 @@ export function resolveBookingActor(options: {
   supabaseConfigured: boolean;
   userPresent: boolean;
   resolution: { status: string } | null | undefined;
+  /** Tenant keys derived from the resolved salon, never from owner input. */
+  allowedBusinessIds?: readonly string[];
 }): BookingActorContext {
   if (!options.supabaseConfigured) {
     // Local onboarding draft — the wizard preview owner manages their own
@@ -84,7 +92,12 @@ export function resolveBookingActor(options: {
   switch (resolution.status) {
     case 'not-configured': return { permission: 'not-configured' };
     case 'not-authenticated': return { permission: 'not-authenticated' };
-    case 'resolved': return { permission: 'authorized' };
+    case 'resolved': return {
+      permission: 'authorized',
+      allowedBusinessIds: options.allowedBusinessIds
+        ? Array.from(new Set(options.allowedBusinessIds))
+        : undefined,
+    };
     case 'no-membership': return { permission: 'no-ownership' };
     case 'ambiguous': return { permission: 'ambiguous' };
     case 'permission-denied': return { permission: 'permission-denied' };
@@ -125,6 +138,10 @@ export function readMyBookings(): PaymentRecord[] {
   return readPaymentRecords().filter((record) => record.customerId === me);
 }
 
+function actorAllowsBusiness(actor: BookingActorContext, businessId: string): boolean {
+  return !actor.allowedBusinessIds || actor.allowedBusinessIds.includes(businessId);
+}
+
 /**
  * Bookings of ONE salon + theme for the OWNER panel. The caller must hold
  * an authorized actor context — the permission is re-checked here, not
@@ -138,6 +155,9 @@ export function readSalonBookings(
 ): { ok: true; records: PaymentRecord[] } | { ok: false; reason: BookingManagePermission } {
   if (!bookingActorCanManage(actor)) {
     return { ok: false, reason: actor.permission };
+  }
+  if (!actorAllowsBusiness(actor, businessId)) {
+    return { ok: false, reason: 'permission-denied' };
   }
   return { ok: true, records: readPaymentRecordsForBusiness(businessId, themeId) };
 }
@@ -163,6 +183,27 @@ export function ownerAllowedTransitions(status: BookingStatus): BookingStatus[] 
   return OWNER_TRANSITIONS[status] ?? [];
 }
 
+/**
+ * Record-aware transitions used by Phase 17.4 controls. The raw status
+ * machine remains the single transition map, while this guard applies the
+ * existing payment prerequisite: an advance/full-payment booking cannot move
+ * from Pending to Confirmed until its gateway payment is actually `paid`.
+ * Payment and booking status remain distinct fields.
+ */
+export function ownerAllowedTransitionsForRecord(
+  record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus' | 'paymentOption'>,
+): BookingStatus[] {
+  const transitions = ownerAllowedTransitions(record.bookingStatus);
+  if (
+    record.bookingStatus === 'pending_payment'
+    && record.paymentOption !== 'pay_at_salon'
+    && record.paymentStatus !== 'paid'
+  ) {
+    return transitions.filter((status) => status !== 'confirmed');
+  }
+  return transitions;
+}
+
 export function customerCanCancel(record: Pick<PaymentRecord, 'bookingStatus'>): boolean {
   return CUSTOMER_CANCELLABLE.includes(record.bookingStatus);
 }
@@ -172,11 +213,13 @@ export function customerCanCancel(record: Pick<PaymentRecord, 'bookingStatus'>):
 /* ------------------------------------------------------------------ */
 
 export type BookingUpdateFailure =
-  | BookingManagePermission   // actor not allowed
-  | 'not-found'               // no such row for this tenant
-  | 'invalid-transition';     // status machine refused
+  | BookingManagePermission          // actor not allowed
+  | 'not-found'                      // no such row for this tenant
+  | 'invalid-transition'             // status machine refused
+  | 'advance-payment-required'       // required gateway payment has not succeeded
+  | 'duplicate-update';              // persisted status already equals request
 
-interface UpdateResult {
+export interface UpdateResult {
   ok: boolean;
   record?: PaymentRecord;
   reason?: BookingUpdateFailure;
@@ -221,12 +264,28 @@ export function ownerUpdateBookingStatus(
   if (!bookingActorCanManage(actor)) {
     return { ok: false, reason: actor.permission };
   }
+  if (!actorAllowsBusiness(actor, businessId)) {
+    return { ok: false, reason: 'permission-denied' };
+  }
   // Tenant-keyed lookup — a foreign salon's booking is structurally invisible.
   const record = readPaymentRecordsForBusiness(businessId, themeId)
     .find((r) => r.bookingId === bookingId);
   if (!record) return { ok: false, reason: 'not-found' };
+  if (record.bookingStatus === nextStatus) {
+    return { ok: false, reason: 'duplicate-update' };
+  }
   if (!ownerAllowedTransitions(record.bookingStatus).includes(nextStatus)) {
     return { ok: false, reason: 'invalid-transition' };
+  }
+  // Server/data-layer payment gate — this is deliberately repeated here even
+  // though the UI also omits Confirm. A crafted call cannot confirm an unpaid
+  // advance/full-payment booking.
+  if (
+    nextStatus === 'confirmed'
+    && record.paymentOption !== 'pay_at_salon'
+    && record.paymentStatus !== 'paid'
+  ) {
+    return { ok: false, reason: 'advance-payment-required' };
   }
 
   const patch: Partial<PaymentRecord> = { bookingStatus: nextStatus };

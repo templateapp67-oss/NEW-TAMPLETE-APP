@@ -1,11 +1,10 @@
 /**
  * PHASE 17.3 — the SHARED owner-dashboard appointment row.
  *
- * Extracted verbatim from the Phase 17.2 Today list so the Today (17.2) and
- * Upcoming (17.3) sections render appointments through ONE component instead
- * of two drifting copies. The markup, fields, status chips, money line and
- * cancelled treatment are unchanged; only the `data-testid` prefix and the
- * optional date line vary per section.
+ * Extracted from the Phase 17.2 Today list so the Today (17.2) and Upcoming
+ * (17.3) sections render appointments through ONE component instead of two
+ * drifting copies. Phase 17.4 adds the same guarded owner status controls to
+ * both sections here.
  *
  * It renders values that were READ from a persisted booking record — it never
  * computes, defaults or invents a business fact.
@@ -17,6 +16,8 @@ import { formatDurationLabel, hasAdvancePaid, hasRemainingBalance } from '../lib
 import { formatMinutesLabel } from '../lib/siteBookingPayment';
 import { formatCurrency } from '../lib/pricing';
 import type { AppLocale } from '../lib/locale';
+import type { BookingActorContext } from '../lib/bookingManagement';
+import OwnerBookingStatusControls from './OwnerBookingStatusControls';
 
 export interface AppointmentPalette {
   panel: string;
@@ -78,6 +79,8 @@ export function Field({
 
 interface Props {
   row: TodayAppointment;
+  /** Session-resolved owner actor; mutations re-check it in the data layer. */
+  actor: BookingActorContext;
   palette: AppointmentPalette;
   locale: AppLocale;
   t: (key: string) => string;
@@ -91,6 +94,7 @@ interface Props {
 
 export default function OwnerAppointmentRow({
   row,
+  actor,
   palette,
   locale,
   t,
@@ -231,6 +235,14 @@ export default function OwnerAppointmentRow({
           {t(`${copyPrefix}.cancelledNote`)}
         </p>
       )}
+
+      <OwnerBookingStatusControls
+        actor={actor}
+        row={row}
+        palette={palette}
+        t={t}
+        testIdPrefix={testIdPrefix}
+      />
     </article>
   );
 }

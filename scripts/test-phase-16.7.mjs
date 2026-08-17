@@ -475,15 +475,17 @@ section('Owner panel UI — details, actions, isolation, states');
     cleanup(); seedRecords(null);
   });
 
-  await test('actions follow the machine: confirm on pending, complete/cancel on confirmed, none on terminal', async () => {
+  await test('actions follow the machine and never confirm before required payment succeeds', async () => {
     resetState();
     seedRecords([
       paymentRecord({ bookingId: 'NX-PEND', bookingStatus: 'pending_payment', paymentStatus: 'pending' }),
+      paymentRecord({ bookingId: 'NX-PAID', bookingStatus: 'pending_payment', paymentStatus: 'paid' }),
       paymentRecord({ bookingId: 'NX-CONF', bookingStatus: 'confirmed' }),
       paymentRecord({ bookingId: 'NX-GONE', bookingStatus: 'cancelled' }),
     ]);
     const { utils } = renderOwnerPanel(AUTHORIZED, 'public-site', 'beauty_skin_spa');
-    assert.ok(utils.getByTestId('owner-booking-confirm-NX-PEND'));
+    assert.equal(utils.container.querySelector('[data-testid="owner-booking-confirm-NX-PEND"]'), null);
+    assert.ok(utils.getByTestId('owner-booking-confirm-NX-PAID'));
     assert.ok(utils.getByTestId('owner-booking-cancel-NX-PEND'));
     assert.equal(utils.container.querySelector('[data-testid="owner-booking-complete-NX-PEND"]'), null);
     assert.ok(utils.getByTestId('owner-booking-complete-NX-CONF'));

@@ -35,6 +35,14 @@ export const BOOKING_AVAILABILITY_EVENTS = [PAYMENT_EVENT] as const;
 const BLOCKING_STATUSES = new Set(['confirmed', 'pay_at_salon', 'pending_payment']);
 
 /**
+ * Shared Phase 16 availability predicate. Calendar/schedule readers reuse
+ * this instead of inventing a second interpretation of booking statuses.
+ */
+export function bookingStatusBlocksAvailability(status: string): boolean {
+  return BLOCKING_STATUSES.has(status);
+}
+
+/**
  * Spans taken by REAL booking records for this salon + theme.
  * `excludeBookingId` lets a resumed booking not block itself.
  */
@@ -44,7 +52,7 @@ export function bookedSpansForSalon(
   excludeBookingId?: string | null,
 ): BookingBlockedSpan[] {
   return readPaymentRecordsForBusiness(businessId, themeId)
-    .filter((record) => BLOCKING_STATUSES.has(record.bookingStatus))
+    .filter((record) => bookingStatusBlocksAvailability(record.bookingStatus))
     .filter((record) => !excludeBookingId || record.bookingId !== excludeBookingId)
     .map((record) => ({
       dateKey: record.dateKey,
