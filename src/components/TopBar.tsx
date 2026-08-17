@@ -1,4 +1,4 @@
-import { Sparkles, CheckCircle2, Users, LayoutDashboard, Loader2, ChevronDown, MapPin, Calendar, CreditCard, Share2, Settings, Scissors, Camera, Clock, LogIn, LogOut } from 'lucide-react';
+import { Sparkles, CheckCircle2, Users, LayoutDashboard, Loader2, ChevronDown, MapPin, Calendar, CreditCard, Share2, Settings, Scissors, Camera, Clock, LogIn, LogOut, Store } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthModal } from './AuthModalProvider';
 import { useAuth, signOut } from '../lib/useAuth';
@@ -29,12 +29,14 @@ export const SCREENS = [
   { id: 23, label: '23 — Salon Settings & Policies', group: 'DASHBOARD (18-25)' },
   { id: 24, label: '24 — Share & Referral Premium', group: 'DASHBOARD (18-25)' },
   { id: 25, label: '25 — Branding & White-label Settings Premium', group: 'DASHBOARD (18-25)' },
+  // PHASE 17.1 — Salon Owner Dashboard (real, session-owned salon data).
+  { id: 26, label: '26 — Salon Owner Dashboard', group: 'OWNER DASHBOARD (26)' },
 ] as const;
 
 interface Props {
   step: number;
-  activeModule: 'wizard' | 'staff-management' | 'dashboard';
-  setActiveModule: (m: 'wizard' | 'staff-management' | 'dashboard') => void;
+  activeModule: 'wizard' | 'staff-management' | 'dashboard' | 'owner-dashboard';
+  setActiveModule: (m: 'wizard' | 'staff-management' | 'dashboard' | 'owner-dashboard') => void;
   saveStatus?: 'saved' | 'saving';
   currentScreen?: number;
   onNavigate?: (screenId: number) => void;
@@ -51,6 +53,7 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
   // Derive currentScreen if not provided
   const derivedScreen = currentScreen ?? (
     activeModule === 'staff-management' ? 17 :
+    activeModule === 'owner-dashboard' ? 26 :
     activeModule === 'dashboard' ? 18 :
     Math.min(16, Math.max(1, step + 1))
   );
@@ -93,7 +96,7 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
               </div>
 
               {/* Grouped rendering */}
-              {['WIZARD (01-16)', 'STAFF MODULE', 'DASHBOARD (18-25)'].map(group => (
+              {['WIZARD (01-16)', 'STAFF MODULE', 'DASHBOARD (18-25)', 'OWNER DASHBOARD (26)'].map(group => (
                 <div key={group} className="p-2">
                   <div className="text-[10px] font-black tracking-widest text-[#ac0053] bg-[#ffd9e1]/40 px-2 py-1 rounded uppercase mb-1">{group}</div>
                   <div className="space-y-0.5">
@@ -123,7 +126,7 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
               ))}
 
               <div className="p-3 border-t border-gray-100 bg-gray-50/30 text-[10px] text-gray-400 text-center">
-                Wizard Screens replicate 16-step onboarding • Staff=17 • Dashboard 18-25 = post-publish mode
+                Wizard Screens replicate 16-step onboarding • Staff=17 • Dashboard 18-25 = post-publish mode • 26 = Salon Owner Dashboard
               </div>
             </div>
           )}
@@ -159,15 +162,24 @@ export default function TopBar({ step, activeModule, setActiveModule, saveStatus
           >
             <Calendar className="w-3.5 h-3.5" /> Dashboard
           </button>
+          <button
+            data-testid="topbar-owner-dashboard-btn"
+            onClick={() => setActiveModule('owner-dashboard')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+              activeModule === 'owner-dashboard' ? 'bg-white text-[#ac0053] shadow-xs' : 'text-gray-600 hover:text-black'
+            }`}
+          >
+            <Store className="w-3.5 h-3.5" /> Owner
+          </button>
         </div>
       </div>
       
       <div className="flex items-center gap-2 md:gap-4 shrink-0">
         <button
-          onClick={() => setActiveModule(activeModule === 'wizard' ? 'staff-management' : activeModule === 'staff-management' ? 'dashboard' : 'wizard')}
+          onClick={() => setActiveModule(activeModule === 'wizard' ? 'staff-management' : activeModule === 'staff-management' ? 'dashboard' : activeModule === 'dashboard' ? 'owner-dashboard' : 'wizard')}
           className="lg:hidden text-xs font-semibold text-[#ac0053] bg-[#ffd9e1]/50 px-2.5 py-1.5 rounded-lg flex items-center gap-1"
         >
-          {activeModule === 'wizard' ? 'Staff' : activeModule === 'staff-management' ? 'Dashboard' : 'Builder'}
+          {activeModule === 'wizard' ? 'Staff' : activeModule === 'staff-management' ? 'Dashboard' : activeModule === 'dashboard' ? 'Owner' : 'Builder'}
         </button>
 
         {/* Account — available on every screen */}

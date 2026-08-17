@@ -21,6 +21,7 @@ import StepPublishSetup from './screens/StepPublishSetup';
 import StepPublishSuccess from './screens/StepPublishSuccess';
 import BookingConfirmation from './components/BookingConfirmation';
 import StaffManagementModule from './components/StaffManagementModule';
+import OwnerDashboard from './components/OwnerDashboard';
 import TopBar from './components/TopBar';
 import { initialData, SalonData } from './types';
 import type { ThemeId } from './lib/themeServices';
@@ -67,12 +68,16 @@ export default function App() {
     return initialData;
   });
 
-  const [activeModule, setActiveModule] = useState<'wizard' | 'staff-management' | 'dashboard'>(() => {
+  const [activeModule, setActiveModule] = useState<'wizard' | 'staff-management' | 'dashboard' | 'owner-dashboard'>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.activeModule === 'staff-management' || parsed.activeModule === 'dashboard') return parsed.activeModule;
+        if (
+          parsed.activeModule === 'staff-management' ||
+          parsed.activeModule === 'dashboard' ||
+          parsed.activeModule === 'owner-dashboard'
+        ) return parsed.activeModule;
       }
       const dashboardTab = localStorage.getItem(DASHBOARD_TAB_KEY);
       if (dashboardTab && data.publishState === 'published') return 'dashboard';
@@ -215,6 +220,8 @@ export default function App() {
   // Universal 25-screen navigator
   const getCurrentScreen = (): number => {
     if (activeModule === 'staff-management') return 17;
+    // PHASE 17.1 — Salon Owner Dashboard (screen 26).
+    if (activeModule === 'owner-dashboard') return 26;
     if (activeModule === 'dashboard') {
       const tabIndex = DASHBOARD_TABS.indexOf(dashboardTab);
       return 18 + tabIndex;
@@ -244,6 +251,11 @@ export default function App() {
       // For dashboard, ensure step is 0 to render Landing dashboard mode, but keep step for persistence
       // We don't change step to avoid losing wizard progress; dashboard is separate module
       showToast(`Opened Dashboard — ${tab} (Screen ${String(screenId).padStart(2, '0')})`);
+    } else if (screenId === 26) {
+      // PHASE 17.1 — Salon Owner Dashboard. Its salon comes from the signed-in
+      // session (organization_members → salons); nothing is passed in here.
+      setActiveModule('owner-dashboard');
+      showToast('Opened Salon Owner Dashboard (Screen 26)');
     }
   };
 
@@ -279,6 +291,40 @@ export default function App() {
             forcedActiveTab={dashboardTab as any}
             onTabChange={(tab: any) => setDashboardTab(tab)}
           />
+        </main>
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="absolute bottom-8 right-8 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3"
+            >
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span className="text-sm font-medium">{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // PHASE 17.1 — SALON OWNER DASHBOARD (screen 26). Rendered inside the same
+  // app chrome as every other module; it resolves its own salon from the
+  // authenticated session and never receives a salon id from here.
+  if (activeModule === 'owner-dashboard') {
+    return (
+      <div className="h-screen bg-[#f9f9f9] flex flex-col font-sans text-gray-900 overflow-hidden relative">
+        <TopBar
+          step={step}
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
+          saveStatus={saveStatus}
+          currentScreen={currentScreen}
+          onNavigate={navigateToScreen}
+        />
+        <main className="flex-1 flex overflow-hidden">
+          <OwnerDashboard />
         </main>
         <AnimatePresence>
           {toastMessage && (

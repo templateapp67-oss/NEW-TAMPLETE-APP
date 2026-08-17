@@ -1,10 +1,59 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-17** (session `arena/01a00dbb-new-tamplete-app`, Phase 16.10).
+> Last updated: **2026-08-17** (session `arena/01a00df7-new-tamplete-app`, Phase 17.1).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 17.1 — SALON OWNER DASHBOARD FOUNDATION: COMPLETE (56 tests).**
+  - The foundation + navigation of the Salon Owner Dashboard, built on
+    the EXISTING auth and salon-ownership architecture. Appointment
+    lists, customer management, revenue calculations, calendar logic
+    and notifications are deliberately NOT implemented (17.2+).
+  - **Ownership reuses the existing chain verbatim**: `auth.users.id →
+    organization_members (role='owner', active) → organization_id →
+    salons.organization_id → salons.id`, through the existing
+    `resolveOwnerSalonId()` (helper `nexora_owner_salon_ids()` with the
+    equivalent join as fallback) — the same pattern 14.6/15.6/16.7 use.
+    `job_salon_members` is NOT consulted (asserted in tests after
+    stripping comments). No salon id is hardcoded, invented, or accepted
+    as a prop/URL param/storage key: `<OwnerDashboard />` takes no props.
+  - **Own salon only**: one read of the session-resolved row over
+    existing columns (`id, name, slug, address, city, is_active`,
+    `deleted_at is null`). Every non-authorized access returns
+    `{ salon: null }`, so an unauthorized viewer gets no salon data at
+    all — not even a name. Multiple owned salons → `ambiguous` refusal
+    (never an arbitrary pick).
+  - **Structure created** for Overview, Today's Appointments, Upcoming
+    Appointments, Customers, Revenue/Payments, Calendar, Notifications.
+    Overview shows the real salon identity card; the other six are
+    navigable placeholders. No counts, amounts, customers or bookings
+    are invented anywhere; missing fields render "Not added yet".
+  - **No duplicate dashboard system**: the existing post-launch
+    dashboard (screens 18–25 in `Landing.tsx`) is untouched; the owner
+    dashboard is a sibling module (`activeModule='owner-dashboard'`,
+    screen 26) inside the same `App.tsx`/`TopBar` chrome.
+  - **No database changes**: read-only, existing columns only; M01–M27
+    remain unapplied drafts and no new migration was added.
+  - States: loading skeletons, empty block, error + Retry, and a
+    per-reason unauthorized card (`role="alert"`; retry offered only for
+    transient failures). Refusal copy never leaks SQL/tables/codes.
+  - Responsive: desktop labelled sidebar, tablet icon rail (title +
+    sr-only), mobile pills + slide-over drawer. EN/HI and Light/Dark run
+    on the EXISTING `siteNavigation` locale/appearance buses.
+  - New: `src/lib/ownerDashboard.ts`, `src/lib/ownerDashboardI18n.ts`,
+    `src/components/OwnerDashboard.tsx`, `scripts/test-phase-17.1.mjs`.
+    Additive: `App.tsx`, `TopBar.tsx`, one allowlist line in
+    `scripts/test-phase-16.10.mjs` for the new UI-preference store key
+    `nexora_owner_dashboard_section`.
+  - Validation: `test:phase-17.1` **56/56**; lint 0; verify-22-screens
+    25/25; regressions green (10.1 80/80, 10.6 107/107, 11.8 450/450,
+    12.1 84/84, 14.6 26/26, 15.6 34/34, 16.7 39/39, 16.9 47/47,
+    16.10 68/68). Details:
+    `docs/phase-17.1-owner-dashboard-foundation.md`.
+  - NEXT: Phase 17.2. Do not fill a section without re-running
+    `test:phase-17.1`.
 
 - **PHASE 16.10 — FINAL BOOKING ACCEPTANCE TESTING: COMPLETE (68 tests).**
   - Final acceptance gate for the ENTIRE Phase 16 booking & appointment
@@ -1517,6 +1566,10 @@
   role permissions, availability).
 - **Dashboard 18–25**: Overview, Website & Design, Bookings & Calendar,
   Payments & Revenue, Share, Settings, Referral, Branding.
+- **Screen 26 (Phase 17.1)**: Salon Owner Dashboard foundation — sections for
+  Overview, Today's Appointments, Upcoming Appointments, Customers,
+  Revenue/Payments, Calendar and Notifications, scoped to the signed-in
+  owner's own salon via `organization_members → salons`.
 - **Public customer discovery**: `/nearby` renders `NearbySalonSearch`.
 - **Current app persistence**: wizard/dashboard data is still primarily
   localStorage/in-memory; the draft DB schema is not yet wired to screens.
@@ -1658,6 +1711,7 @@ npm run test:phase-16.5    # advance payment / deposit (24 tests)
 npm run test:phase-16.7    # booking management (39 tests)
 npm run test:phase-16.9    # booking notifications & UX (47 tests)
 npm run test:phase-16.10   # final booking acceptance gate (68 tests)
+npm run test:phase-17.1    # owner dashboard foundation (56 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1710,6 +1764,7 @@ Expected output:
 - `test:phase-16.7`: 39/39 passed (booking management)
 - `test:phase-16.9`: 47/47 passed (booking notifications & UX)
 - `test:phase-16.10`: 68/68 passed (final booking acceptance — PHASE 16 ACCEPTED)
+- `test:phase-17.1`: 56/56 passed (salon owner dashboard foundation)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed
