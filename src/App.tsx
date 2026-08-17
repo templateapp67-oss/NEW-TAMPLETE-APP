@@ -22,6 +22,7 @@ import StepPublishSuccess from './screens/StepPublishSuccess';
 import BookingConfirmation from './components/BookingConfirmation';
 import StaffManagementModule from './components/StaffManagementModule';
 import OwnerDashboard from './components/OwnerDashboard';
+import CustomerAccount from './components/CustomerAccount';
 import TopBar from './components/TopBar';
 import { initialData, SalonData } from './types';
 import type { ThemeId } from './lib/themeServices';
@@ -68,7 +69,7 @@ export default function App() {
     return initialData;
   });
 
-  const [activeModule, setActiveModule] = useState<'wizard' | 'staff-management' | 'dashboard' | 'owner-dashboard'>(() => {
+  const [activeModule, setActiveModule] = useState<'wizard' | 'staff-management' | 'dashboard' | 'owner-dashboard' | 'customer-account'>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -76,7 +77,8 @@ export default function App() {
         if (
           parsed.activeModule === 'staff-management' ||
           parsed.activeModule === 'dashboard' ||
-          parsed.activeModule === 'owner-dashboard'
+          parsed.activeModule === 'owner-dashboard' ||
+          parsed.activeModule === 'customer-account'
         ) return parsed.activeModule;
       }
       const dashboardTab = localStorage.getItem(DASHBOARD_TAB_KEY);
@@ -222,6 +224,8 @@ export default function App() {
     if (activeModule === 'staff-management') return 17;
     // PHASE 17.1 — Salon Owner Dashboard (screen 26).
     if (activeModule === 'owner-dashboard') return 26;
+    // PHASE 20.1 — Customer Account (screen 27).
+    if (activeModule === 'customer-account') return 27;
     if (activeModule === 'dashboard') {
       const tabIndex = DASHBOARD_TABS.indexOf(dashboardTab);
       return 18 + tabIndex;
@@ -256,6 +260,10 @@ export default function App() {
       // session (organization_members → salons); nothing is passed in here.
       setActiveModule('owner-dashboard');
       showToast('Opened Salon Owner Dashboard (Screen 26)');
+    } else if (screenId === 27) {
+      // PHASE 20.1 — Customer Account.
+      setActiveModule('customer-account');
+      showToast('Opened Customer Account (Screen 27)');
     }
   };
 
@@ -325,6 +333,51 @@ export default function App() {
         />
         <main className="flex-1 flex overflow-hidden">
           <OwnerDashboard />
+        </main>
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="absolute bottom-8 right-8 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3"
+            >
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span className="text-sm font-medium">{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // PHASE 20.1 — CUSTOMER ACCOUNT (screen 27). Rendered inside the same
+  // app chrome as every other module; it shows the authenticated customer's
+  // real profile and bookings using the existing authentication system.
+  if (activeModule === 'customer-account') {
+    return (
+      <div className="h-screen bg-[#f9f9f9] flex flex-col font-sans text-gray-900 overflow-hidden relative">
+        <TopBar
+          step={step}
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
+          saveStatus={saveStatus}
+          currentScreen={currentScreen}
+          onNavigate={navigateToScreen}
+        />
+        <main className="flex-1 flex overflow-hidden">
+          <CustomerAccount
+            mode="page"
+            onSignIn={() => {
+              // This would typically open the auth modal - handled by AuthModalProvider
+              // For now, navigate back to wizard which has auth access
+              setActiveModule('wizard');
+            }}
+            onSignOut={() => {
+              setActiveModule('wizard');
+              showToast('Signed out successfully');
+            }}
+          />
         </main>
         <AnimatePresence>
           {toastMessage && (
