@@ -1,10 +1,53 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-17** (session `arena/01a00df7-new-tamplete-app`, Phase 17.2).
+> Last updated: **2026-08-17** (session `arena/01a00df7-new-tamplete-app`, Phase 17.3).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 17.3 — UPCOMING APPOINTMENTS: COMPLETE (50 tests).**
+  - The Upcoming Appointments section of the Owner Dashboard, over the
+    EXISTING booking/payment + ownership architecture. Booking status
+    management, customer management, revenue, calendar and
+    notifications remain unimplemented (17.4+).
+  - **Reuses 17.2 rather than forking it**: same payment-record source,
+    same `TodayAppointment` projection, same money/service helpers,
+    same `ownerBookingTenant()` session-derived tenant candidates, same
+    `readSalonBookings()` (permission re-checked per key, tenant-keyed,
+    refusal on ANY key refuses the whole read, rows de-duplicated).
+    `job_salon_members` is not used. **No schema change.**
+  - **Shared row extracted**: the 17.2 row markup moved to
+    `OwnerAppointmentRow.tsx` and BOTH sections now render through it —
+    one renderer, not two drifting copies. 17.2 stayed 49/49.
+  - **Window**: strictly AFTER the salon-local calendar day, matching the
+    section's own 17.1 description and guaranteeing no booking appears in
+    both Today and Upcoming. `dateKey` is `YYYY-MM-DD` so lexical order
+    IS chronological order; `toISOString()` is never used. Cancelled and
+    failed rows are EXCLUDED per the existing inactive-slot rule.
+  - **Ordering**: nearest first — date → start → end → booking id.
+  - **Grouping**: by the row's own date, nearest day first, with the real
+    localized date, a relative badge (Tomorrow / In N days / Later) and a
+    per-day count. Days with no bookings are never emitted.
+  - **Fields**: customer name + mobile, service(s) incl. multi-service
+    lines, date, time, duration, booking status, payment status, total,
+    advance, remaining, staff, booking id — all read from the record;
+    advance/remaining only when non-zero.
+  - States: loading skeletons (`aria-busy`), empty, error + Retry,
+    unauthorized refusal card. Responsive 1/2/4-column grid; EN/HI;
+    light/dark. Re-reads on `PAYMENT_EVENT` / `SALON_CLOCK_EVENT`.
+  - New: `src/lib/ownerUpcomingAppointments.ts`,
+    `src/components/OwnerUpcomingAppointments.tsx`,
+    `src/components/OwnerAppointmentRow.tsx`,
+    `scripts/test-phase-17.3.mjs`. Additive: `ownerDashboardI18n.ts`
+    (`upcoming.*` + `ownerDashboardCount`), `OwnerDashboard.tsx`,
+    `OwnerTodayAppointments.tsx` (refactor only). Three earlier
+    assertions updated for the new reality.
+  - Validation: `test:phase-17.3` **50/50**; 17.2 49/49; 17.1 56/56;
+    lint 0; verify-22-screens 25/25; build green; regressions 10.6
+    107/107, 14.6 26/26, 15.6 34/34, 16.7 39/39, 16.9 47/47, 16.10
+    68/68. Details: `docs/phase-17.3-upcoming-appointments.md`.
+  - NEXT: Phase 17.4. Status mutations stay in 16.7's panel.
 
 - **PHASE 17.2 — TODAY'S APPOINTMENTS: COMPLETE (49 tests).**
   - The Today's Appointments section of the Owner Dashboard, over the
@@ -1618,8 +1661,9 @@
   Overview, Today's Appointments, Upcoming Appointments, Customers,
   Revenue/Payments, Calendar and Notifications, scoped to the signed-in
   owner's own salon via `organization_members → salons`. Today's Appointments
-  is implemented (17.2) over the existing booking records; the remaining five
-  sections are still foundation placeholders.
+  is implemented (17.2) and Upcoming Appointments (17.3) over the existing
+  booking records; the remaining four sections are still foundation
+  placeholders.
 - **Public customer discovery**: `/nearby` renders `NearbySalonSearch`.
 - **Current app persistence**: wizard/dashboard data is still primarily
   localStorage/in-memory; the draft DB schema is not yet wired to screens.
@@ -1763,6 +1807,7 @@ npm run test:phase-16.9    # booking notifications & UX (47 tests)
 npm run test:phase-16.10   # final booking acceptance gate (68 tests)
 npm run test:phase-17.1    # owner dashboard foundation (56 tests)
 npm run test:phase-17.2    # today's appointments (49 tests)
+npm run test:phase-17.3    # upcoming appointments (50 tests)
 npm run build               # Vite build + esbuild server bundle
 ```
 
@@ -1817,6 +1862,7 @@ Expected output:
 - `test:phase-16.10`: 68/68 passed (final booking acceptance — PHASE 16 ACCEPTED)
 - `test:phase-17.1`: 56/56 passed (salon owner dashboard foundation)
 - `test:phase-17.2`: 49/49 passed (today's appointments)
+- `test:phase-17.3`: 50/50 passed (upcoming appointments)
 - `test:phase-10.6`: 107/107 passed (updated for the 6-step structure)
 - `test:phase-10.7`: 66/66 passed
 - `test:phase-10.8`: 36/36 passed

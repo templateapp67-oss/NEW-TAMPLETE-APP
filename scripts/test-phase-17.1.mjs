@@ -361,15 +361,18 @@ await test('desktop sidebar exposes every section and switches content', async (
   for (const id of OWNER_DASHBOARD_SECTION_IDS) {
     assert.ok(utils.getByTestId(`owner-nav-${id}`), `sidebar missing ${id}`);
   }
-  // 'today' gained its real implementation in 17.2; the rest remain
-  // foundation placeholders until their own phase.
-  for (const id of OWNER_DASHBOARD_SECTION_IDS.filter((s) => s !== 'overview' && s !== 'today')) {
+  // 'today' (17.2) and 'upcoming' (17.3) have real implementations; the rest
+  // remain foundation placeholders until their own phase.
+  const IMPLEMENTED = ['overview', 'today', 'upcoming'];
+  for (const id of OWNER_DASHBOARD_SECTION_IDS.filter((s) => !IMPLEMENTED.includes(s))) {
     await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
     assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-section'), id);
     assert.ok(utils.getByTestId(`owner-dashboard-placeholder-${id}`), `${id} body missing`);
   }
-  await act(async () => { fireEvent.click(utils.getByTestId('owner-nav-today')); });
-  assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-section'), 'today');
+  for (const id of ['today', 'upcoming']) {
+    await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
+    assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-section'), id);
+  }
   await act(async () => { fireEvent.click(utils.getByTestId('owner-nav-overview')); });
   assert.ok(utils.getByTestId('owner-dashboard-overview'));
   cleanup();

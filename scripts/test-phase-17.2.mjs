@@ -642,7 +642,12 @@ await test('the list refreshes when a booking record changes', async () => {
 section('8 · Responsive / EN-HI / light-dark');
 
 await test('the row grid reflows across mobile, tablet and desktop', () => {
-  assert.match(TODAY_UI, /grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4/);
+  // 17.3 extracted the row into the SHARED OwnerAppointmentRow component;
+  // the responsive grid lives there and is used by both sections.
+  const rowSrc = fs.readFileSync('src/components/OwnerAppointmentRow.tsx', 'utf8');
+  assert.match(rowSrc, /grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4/);
+  assert.match(rowSrc, /flex-wrap/);
+  assert.match(TODAY_UI, /OwnerAppointmentRow/);
   assert.match(TODAY_UI, /flex-wrap/);
 });
 
@@ -740,8 +745,9 @@ await test('17.1 foundation still works: all seven sections and their states', a
   for (const id of ['overview', 'today', 'upcoming', 'customers', 'revenue', 'calendar', 'notifications']) {
     assert.ok(utils.getByTestId(`owner-nav-${id}`), `section ${id} missing`);
   }
-  // The six not-yet-built sections still show their foundation placeholder.
-  for (const id of ['upcoming', 'customers', 'revenue', 'calendar', 'notifications']) {
+  // The not-yet-built sections still show their foundation placeholder
+  // ('upcoming' gained its real implementation in 17.3).
+  for (const id of ['customers', 'revenue', 'calendar', 'notifications']) {
     await act(async () => { fireEvent.click(utils.getByTestId(`owner-nav-${id}`)); });
     assert.ok(utils.getByTestId(`owner-dashboard-placeholder-${id}`), `${id} must stay a placeholder in 17.2`);
   }

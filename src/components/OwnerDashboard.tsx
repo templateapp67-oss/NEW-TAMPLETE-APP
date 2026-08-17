@@ -66,6 +66,7 @@ import type {
 } from '../lib/ownerDashboard';
 import { ownerDashboardTranslator } from '../lib/ownerDashboardI18n';
 import OwnerTodayAppointments from './OwnerTodayAppointments';
+import OwnerUpcomingAppointments from './OwnerUpcomingAppointments';
 import { resolveBookingActor } from '../lib/bookingManagement';
 import type { BookingActorContext } from '../lib/bookingManagement';
 import { SITE_HEADER_THEME_IDS } from '../lib/siteNavigation';
@@ -614,6 +615,18 @@ export default function OwnerDashboard({ loadContext }: Props) {
     if (active === 'today' && tenant) {
       return (
         <OwnerTodayAppointments
+          actor={bookingActor}
+          businessIds={tenant.businessIds}
+          themeIds={THEME_IDS}
+          palette={palette}
+        />
+      );
+    }
+    // PHASE 17.3 — Upcoming Appointments. Same session-resolved actor and
+    // tenant keys; the data layer re-checks both on every read.
+    if (active === 'upcoming' && tenant) {
+      return (
+        <OwnerUpcomingAppointments
           actor={bookingActor}
           businessIds={tenant.businessIds}
           themeIds={THEME_IDS}

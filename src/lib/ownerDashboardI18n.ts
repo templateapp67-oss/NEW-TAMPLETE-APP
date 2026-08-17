@@ -114,6 +114,23 @@ const EN = {
   'today.noCustomerName': 'Name not provided',
   'today.cancelledNote': 'This appointment was cancelled — the slot is free.',
 
+  /* PHASE 17.3 — Upcoming Appointments */
+  'upcoming.heading': 'Upcoming Appointments',
+  'upcoming.subtitle': 'Scheduled after today, nearest first.',
+  'upcoming.loading': 'Loading upcoming appointments…',
+  'upcoming.error.title': 'Upcoming appointments could not be loaded',
+  'upcoming.error.body': 'Something went wrong while loading your appointments. Please try again.',
+  'upcoming.empty.title': 'No upcoming appointments',
+  'upcoming.empty.body': 'Bookings made for future dates will appear here.',
+  'upcoming.count.total': 'Total',
+  'upcoming.count.days': 'Days',
+  'upcoming.group.tomorrow': 'Tomorrow',
+  'upcoming.group.later': 'Later',
+  'upcoming.group.inDays': 'In {n} days',
+  'upcoming.group.count.one': '1 appointment',
+  'upcoming.group.count.other': '{n} appointments',
+  'upcoming.field.date': 'Date',
+
   /* Loading / error / empty */
   'state.loading': 'Loading your dashboard…',
   'state.error.title': 'Dashboard could not be loaded',
@@ -227,6 +244,22 @@ const HI: Record<OwnerDashboardTextKey, string> = {
   'today.noCustomerName': 'नाम नहीं दिया गया',
   'today.cancelledNote': 'यह अपॉइंटमेंट रद्द कर दी गई — स्लॉट खाली है।',
 
+  'upcoming.heading': 'आगामी अपॉइंटमेंट',
+  'upcoming.subtitle': 'आज के बाद तय, सबसे नज़दीकी पहले।',
+  'upcoming.loading': 'आगामी अपॉइंटमेंट लोड हो रही हैं…',
+  'upcoming.error.title': 'आगामी अपॉइंटमेंट लोड नहीं हो सकीं',
+  'upcoming.error.body': 'अपॉइंटमेंट लोड करते समय कुछ गड़बड़ी हुई। कृपया फिर से कोशिश करें।',
+  'upcoming.empty.title': 'कोई आगामी अपॉइंटमेंट नहीं',
+  'upcoming.empty.body': 'आगे की तारीखों की बुकिंग यहाँ दिखाई देंगी।',
+  'upcoming.count.total': 'कुल',
+  'upcoming.count.days': 'दिन',
+  'upcoming.group.tomorrow': 'कल',
+  'upcoming.group.later': 'बाद में',
+  'upcoming.group.inDays': '{n} दिनों में',
+  'upcoming.group.count.one': '1 अपॉइंटमेंट',
+  'upcoming.group.count.other': '{n} अपॉइंटमेंट',
+  'upcoming.field.date': 'तारीख',
+
   'state.loading': 'आपका डैशबोर्ड लोड हो रहा है…',
   'state.error.title': 'डैशबोर्ड लोड नहीं हो सका',
   'state.error.body': 'आपका सैलून लोड करते समय कुछ गड़बड़ी हुई। कृपया फिर से कोशिश करें।',
@@ -256,6 +289,11 @@ export function ownerDashboardText(locale: AppLocale, key: string): string {
     (EN as Record<string, string>)[key] ??
     key
   );
+}
+
+/** Interpolates `{n}` — used by the upcoming-day group labels. */
+export function ownerDashboardCount(locale: AppLocale, key: string, n: number): string {
+  return ownerDashboardText(locale, key).replace('{n}', String(n));
 }
 
 /** Convenience binder so components read `t('shell.title')`. */
