@@ -76,6 +76,7 @@ import OwnerRevenueSummary from './OwnerRevenueSummary';
 import OwnerCalendarSchedule from './OwnerCalendarSchedule';
 import OwnerNotifications from './OwnerNotifications';
 import OwnerDashboardFilters from './OwnerDashboardFilters';
+import OwnerResolutionDiagnostics from './OwnerResolutionDiagnostics';
 import { DEFAULT_OWNER_FILTERS } from '../lib/ownerDashboardFilters';
 import type { OwnerDashboardFilterState } from '../lib/ownerDashboardFilters';
 import { resolveBookingActor } from '../lib/bookingManagement';
@@ -637,13 +638,19 @@ export default function OwnerDashboard({ loadContext }: Props) {
     }
     if (!canView) {
       return (
-        <OwnerDashboardDenied
-          palette={palette}
-          title={t('denied.title')}
-          message={t(deniedKey ?? 'denied.error')}
-          retryLabel={t('state.retry')}
-          onRetry={ownerDashboardCanRetry(access) ? () => load() : undefined}
-        />
+        <div className="space-y-4">
+          <OwnerDashboardDenied
+            palette={palette}
+            title={t('denied.title')}
+            message={t(deniedKey ?? 'denied.error')}
+            retryLabel={t('state.retry')}
+            onRetry={ownerDashboardCanRetry(access) ? () => load() : undefined}
+          />
+          {/* Observability only — runs the live-database probes (session,
+              helper RPC, organization_members, salons) and reports the exact
+              recorded results. Never part of the access decision. */}
+          <OwnerResolutionDiagnostics palette={palette} />
+        </div>
       );
     }
     if (!context.salon) {
