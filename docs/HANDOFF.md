@@ -1,11 +1,64 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-18** (session `arena/01a01301-new-tamplete-app`,
-> owner-dashboard activation).
-> Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
-> any database work.
+> Last updated: **2026-08-18** (session `arena/01a01326-new-tamplete-app`,
+> owner-dashboard root-cause fix).
 
 ## Current repository state
+
+
+- **OWNER DASHBOARD — FALSE "NOT LINKED" ROOT-CAUSE FIX (24 resolution tests).**
+  - **Problem (reproduced live)**: the owner dashboard still showed
+    "Dashboard unavailable — Your account is not linked to a salon." for an
+    owner whose salon IS linked through `organization_members →
+    salons.organization_id`. The previous session's fix (two-query chain
+    with the user filter IN the query) still treats "query ran and returned
+    empty" as proof of no salon. PostgREST reports an **RLS-hidden table
+    exactly like an empty one** — `[]`, no error — so when
+    `organization_members` has no readable policy for the authenticated
+    role (or the `nexora_owner_salon_ids()` helper is absent), every lookup
+    returns empty and the dashboard wrongly blames the account.
+  - **Fix (src/lib/ownerSalon.ts — resolution path)**:
+    1. New **membership visibility probe**: when every lookup comes back
+       empty, the session's OWN membership rows are re-read WITHOUT the
+       role/status filters. Any visible row → the table is readable and an
+       empty owner/active chain is conclusive → honest `no-membership`.
+       Zero rows → absence is UNPROVABLE (RLS may hide the table) → new
+       `unverifiable` state (retryable, own denied-card copy) — a linked
+       owner is NEVER told "not linked" again.
+    2. Fixed a misclassification: the embedded-fallback branch cleared
+       `worstFailure` even when the embed answered EMPTY, which could mask
+       a permission failure as "no membership" — now only an embed that
+       actually returned salons clears it.
+    3. `getAuthenticatedUserId()` now falls back to the locally-cached
+       session when the `getUser()` auth-server round trip fails, so a
+       network blip can never masquerade as "signed out".
+    4. `OwnerDashboard` re-runs resolution when the auth session user
+       changes, so signing in while the screen is open clears the stale
+       refusal instead of showing it until refresh.
+  - **Database correction (manual, not executed)**:
+    `docs/owner-dashboard-ownership-fix.sql` — conditional/idempotent SQL
+    (run manually in the Supabase SQL editor, same convention as
+    `docs/owner-location-setup.sql`): creates the documented helper
+    `nexora_owner_salon_ids()` ONLY if missing (security definer, the exact
+    existing join), grants execute to authenticated, and adds the minimum
+    column grant + own-rows SELECT policy on `organization_members`. No new
+    tables, no fake rows, `job_salon_members` untouched, RLS never
+    weakened. With it applied, a valid owner's dashboard resolves and
+    renders; without it the dashboard honestly says "could not verify"
+    instead of "not linked".
+  - New/updated tests: `scripts/test-owner-salon-resolution.mjs` (21→24,
+    incl. two LIVE-DIVERGENCE regressions where a properly-linked owner's
+    membership table is RLS-hidden), `scripts/test-phase-17.1.mjs`
+    (56→57, `unverifiable` access mapping/retry/refusal-card).
+  - Validation: lint 0; build green; owner-salon-resolution 24/24; 17.1 57,
+    17.2 49, 17.3 50, 17.4 22, 17.5 33, 17.6 33, 17.7 35, 17.8 33, 17.9 33,
+    14.6 26, 15.6 34, 16.7 39, 16.10 68; verify-22-screens 25/25;
+    `test:phase-17.10` full acceptance PASS (13/13 static + 15/15 suites);
+    `test:auth` 13/14 (the one failure is the pre-existing stale
+    migration-count assertion documented below — unchanged at base).
+  - NEXT: apply `docs/owner-dashboard-ownership-fix.sql` to the live
+    Supabase project (requires explicit operator approval, like every
+    database change) and re-verify screen 26 with the real owner account.
 
 
 - **OWNER DASHBOARD ACTIVATION — FALSE "NOT LINKED" FIX: COMPLETE (21 tests).**

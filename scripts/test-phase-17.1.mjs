@@ -208,6 +208,7 @@ const RESOLUTION_CASES = [
   ['not-configured', 'not-configured', false, 'denied.notConfigured'],
   ['not-authenticated', 'not-authenticated', false, 'denied.login'],
   ['no-membership', 'no-ownership', false, 'denied.noSalon'],
+  ['unverifiable', 'unverifiable', false, 'denied.unverifiable'],
   ['ambiguous', 'ambiguous', false, 'denied.ambiguous'],
   ['permission-denied', 'permission-denied', false, 'denied.permission'],
   ['error', 'error', false, 'denied.error'],
@@ -231,6 +232,7 @@ await test('a missing resolution is an error, never an authorization', () => {
 await test('retry is offered only for transient failures', () => {
   assert.equal(ownerDashboardCanRetry('error'), true);
   assert.equal(ownerDashboardCanRetry('permission-denied'), true);
+  assert.equal(ownerDashboardCanRetry('unverifiable'), true);
   assert.equal(ownerDashboardCanRetry('not-authenticated'), false);
   assert.equal(ownerDashboardCanRetry('no-ownership'), false);
   assert.equal(ownerDashboardCanRetry('ambiguous'), false);
@@ -342,7 +344,7 @@ await test('missing salon fields render "Not added yet" instead of placeholders'
 
 await test('unauthorized viewers receive no salon data at all', async () => {
   resetState();
-  for (const access of ['not-authenticated', 'no-ownership', 'ambiguous', 'permission-denied']) {
+  for (const access of ['not-authenticated', 'no-ownership', 'unverifiable', 'ambiguous', 'permission-denied']) {
     const utils = await renderDashboard(contextLoader({ access, salon: null }));
     const text = utils.getByTestId('owner-dashboard').textContent;
     assert.ok(!text.includes('Resolved Salon'), `${access} must not leak a salon name`);
@@ -489,6 +491,7 @@ await test('unauthorized states show a refusal card with the right message', asy
   const expectations = [
     ['not-authenticated', 'denied.login'],
     ['no-ownership', 'denied.noSalon'],
+    ['unverifiable', 'denied.unverifiable'],
     ['ambiguous', 'denied.ambiguous'],
     ['permission-denied', 'denied.permission'],
     ['not-configured', 'denied.notConfigured'],
@@ -503,7 +506,7 @@ await test('unauthorized states show a refusal card with the right message', asy
 });
 
 await test('refusals never expose SQL, table names or database internals', () => {
-  for (const key of ['denied.login', 'denied.noSalon', 'denied.ambiguous', 'denied.permission', 'denied.notConfigured', 'denied.error']) {
+  for (const key of ['denied.login', 'denied.noSalon', 'denied.unverifiable', 'denied.ambiguous', 'denied.permission', 'denied.notConfigured', 'denied.error']) {
     for (const locale of ['en', 'hi']) {
       const text = ownerDashboardText(locale, key);
       assert.ok(!/select |organization_members|salons\.|42501|PGRST/i.test(text), `${key}/${locale} leaks internals`);

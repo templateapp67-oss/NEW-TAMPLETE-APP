@@ -287,6 +287,8 @@ const EN = {
   'denied.title': 'Dashboard unavailable',
   'denied.login': 'Please log in with your owner account to open the dashboard.',
   'denied.noSalon': 'Your account is not linked to a salon.',
+  'denied.unverifiable':
+    'We could not verify which salon is linked to your account. Please try again.',
   'denied.ambiguous': 'Your account is linked to more than one salon. Please contact support.',
   'denied.permission': 'You do not have permission to view this dashboard.',
   'denied.notConfigured': 'The dashboard is unavailable right now. Please try again later.',
@@ -552,6 +554,8 @@ const HI: Record<OwnerDashboardTextKey, string> = {
   'denied.title': 'डैशबोर्ड उपलब्ध नहीं है',
   'denied.login': 'डैशबोर्ड खोलने के लिए कृपया अपने ओनर अकाउंट से लॉग इन करें।',
   'denied.noSalon': 'आपका अकाउंट किसी सैलून से जुड़ा नहीं है।',
+  'denied.unverifiable':
+    'हम सत्यापित नहीं कर पाए कि आपके खाते से कौन सा सैलून जुड़ा है। कृपया पुनः प्रयास करें।',
   'denied.ambiguous': 'आपका अकाउंट एक से अधिक सैलून से जुड़ा है। कृपया सपोर्ट से संपर्क करें।',
   'denied.permission': 'आपको यह डैशबोर्ड देखने की अनुमति नहीं है।',
   'denied.notConfigured': 'डैशबोर्ड अभी उपलब्ध नहीं है। कृपया बाद में कोशिश करें।',

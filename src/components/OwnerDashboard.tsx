@@ -86,6 +86,7 @@ import type { AppLocale } from '../lib/locale';
 import { setSiteAppearance, setSiteLocale } from '../lib/siteNavigation';
 import type { SiteAppearance } from '../lib/siteNavigation';
 import { useSiteAppearance, useSiteLocale } from './SiteHeader';
+import { useAuth } from '../lib/useAuth';
 
 /* ------------------------------------------------------------------ */
 /* Palette — light/dark tokens for the dashboard chrome                */
@@ -529,6 +530,22 @@ export default function OwnerDashboard({ loadContext }: Props) {
       signal.cancelled = true;
     };
   }, [load]);
+
+  // The context is resolved from the AUTHENTICATED session, so a sign-in /
+  // sign-out / account switch while this screen is open must re-run the
+  // resolution — otherwise the dashboard would keep showing a stale refusal
+  // (e.g. "please log in") even after the owner has just logged in.
+  const { user: authUser } = useAuth();
+  const lastAuthUserIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const currentId = authUser?.id ?? null;
+    const previous = lastAuthUserIdRef.current;
+    lastAuthUserIdRef.current = currentId;
+    // First observation only records the baseline (the mount effect already
+    // loaded the context); every later change re-resolves.
+    if (previous === undefined || previous === currentId) return;
+    load();
+  }, [authUser?.id, load]);
 
   const selectSection = useCallback((id: OwnerDashboardSectionId) => {
     const next = normalizeOwnerDashboardSection(id);
