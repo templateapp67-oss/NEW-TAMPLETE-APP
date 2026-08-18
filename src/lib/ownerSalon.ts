@@ -13,7 +13,7 @@
  * `job_salon_members` is a staff/employee relationship and is deliberately
  * NOT used for ownership.
  *
- * Resolution runs up to three reads, all server-side and all scoped to the
+ * Resolution runs several reads, all server-side and all scoped to the
  * authenticated session (RLS always applies on top):
  *
  *   1. The existing DB helper `nexora_owner_salon_ids()` (and
@@ -28,12 +28,24 @@
  *      tenant's salon.
  *   3. A salon-side embedded join with the SAME explicit
  *      `organization_members.user_id` filter — last resort only.
+ *   4. A membership VISIBILITY PROBE that runs only when every lookup above
+ *      came back empty. PostgREST reports an RLS-hidden table exactly like
+ *      an empty table — `[]`, no error — so "no rows" alone can never prove
+ *      "no membership". The probe re-reads the session's OWN membership
+ *      rows WITHOUT the role/status filters:
+ *        - any visible row  -> the table IS readable, so the empty
+ *          owner/active chain is conclusive: `no-membership`.
+ *        - zero rows       -> the table is either hidden by RLS or
+ *          genuinely empty; neither is provable, so the resolution is
+ *          `unverifiable` — NEVER a false "not linked".
  *
  * A lookup that FAILS (permission, missing relationship, network…) is never
- * reported as "no membership": only an empty result from a lookup that
- * actually ran may say the owner has no salon. That is what keeps the
+ * reported as "no membership", and an empty lookup that cannot be
+ * corroborated by the visibility probe is reported as `unverifiable`. Only
+ * a provable absence may say the owner has no salon. That is what keeps the
  * dashboard from showing a false "Your account is not linked to a salon."
- * when the account IS linked through organization_members.
+ * when the account IS linked through organization_members but the
+ * membership table is not readable through PostgREST.
  *
  * The salon id is never hardcoded, never read from the client (URL,
  * localStorage, props) and never "the first row".
@@ -52,16 +64,40 @@ export type OwnerSalonResolution =
   | { status: 'not-configured' }
   | { status: 'not-authenticated' }
   | { status: 'no-membership' }
+  | { status: 'unverifiable' }
   | { status: 'ambiguous' }
   | { status: 'permission-denied' }
   | { status: 'error' };
 
-/** Authenticated user id from the real session, or null when signed out. */
+/**
+ * Authenticated user id from the real session, or null when signed out.
+ *
+ * `getUser()` is the authoritative check but needs a live round trip to the
+ * auth server; when that call fails transiently (proxied preview hosts,
+ * offline sandbox…) the locally-cached session — the SAME session
+ * supabase-js attaches to every REST request — is used instead, so a
+ * network blip can never masquerade as "signed out".
+ */
 export async function getAuthenticatedUserId(): Promise<string | null> {
   if (!supabase) return null;
-  const { data, error } = await supabase.auth.getUser();
-  if (error) return null;
-  return data.user?.id ?? null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (!error && data.user?.id) return data.user.id;
+    if (error) console.warn('Owner salon: getUser() failed, falling back to cached session:', error.message);
+  } catch (err) {
+    console.warn('Owner salon: getUser() failed, falling back to cached session:', err);
+  }
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn('Owner salon: getSession() failed:', error.message);
+      return null;
+    }
+    return data.session?.user?.id ?? null;
+  } catch (err) {
+    console.warn('Owner salon: getSession() failed:', err);
+    return null;
+  }
 }
 
 interface LookupFailure {
@@ -163,6 +199,43 @@ async function salonIdsForOrganizations(organizationIds: string[]): Promise<stri
 }
 
 /**
+ * MEMBERSHIP VISIBILITY PROBE — decides whether an empty membership read is
+ * conclusive or merely invisible.
+ *
+ * PostgREST cannot tell "RLS hid every row" apart from "the table is empty":
+ * both come back as `[]` with no error. So after the owner/active chain
+ * returns no rows, this probe re-reads the session user's OWN membership
+ * rows WITHOUT the role/status filters. If even one row is visible the
+ * table IS readable and the empty owner/active chain is conclusive. If
+ * nothing at all is visible, the absence cannot be verified — the table may
+ * simply be hidden from the authenticated role — and the resolution must
+ * report `unverifiable` rather than a false "account is not linked".
+ *
+ * Only the session user's own rows are requested (`user_id` filter IN the
+ * query), and only `role`/`status` columns are selected, so the probe never
+ * asks for another tenant's data.
+ */
+async function membershipVisibilityForUser(userId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { data, error } = await supabase
+      .from(ORG_MEMBERS_TABLE)
+      .select('role, status')
+      .eq('user_id', userId)
+      .limit(2);
+
+    if (error) {
+      console.error('Owner salon: membership visibility probe failed:', error);
+      return false;
+    }
+    return Array.isArray(data) && data.length > 0;
+  } catch (err) {
+    console.error('Owner salon: membership visibility probe failed:', err);
+    return false;
+  }
+}
+
+/**
  * The documented ownership chain, executed directly:
  *   organization_members (user_id = session user, role = 'owner',
  *   status = 'active') -> organization_id -> salons.organization_id ->
@@ -246,15 +319,16 @@ export async function resolveOwnerSalonId(): Promise<OwnerSalonResolution> {
       const kind = classifyFailure(failure);
       remember(kind);
       // 3 — salon-side embed, only worth trying when the direct membership
-      // read itself was blocked; a plain "no rows" is already an answer.
+      // read itself was blocked; a plain "no rows" is handled by the
+      // visibility probe below.
       if (kind === 'permission') {
         try {
           const ids = await salonIdsFromEmbeddedMembership(userId);
           ids.forEach((id) => candidates.add(id));
-          // The embed ran with the explicit user filter and answered, so the
-          // earlier permission failure was about the direct read, not about
-          // whether this owner has a salon.
-          worstFailure = null;
+          // The earlier permission failure is only resolved when the embed
+          // actually ANSWERED with salons. An empty embed answer proves
+          // nothing about the direct read, so the failure must survive.
+          if (ids.length > 0) worstFailure = null;
         } catch (embedErr) {
           console.error('Owner salon: embedded membership lookup failed:', embedErr);
           remember(classifyFailure(embedErr as LookupFailure));
@@ -265,11 +339,26 @@ export async function resolveOwnerSalonId(): Promise<OwnerSalonResolution> {
 
   const salonIds = Array.from(candidates);
   if (salonIds.length === 0) {
-    // Only claim "no membership" when a lookup actually RAN and came back
-    // empty. Any real lookup failure surfaces as its own honest state.
+    // Real lookup failures surface as their own honest states.
     if (worstFailure === 'error') return { status: 'error' };
     if (worstFailure === 'permission') return { status: 'permission-denied' };
-    return { status: 'no-membership' };
+
+    // Everything ran and came back empty. PostgREST reports an RLS-hidden
+    // table exactly like an empty one, so "no rows" alone cannot prove
+    // "no membership" — verify visibility before ever blaming the account.
+    const membershipVisible = await membershipVisibilityForUser(userId);
+    if (membershipVisible) {
+      // The membership table IS readable for this session and the session
+      // has no active-owner rows that map to a live salon: conclusive.
+      return { status: 'no-membership' };
+    }
+    console.error(
+      'Owner salon: membership unverifiable — every lookup returned empty AND the ' +
+        'session cannot read any organization_members rows (RLS may hide the table ' +
+        'or the account may genuinely have none). Refusing to claim "not linked". ' +
+        `user=${userId}`,
+    );
+    return { status: 'unverifiable' };
   }
   // Never pick one arbitrarily.
   if (salonIds.length > 1) return { status: 'ambiguous' };
@@ -288,6 +377,9 @@ export function ownerSalonMessage(resolution: OwnerSalonResolution): string {
     case 'ambiguous':
       return 'Multiple shops are linked to your account. Please select a shop first.';
     case 'no-membership':
+      return 'Unable to determine your shop.';
+    case 'unverifiable':
+      return 'Unable to verify your shop right now. Please try again.';
     case 'error':
       return 'Unable to determine your shop.';
     default:

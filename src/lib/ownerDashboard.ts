@@ -188,6 +188,7 @@ export type OwnerDashboardAccess =
   | 'not-configured'
   | 'not-authenticated'
   | 'no-ownership'
+  | 'unverifiable'
   | 'ambiguous'
   | 'permission-denied'
   | 'error';
@@ -205,6 +206,8 @@ export function mapOwnerSalonResolution(
       return 'not-authenticated';
     case 'no-membership':
       return 'no-ownership';
+    case 'unverifiable':
+      return 'unverifiable';
     case 'ambiguous':
       return 'ambiguous';
     case 'permission-denied':
@@ -231,6 +234,8 @@ export function ownerDashboardDeniedKey(access: OwnerDashboardAccess): string | 
       return 'denied.login';
     case 'no-ownership':
       return 'denied.noSalon';
+    case 'unverifiable':
+      return 'denied.unverifiable';
     case 'ambiguous':
       return 'denied.ambiguous';
     case 'permission-denied':
@@ -240,9 +245,13 @@ export function ownerDashboardDeniedKey(access: OwnerDashboardAccess): string | 
   }
 }
 
-/** Retrying only helps for transient failures — never for a refusal. */
+/**
+ * Retrying only helps for transient failures — never for a conclusive
+ * refusal. `unverifiable` is retryable: the membership table may simply
+ * have been unreachable (RLS/grant/network), so a later attempt can succeed.
+ */
 export function ownerDashboardCanRetry(access: OwnerDashboardAccess): boolean {
-  return access === 'error' || access === 'permission-denied';
+  return access === 'error' || access === 'permission-denied' || access === 'unverifiable';
 }
 
 /* ------------------------------------------------------------------ */

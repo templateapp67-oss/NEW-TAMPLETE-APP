@@ -252,11 +252,17 @@ function parseInValues(raw) {
     .map((v) => v.replace(/^"|"$/g, ''));
 }
 
-async function createLiveHarness({ helper } = {}) {
+async function createLiveHarness({ helper, hideOrgMembers } = {}) {
   const db = new PGlite();
   await db.exec(SCHEMA);
   if (helper === 'real') await db.exec(HELPER_REAL);
   if (helper === 'empty') await db.exec(HELPER_EMPTY);
+  if (hideOrgMembers) {
+    // Live-divergence model: organization_members exists and is GRANTed,
+    // but has NO readable RLS policy — PostgREST silently returns [] for
+    // every read (RLS filters all rows, no error).
+    await db.exec('drop policy if exists org_members_own_select on public.organization_members;');
+  }
   await db.exec(SEED);
 
   const bridge = {
@@ -521,14 +527,41 @@ await test('staff membership / invited owner membership never resolve a salon', 
   });
 });
 
-await test('genuinely unlinked account shows the honest unavailable state (no false positives)', async () => {
+await test('genuinely unlinked account with an UNVERIFIABLE table is never blamed with "not linked"', async () => {
   await withHarness({ helper: 'none' }, async (h) => {
     await h.signIn(NO_SALON_USER);
     const resolution = await resolveOwnerSalonId();
-    assert.equal(resolution.status, 'no-membership');
+    // Zero rows visible anywhere for this session: RLS may be hiding the
+    // table, so absence cannot be proven — the resolution must be
+    // `unverifiable`, never a false "no membership".
+    assert.equal(resolution.status, 'unverifiable');
     const context = await loadOwnerDashboardContext();
-    assert.equal(context.access, 'no-ownership');
+    assert.equal(context.access, 'unverifiable');
     assert.equal(context.salon, null);
+  });
+});
+
+await test('LIVE DIVERGENCE — helper missing + membership table hidden by RLS: a LINKED owner is never told "not linked"', async () => {
+  await withHarness({ helper: 'none', hideOrgMembers: true }, async (h) => {
+    await h.signIn(OWNER_A);
+    const resolution = await resolveOwnerSalonId();
+    // Owner A HAS a real organization_members (owner, active) row and salon
+    // A, but the authenticated role cannot read the table (RLS silently
+    // returns []). The old code turned this into no-membership — the false
+    // "Your account is not linked to a salon." screen. It must now be
+    // `unverifiable` (retryable, honest), never `no-membership`.
+    assert.equal(resolution.status, 'unverifiable', `got ${JSON.stringify(resolution)}`);
+    const context = await loadOwnerDashboardContext();
+    assert.equal(context.access, 'unverifiable');
+    assert.equal(context.salon, null);
+  });
+});
+
+await test('LIVE DIVERGENCE — helper present-but-empty + hidden membership table: still never "not linked"', async () => {
+  await withHarness({ helper: 'empty', hideOrgMembers: true }, async (h) => {
+    await h.signIn(OWNER_A);
+    const resolution = await resolveOwnerSalonId();
+    assert.equal(resolution.status, 'unverifiable', `got ${JSON.stringify(resolution)}`);
   });
 });
 
@@ -802,7 +835,28 @@ await test('unlinked account still shows the honest unavailable state in the UI'
     });
     const denied = await utils.findByTestId('owner-dashboard-denied');
     assert.ok(denied);
-    assert.match(denied.textContent, /not linked to a salon/i);
+    // The session cannot prove the absence (RLS may hide the membership
+    // table), so the honest card offers a retry instead of blaming the
+    // account with "not linked".
+    assert.match(denied.textContent, /could not verify/i);
+    assert.ok(await utils.findByTestId('owner-dashboard-denied-retry'), 'unverifiable refusal must offer retry');
+    await act(async () => { cleanup(); });
+  });
+});
+
+await test('LIVE DIVERGENCE — linked owner whose membership table is RLS-hidden never sees the "not linked" screen', async () => {
+  await withHarness({ helper: 'none', hideOrgMembers: true }, async (h) => {
+    await h.signIn(OWNER_A);
+    window.localStorage.clear();
+    let utils;
+    await act(async () => {
+      utils = render(React.createElement(OwnerDashboard));
+    });
+    const denied = await utils.findByTestId('owner-dashboard-denied');
+    assert.ok(denied);
+    assert.ok(!/not linked to a salon/i.test(denied.textContent), 'must NOT blame the linked owner');
+    assert.match(denied.textContent, /could not verify/i);
+    assert.ok(await utils.findByTestId('owner-dashboard-denied-retry'), 'retry must be offered');
     await act(async () => { cleanup(); });
   });
 });
