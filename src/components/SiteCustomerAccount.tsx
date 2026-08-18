@@ -38,6 +38,7 @@ import {
   closeCustomerAccount,
   readCustomerAccountInfo,
   readGroupedCustomerBookings,
+  groupCustomerBookings,
   customerBookingServiceNames,
 } from '../lib/siteCustomerAccount';
 import type { CustomerAccountInfo, BookingGroup, GroupedBookings } from '../lib/siteCustomerAccount';
@@ -60,6 +61,13 @@ import { CUSTOMER_NOTIFICATION_EVENT } from '../lib/siteCustomerNotifications';
 import { readCustomerBooking } from '../lib/siteCustomerAccount';
 import { findMyReviewForBooking, REVIEW_EVENT } from '../lib/siteReviews';
 import type { CustomerReview } from '../lib/siteReviews';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  bookingSalonIdCandidate,
+  readMySupabaseBookings,
+  SUPABASE_BOOKING_EVENT,
+} from '../lib/supabaseBooking';
+import { useAuth } from '../lib/useAuth';
 
 interface Props {
   themeId: SiteHeaderThemeId;
@@ -211,6 +219,20 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
 
   const [open, setOpen] = useState(false);
   const [version, setVersion] = useState(0);
+  const [databaseBookings, setDatabaseBookings] = useState<PaymentRecord[]>([]);
+  const [databaseBookingsState, setDatabaseBookingsState] = useState<'loading' | 'error' | 'ready'>(
+    isSupabaseConfigured ? 'loading' : 'ready',
+  );
+  const { user, loading: authLoading } = useAuth();
+  const liveSalonId = useMemo(
+    () => data
+      ? bookingSalonIdCandidate(
+          data,
+          (data.services || []).find((service) => service.businessId) || data.services?.[0],
+        )
+      : null,
+    [data],
+  );
   const [activeGroup, setActiveGroup] = useState<BookingGroup>('upcoming');
   // PHASE 20.3 — the booking whose details/receipt view is open (null = home).
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -234,16 +256,39 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [version, open],
   );
+  const visibleAccountInfo: CustomerAccountInfo = useMemo(() => {
+    if (!isSupabaseConfigured) return accountInfo;
+    const metadata = user?.user_metadata || {};
+    const metadataName = [metadata.full_name, metadata.name, metadata.display_name]
+      .find((value) => typeof value === 'string' && value.trim());
+    return {
+      ...accountInfo,
+      recognized: !!user,
+      name: typeof metadataName === 'string' ? metadataName.trim() : (user?.email || ''),
+      mobile: user?.phone || '',
+      email: user?.email || '',
+    };
+  }, [accountInfo, user]);
 
   // Group bookings for display
   const grouped: GroupedBookings = useMemo(
-    () => readGroupedCustomerBookings(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version, open],
+    () => isSupabaseConfigured
+      ? groupCustomerBookings(databaseBookings)
+      : readGroupedCustomerBookings(),
+    [version, open, databaseBookings],
   );
+  const totalBookingCount = grouped.upcoming.length + grouped.past.length + grouped.cancelled.length;
   const visibleBookings: PaymentRecord[] = useMemo(
     () => grouped[activeGroup],
     [grouped, activeGroup],
+  );
+  const selectedBooking = useMemo(
+    () => selectedBookingId
+      ? (isSupabaseConfigured
+          ? databaseBookings.find((record) => record.bookingId === selectedBookingId) || null
+          : readCustomerBooking(selectedBookingId))
+      : null,
+    [selectedBookingId, databaseBookings, version],
   );
 
   // Listen for open/close events
@@ -280,16 +325,45 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
     window.addEventListener(PAYMENT_EVENT, bump);
+    window.addEventListener(SUPABASE_BOOKING_EVENT, bump);
     window.addEventListener(CUSTOMER_PROFILE_EVENT, bump);
     window.addEventListener(REVIEW_EVENT, bump);
     window.addEventListener(CUSTOMER_NOTIFICATION_EVENT, bump);
     return () => {
       window.removeEventListener(PAYMENT_EVENT, bump);
+      window.removeEventListener(SUPABASE_BOOKING_EVENT, bump);
       window.removeEventListener(CUSTOMER_PROFILE_EVENT, bump);
       window.removeEventListener(REVIEW_EVENT, bump);
       window.removeEventListener(CUSTOMER_NOTIFICATION_EVENT, bump);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !open) return;
+    if (authLoading) {
+      setDatabaseBookingsState('loading');
+      return;
+    }
+    if (!user || !liveSalonId) {
+      setDatabaseBookings([]);
+      setDatabaseBookingsState('ready');
+      return;
+    }
+    let active = true;
+    setDatabaseBookingsState('loading');
+    void readMySupabaseBookings(liveSalonId, themeId)
+      .then((records) => {
+        if (!active) return;
+        setDatabaseBookings(records);
+        setDatabaseBookingsState('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setDatabaseBookings([]);
+        setDatabaseBookingsState('error');
+      });
+    return () => { active = false; };
+  }, [open, authLoading, user?.id, liveSalonId, themeId, version]);
 
   // Close on Escape
   useEffect(() => {
@@ -437,15 +511,15 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-extrabold shrink-0"
                   style={{
-                    backgroundColor: accountInfo.recognized ? s.accent : s.chip,
-                    color: accountInfo.recognized ? s.accentText : s.muted,
+                    backgroundColor: visibleAccountInfo.recognized ? s.accent : s.chip,
+                    color: visibleAccountInfo.recognized ? s.accentText : s.muted,
                   }}
                 >
                   {accountInfo.initials}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold truncate" style={{ color: s.textStrong }}>
-                    {accountInfo.recognized ? accountInfo.name : (locale === 'hi' ? 'अतिथि' : 'Guest')}
+                    {visibleAccountInfo.recognized ? visibleAccountInfo.name : (locale === 'hi' ? 'अतिथि' : 'Guest')}
                   </p>
                   <p className="text-[10px] font-semibold" style={{ color: s.muted }}>
                     {locale === 'hi' ? 'मेरा खाता' : 'My Account'}
@@ -473,6 +547,7 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
                 themeId={themeId}
                 data={data}
                 bookingId={selectedBookingId as string}
+                persistedRecord={selectedBooking}
                 onBack={backToBookings}
                 onClose={closeCustomerAccount}
                 onViewSalon={viewSalon}
@@ -558,7 +633,7 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
                 )}
 
                 {/* Identity Card */}
-                {accountInfo.recognized && (
+                {visibleAccountInfo.recognized && (
                   <div
                     className="p-4 border rounded-xl space-y-2"
                     style={{ backgroundColor: s.card, borderColor: s.line }}
@@ -566,29 +641,42 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
                     <h3 className="text-[11px] font-bold uppercase tracking-wider" style={{ color: s.muted }}>
                       {locale === 'hi' ? 'आपकी जानकारी' : 'Your Information'}
                     </h3>
-                    {accountInfo.name && (
+                    {visibleAccountInfo.name && (
                       <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: s.text }}>
                         <User className="w-3.5 h-3.5 shrink-0" style={{ color: s.accent }} />
-                        <span>{accountInfo.name}</span>
+                        <span>{visibleAccountInfo.name}</span>
                       </div>
                     )}
-                    {accountInfo.mobile && (
+                    {visibleAccountInfo.mobile && (
                       <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: s.text }}>
                         <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: s.accent }} />
-                        <span>{accountInfo.mobile}</span>
+                        <span>{visibleAccountInfo.mobile}</span>
                       </div>
                     )}
-                    {accountInfo.email && (
+                    {visibleAccountInfo.email && (
                       <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: s.text }}>
                         <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: s.accent }} />
-                        <span className="truncate">{accountInfo.email}</span>
+                        <span className="truncate">{visibleAccountInfo.email}</span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Bookings Section */}
-                {accountInfo.totalBookings > 0 && (
+                {isSupabaseConfigured && databaseBookingsState !== 'ready' && (
+                  <div
+                    className="p-5 border rounded-xl text-center"
+                    style={{ backgroundColor: s.card, borderColor: s.line, color: s.muted }}
+                    role={databaseBookingsState === 'error' ? 'alert' : 'status'}
+                  >
+                    <p className="text-[10px] font-semibold">
+                      {databaseBookingsState === 'loading'
+                        ? (locale === 'hi' ? 'बुकिंग लोड हो रही हैं…' : 'Loading your bookings…')
+                        : (locale === 'hi' ? 'बुकिंग लोड नहीं हो सकीं।' : 'Could not load your bookings.')}
+                    </p>
+                  </div>
+                )}
+                {databaseBookingsState === 'ready' && totalBookingCount > 0 && (
                   <>
                     {/* Group tabs */}
                     <div
@@ -652,7 +740,7 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
                 )}
 
                 {/* No bookings state */}
-                {accountInfo.totalBookings === 0 && (
+                {databaseBookingsState === 'ready' && totalBookingCount === 0 && (
                   <div
                     className="p-5 border rounded-xl text-center flex flex-col items-center gap-2"
                     style={{ backgroundColor: s.card, borderColor: s.line }}
@@ -740,9 +828,13 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
 
                 {/* Browser identity note */}
                 <p className="text-[9px] font-medium text-center mt-auto pt-4" style={{ color: s.disabledText }}>
-                  {locale === 'hi'
-                    ? 'यह खाता इस ब्राउज़र पर आधारित है। बुकिंग के बाद आपकी जानकारी अपने आप सहेज ली जाती है।'
-                    : 'This account is based on your browser. Your information is saved automatically after booking.'}
+                  {isSupabaseConfigured
+                    ? (locale === 'hi'
+                        ? 'बुकिंग आपके साइन-इन खाते से सुरक्षित रूप से लोड होती हैं।'
+                        : 'Bookings are securely loaded from your signed-in account.')
+                    : (locale === 'hi'
+                        ? 'यह खाता इस ब्राउज़र पर आधारित है। बुकिंग के बाद आपकी जानकारी अपने आप सहेज ली जाती है।'
+                        : 'This account is based on your browser. Your information is saved automatically after booking.')}
                 </p>
               </>
             )}

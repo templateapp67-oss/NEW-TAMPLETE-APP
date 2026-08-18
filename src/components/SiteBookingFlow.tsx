@@ -81,7 +81,7 @@ interface Props {
    * summary Confirm button keeps its 10.6 "next phase" toast behaviour.
    */
   onProceedToPayment?: (payload: {
-    service: { id: string };
+    service: Pick<Service, 'id' | 'businessId'>;
     /** PHASE 16.5 — every selected line (offer-aware price + duration). */
     serviceLines: Array<{ serviceId: string; serviceName: string; price: number; durationMinutes: number }>;
     dateKey: string;
@@ -1775,7 +1775,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                 && selectedService && selectedDateKey && selectedSlotMinutes != null
               ) {
                 onProceedToPayment({
-                  service: { id: selectedService.id },
+                  service: { id: selectedService.id, businessId: selectedService.businessId },
                   serviceLines: selection.lines.map((line) => ({
                     serviceId: line.service.id,
                     serviceName: line.service.name,

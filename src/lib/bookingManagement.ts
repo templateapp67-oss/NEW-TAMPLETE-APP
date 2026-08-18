@@ -194,8 +194,9 @@ export function ownerAllowedTransitions(status: BookingStatus): BookingStatus[] 
  * Payment and booking status remain distinct fields.
  */
 export function ownerAllowedTransitionsForRecord(
-  record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus' | 'paymentOption'>,
+  record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus' | 'paymentOption' | 'persistence'>,
 ): BookingStatus[] {
+  if (record.persistence === 'supabase') return [];
   const transitions = ownerAllowedTransitions(record.bookingStatus);
   if (
     record.bookingStatus === 'pending_payment'
@@ -207,7 +208,13 @@ export function ownerAllowedTransitionsForRecord(
   return transitions;
 }
 
-export function customerCanCancel(record: Pick<PaymentRecord, 'bookingStatus'>): boolean {
+export function customerCanCancel(
+  record: Pick<PaymentRecord, 'bookingStatus' | 'persistence'>,
+): boolean {
+  // Phase 16.1 database bookings are read-only after creation. Cancellation
+  // and rescheduling require their later backend/RLS phases and must never be
+  // faked by mutating the legacy local payment store.
+  if (record.persistence === 'supabase') return false;
   return CUSTOMER_CANCELLABLE.includes(record.bookingStatus);
 }
 
@@ -239,7 +246,7 @@ function patchRecordRaw(id: string, patch: Partial<PaymentRecord>): PaymentRecor
     const parsed = raw ? (JSON.parse(raw) as { version: number; records: PaymentRecord[] }) : null;
     if (!parsed || parsed.version !== PAYMENT_STORE_VERSION || !Array.isArray(parsed.records)) return null;
     const idx = parsed.records.findIndex((r) => r.id === id);
-    if (idx < 0) return null;
+    if (idx < 0 || parsed.records[idx].persistence === 'supabase') return null;
     const next: PaymentRecord = { ...parsed.records[idx], ...patch, updatedAt: Date.now() };
     const records = parsed.records.slice();
     records[idx] = next;
@@ -276,6 +283,7 @@ export function ownerUpdateBookingStatus(
   const record = readPaymentRecordsForBusiness(businessId, themeId)
     .find((r) => r.bookingId === bookingId);
   if (!record) return { ok: false, reason: 'not-found' };
+  if (record.persistence === 'supabase') return { ok: false, reason: 'invalid-transition' };
   if (record.bookingStatus === nextStatus) {
     return { ok: false, reason: 'duplicate-update' };
   }

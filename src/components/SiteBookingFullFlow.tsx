@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import type { SalonData } from '../types';
 import SiteBookingFlow from './SiteBookingFlow';
 import SiteBookingPaymentFlow from './SiteBookingPaymentFlow';
@@ -16,6 +17,14 @@ import { newBookingNoticeId, normalizeNotice } from '../lib/siteBookingNotices';
 import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
 import { bookingFlowText } from '../lib/siteBookingI18n';
 import { bookingSurfaces } from '../lib/siteBookingTheme';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  bookingSalonIdCandidate,
+  createSupabaseBooking,
+  SupabaseBookingError,
+} from '../lib/supabaseBooking';
+import { toBookingConfirmation } from '../lib/siteBookingConfirmation';
+import SiteBookingConfirmation from './SiteBookingConfirmation';
 
 /**
  * PHASE 10.7 — orchestrator for the full booking + payment + confirmation
@@ -34,9 +43,10 @@ import { bookingSurfaces } from '../lib/siteBookingTheme';
  * when the booking widget should be visible).
  */
 export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHeaderThemeId; data: SalonData }) {
-  const [phase, setPhase] = useState<'entry' | 'payment'>('entry');
+  const [phase, setPhase] = useState<'entry' | 'payment' | 'persisting' | 'persisted' | 'persistence-error'>('entry');
   const [summary, setSummary] = useState<null | {
     serviceId: string;
+    serviceBusinessId?: string;
     /** PHASE 16.5 — every selected service line (offer-aware). */
     serviceLines?: PaymentServiceLine[];
     dateKey: string;
@@ -44,6 +54,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     endMinutes: number;
     customer: { name: string; mobile: string; email: string; notes: string };
   }>(null);
+  const [databaseRecord, setDatabaseRecord] = useState<PaymentRecord | null>(null);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
 
   /* ------------------------------------------------------------------ */
   /* PHASE 16.9 — booking notices.                                       */
@@ -75,7 +87,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   }, [phase]);
 
   const handleConfirmEntry = useCallback((payload: {
-    service: { id: string };
+    service: { id: string; businessId?: string };
     serviceLines?: Array<{ serviceId: string; serviceName: string; price: number; durationMinutes: number }>;
     dateKey: string;
     startMinutes: number;
@@ -84,21 +96,65 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   }) => {
     if (confirmLockRef.current) return;
     confirmLockRef.current = true;
-    setSummary({
+    const nextSummary = {
       serviceId: payload.service.id,
+      serviceBusinessId: payload.service.businessId,
       serviceLines: payload.serviceLines,
       dateKey: payload.dateKey,
       startMinutes: payload.startMinutes,
       endMinutes: payload.endMinutes,
       customer: payload.customer,
+    };
+    setSummary(nextSummary);
+
+    // Unconfigured/test builds preserve the existing local payment sandbox.
+    // A configured production build instead writes the booking to Supabase and
+    // deliberately does NOT enter the simulated payment/confirmation flow.
+    if (!isSupabaseConfigured) {
+      setPhase('payment');
+      return;
+    }
+
+    const selectedService = (data.services || []).find((service) => service.id === payload.service.id);
+    const salonId = bookingSalonIdCandidate(data, selectedService || payload.service);
+    if (!salonId) {
+      setPersistenceError('This website is not linked to a real salon record.');
+      setPhase('persistence-error');
+      return;
+    }
+
+    setPersistenceError(null);
+    setPhase('persisting');
+    void createSupabaseBooking({
+      salonId,
+      themeId,
+      services: payload.serviceLines || [],
+      dateKey: payload.dateKey,
+      startMinutes: payload.startMinutes,
+      customer: payload.customer,
+    }).then((record) => {
+      setDatabaseRecord(record);
+      const draftBusinessId = bookingBusinessId(data);
+      clearBookingDraft(draftBusinessId, record.themeId);
+      if (record.businessId !== draftBusinessId) clearBookingDraft(record.businessId, record.themeId);
+      showNotice({ kind: 'success', message: 'Booking saved securely.' });
+      setPhase('persisted');
+    }).catch((error: unknown) => {
+      const message = error instanceof SupabaseBookingError
+        ? error.message
+        : 'The booking could not be saved. Please try again.';
+      setPersistenceError(message);
+      showNotice({ kind: 'error', message });
+      setPhase('persistence-error');
     });
-    setPhase('payment');
-  }, []);
+  }, [data, themeId, showNotice]);
 
   // PHASE 16.5 — backing out of payment returns to the SUMMARY (selection
   // restored from the 16.1 draft), not to the start of the wizard.
   const [resumeAtSummary, setResumeAtSummary] = useState(false);
   const handleBackToSummary = useCallback(() => {
+    setPersistenceError(null);
+    confirmLockRef.current = false;
     setResumeAtSummary(true);
     setPhase('entry');
   }, []);
@@ -112,6 +168,10 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
 
   const handleStartNewBooking = useCallback(() => {
     setSummary(null);
+    setDatabaseRecord(null);
+    setPersistenceError(null);
+    setResumeAtSummary(false);
+    confirmLockRef.current = false;
     setPhase('entry');
   }, []);
 
@@ -121,9 +181,11 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   // during confirmation does not lose the user's confirmed row. The
   // most-recent confirmed/pay_at_salon record for this business+theme
   // is auto-resumed.
-  const existingConfirmed = readPaymentRecordsForBusiness(businessId, themeId).find(
-    (r) => r.bookingStatus === 'confirmed' || r.bookingStatus === 'pay_at_salon',
-  ) || null;
+  const existingConfirmed = isSupabaseConfigured
+    ? null
+    : readPaymentRecordsForBusiness(businessId, themeId).find(
+        (r) => r.bookingStatus === 'confirmed' || r.bookingStatus === 'pay_at_salon',
+      ) || null;
   // Only use the auto-resumed record when the user hasn't already
   // chosen a different path in this session.
   const shouldAutoResume = existingConfirmed && !summary;
@@ -137,6 +199,12 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
         : null);
 
   const locale = useSiteLocale();
+  const appearance = useThemeAppearance(themeId);
+  const surfaces = bookingSurfaces(themeId, appearance);
+  const persistenceView = useMemo(
+    () => (databaseRecord ? toBookingConfirmation(databaseRecord) : null),
+    [databaseRecord],
+  );
 
   // If the host should auto-resume, swap into the payment phase.
   useEffect(() => {
@@ -176,6 +244,110 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
           onProceedToPayment={handleConfirmEntry}
           resumeAtSummary={resumeAtSummary}
         />
+      )}
+      {phase === 'persisting' && (
+        <div
+          data-testid="supabase-booking-persisting"
+          className="absolute inset-0 z-[70] flex items-center justify-center p-5"
+          style={{ backgroundColor: surfaces.page, color: surfaces.text }}
+          aria-busy="true"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border p-6 text-center space-y-3"
+            style={{ backgroundColor: surfaces.card, borderColor: surfaces.line }}
+          >
+            <Loader2 className="mx-auto h-7 w-7 animate-spin" style={{ color: surfaces.accent }} />
+            <h2 className="text-sm font-extrabold" style={{ color: surfaces.textStrong }}>
+              {locale === 'hi' ? 'बुकिंग सुरक्षित की जा रही है…' : 'Saving your booking securely…'}
+            </h2>
+            <p className="text-xs font-semibold" style={{ color: surfaces.muted }}>
+              {locale === 'hi' ? 'कृपया इस विंडो को बंद न करें।' : 'Please keep this window open.'}
+            </p>
+          </div>
+        </div>
+      )}
+      {phase === 'persistence-error' && (
+        <div
+          data-testid="supabase-booking-error"
+          className="absolute inset-0 z-[70] flex items-center justify-center p-5"
+          style={{ backgroundColor: surfaces.page, color: surfaces.text }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border p-6 text-center space-y-4"
+            style={{ backgroundColor: surfaces.card, borderColor: surfaces.danger }}
+          >
+            <AlertCircle className="mx-auto h-7 w-7" style={{ color: surfaces.danger }} />
+            <h2 className="text-sm font-extrabold" style={{ color: surfaces.textStrong }}>
+              {locale === 'hi' ? 'बुकिंग सेव नहीं हुई' : 'Booking was not saved'}
+            </h2>
+            <p className="text-xs font-semibold" style={{ color: surfaces.muted }}>
+              {persistenceError || (locale === 'hi' ? 'कृपया फिर से कोशिश करें।' : 'Please try again.')}
+            </p>
+            <div className="flex justify-center gap-2">
+              <button
+                type="button"
+                onClick={handleBackToSummary}
+                className="rounded-xl border px-4 py-2 text-xs font-bold"
+                style={{ borderColor: surfaces.line, color: surfaces.text }}
+              >
+                {locale === 'hi' ? 'वापस' : 'Back'}
+              </button>
+              <button
+                type="button"
+                onClick={closeSiteBooking}
+                className="rounded-xl px-4 py-2 text-xs font-bold"
+                style={{ backgroundColor: surfaces.accent, color: surfaces.accentText }}
+              >
+                {locale === 'hi' ? 'वेबसाइट पर वापस' : 'Back to website'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {phase === 'persisted' && persistenceView && (
+        <div
+          data-testid="supabase-booking-persisted"
+          className="absolute inset-0 z-[70] overflow-y-auto p-4 md:p-6"
+          style={{ backgroundColor: surfaces.page, color: surfaces.text }}
+        >
+          <div className="mx-auto max-w-2xl space-y-4">
+            <div
+              data-testid="supabase-booking-payment-deferred"
+              className="rounded-xl border p-4 text-xs font-semibold"
+              style={{ backgroundColor: surfaces.well, borderColor: surfaces.line, color: surfaces.text }}
+            >
+              <strong>{locale === 'hi' ? 'बुकिंग डेटाबेस में सेव है।' : 'Booking saved to Supabase.'}</strong>{' '}
+              {locale === 'hi'
+                ? 'ऑनलाइन भुगतान अभी लागू नहीं है; कोई भुगतान सफल नहीं दिखाया गया है।'
+                : 'Online payment is not implemented in Phase 16.1; no payment has been marked successful.'}
+            </div>
+            <SiteBookingConfirmation
+              themeId={themeId}
+              data={data}
+              view={persistenceView}
+              variant="history"
+              showActions={false}
+            />
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeSiteBooking}
+                className="rounded-xl border px-4 py-2 text-xs font-bold"
+                style={{ borderColor: surfaces.line, color: surfaces.text }}
+              >
+                {locale === 'hi' ? 'वेबसाइट पर वापस' : 'Back to website'}
+              </button>
+              <button
+                type="button"
+                onClick={handleStartNewBooking}
+                className="rounded-xl px-4 py-2 text-xs font-bold"
+                style={{ backgroundColor: surfaces.accent, color: surfaces.accentText }}
+              >
+                {locale === 'hi' ? 'नई बुकिंग' : 'New booking'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {phase === 'payment' && summary && (
         <SiteBookingPaymentFlowWrapper

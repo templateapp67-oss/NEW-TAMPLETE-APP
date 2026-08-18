@@ -53,6 +53,7 @@ import SiteBookingConfirmation, { BookingConfirmationStateCard } from './SiteBoo
 import { salonDisplayName } from '../lib/siteBooking';
 import { bookingBusinessId } from '../lib/siteBookingFlow';
 import { formatMinutesLabel, PAYMENT_EVENT } from '../lib/siteBookingPayment';
+import type { PaymentRecord } from '../lib/siteBookingPayment';
 import { formatCurrency } from '../lib/pricing';
 import { THEME_LABELS } from '../lib/themeServices';
 import type { BookingFlowSurface } from '../lib/siteBookingTheme';
@@ -68,8 +69,10 @@ interface Props {
   themeId: SiteHeaderThemeId;
   /** The salon whose website is open (source of salon name/logo/catalog). */
   data: SalonData;
-  /** Booking reference from the EXISTING record (`NX-#####`). */
+  /** Booking reference from the existing record. */
   bookingId: string;
+  /** Phase 16.1 database row already authorized and loaded through Supabase RLS. */
+  persistedRecord?: PaymentRecord | null;
   onBack: () => void;
   onClose: () => void;
   onViewSalon: () => void;
@@ -134,7 +137,7 @@ function Banner({
 /* Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export default function SiteBookingDetails({ themeId, data, bookingId, onBack, onClose, onViewSalon }: Props) {
+export default function SiteBookingDetails({ themeId, data, bookingId, persistedRecord, onBack, onClose, onViewSalon }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const s = bookingSurfaces(themeId, appearance);
@@ -158,11 +161,11 @@ export default function SiteBookingDetails({ themeId, data, bookingId, onBack, o
     };
   }, []);
 
-  // SECURE resolve: own rows only — identity is read inside the helper.
+  // Supabase rows are supplied only after the authenticated RLS read. Legacy
+  // unconfigured builds retain the browser-local own-row resolver.
   const record = useMemo(
-    () => readCustomerBooking(bookingId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bookingId, version],
+    () => persistedRecord !== undefined ? persistedRecord : readCustomerBooking(bookingId),
+    [bookingId, version, persistedRecord],
   );
   const view: BookingConfirmationView | null = useMemo(
     () => (record ? toBookingConfirmation(record) : null),
