@@ -187,6 +187,8 @@ export type OwnerDashboardAccess =
   | 'loading'
   | 'not-configured'
   | 'not-authenticated'
+  | 'authentication-error'
+  | 'network-error'
   | 'no-ownership'
   | 'unverifiable'
   | 'ambiguous'
@@ -204,6 +206,10 @@ export function mapOwnerSalonResolution(
       return 'not-configured';
     case 'not-authenticated':
       return 'not-authenticated';
+    case 'authentication-error':
+      return 'authentication-error';
+    case 'network-error':
+      return 'network-error';
     case 'no-membership':
       return 'no-ownership';
     case 'unverifiable':
@@ -232,6 +238,10 @@ export function ownerDashboardDeniedKey(access: OwnerDashboardAccess): string | 
       return 'denied.notConfigured';
     case 'not-authenticated':
       return 'denied.login';
+    case 'authentication-error':
+      return 'denied.authError';
+    case 'network-error':
+      return 'denied.network';
     case 'no-ownership':
       return 'denied.noSalon';
     case 'unverifiable':
@@ -251,7 +261,11 @@ export function ownerDashboardDeniedKey(access: OwnerDashboardAccess): string | 
  * have been unreachable (RLS/grant/network), so a later attempt can succeed.
  */
 export function ownerDashboardCanRetry(access: OwnerDashboardAccess): boolean {
-  return access === 'error' || access === 'permission-denied' || access === 'unverifiable';
+  return access === 'error'
+    || access === 'permission-denied'
+    || access === 'unverifiable'
+    || access === 'authentication-error'
+    || access === 'network-error';
 }
 
 /* ------------------------------------------------------------------ */
