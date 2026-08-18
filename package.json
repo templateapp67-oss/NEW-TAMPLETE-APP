@@ -14,6 +14,7 @@
     "test:customization": "tsx scripts/test-website-customization.mjs",
     "test:owner": "tsx scripts/test-owner-profile.mjs",
     "test:owner-salon-resolution": "tsx scripts/test-owner-salon-resolution.mjs",
+    "probe:live-owner": "tsx scripts/probe-live-owner.mjs",
     "test:theme-catalog": "tsx scripts/test-theme-catalog-ui.mjs",
     "test:service-saving": "tsx scripts/test-service-saving.mjs",
     "test:service-management": "tsx scripts/test-service-management-e2e.mjs",

@@ -669,6 +669,61 @@ await test('the app still binds 0.0.0.0 with open CORS and permissive hosts', ()
 });
 
 /* ================================================================== */
+section('11 · Live diagnostics harness (observability only)');
+
+const DIAGNOSTICS_LIB = fs.readFileSync('src/lib/ownerDiagnostics.ts', 'utf8');
+const DIAGNOSTICS_PANEL = fs.readFileSync('src/components/OwnerResolutionDiagnostics.tsx', 'utf8');
+const SERVER_SRC = fs.readFileSync('server.ts', 'utf8');
+
+await test('ownerDiagnostics.ts runs the 5 live probes and is observability-only', () => {
+  // The exact live-debug steps with the authenticated session.
+  assert.match(DIAGNOSTICS_LIB, /runOwnerResolutionDiagnostics/);
+  assert.match(DIAGNOSTICS_LIB, /OWNER_SALON_IDS_FN/);
+  assert.match(DIAGNOSTICS_LIB, /ORG_MEMBERS_TABLE/);
+  assert.match(DIAGNOSTICS_LIB, /SALON_TABLE_NAME/);
+  assert.match(DIAGNOSTICS_LIB, /salonsIncludingDeleted/, 'must probe soft-deleted rows explicitly');
+  assert.match(DIAGNOSTICS_LIB, /\/api\/owner-diagnostics/, 'capture endpoint lives with the harness');
+  // STEP 5 re-runs the production verdict — observing, not deciding.
+  assert.match(DIAGNOSTICS_LIB, /resolveOwnerSalonId\(\)/);
+  // Guardrails: never part of the access decision, never a token, never
+  // another tenant relationship (service_role may only appear in a comment
+  // explaining it is never used).
+  assert.match(DIAGNOSTICS_LIB, /NEVER part of the authorization path/);
+  const stripComments = (src) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  assert.ok(!stripComments(DIAGNOSTICS_LIB).includes('service_role'), 'service_role never used');
+  assert.ok(!DIAGNOSTICS_LIB.includes("'job_salon_members'"), 'job_salon_members never consulted');
+  assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(DIAGNOSTICS_LIB),
+    'no hardcoded uuid in the diagnostics module');
+});
+
+await test('OwnerResolutionDiagnostics renders only under the refusal card and posts no tokens', () => {
+  // Rendered UNDER the refusal card and posts the report to the dev
+  // server's capture endpoint on the same origin.
+  assert.match(DIAGNOSTICS_PANEL, /data-testid="owner-resolution-diagnostics"/);
+  assert.match(DIAGNOSTICS_PANEL, /runOwnerResolutionDiagnostics/);
+  assert.match(DIAGNOSTICS_PANEL, /postOwnerResolutionDiagnostics/);
+  // No tokens are ever rendered or sent.
+  assert.ok(!DIAGNOSTICS_PANEL.includes('access_token'), 'panel must never render a token');
+  assert.ok(!DIAGNOSTICS_PANEL.includes('service_role'), 'panel must never reference service_role');
+  // Only appears in the unauthorized branch, never in the authorized view.
+  const dash = fs.readFileSync('src/components/OwnerDashboard.tsx', 'utf8');
+  assert.match(dash, /import OwnerResolutionDiagnostics/);
+  const deniedAt = dash.indexOf('owner-dashboard-denied');
+  const useAt = dash.indexOf('<OwnerResolutionDiagnostics');
+  assert.ok(deniedAt >= 0 && useAt > deniedAt, 'diagnostics panel must sit under the refusal card, after the denied branch');
+});
+
+await test('server.ts exposes the /api/owner-diagnostics capture endpoints (in-memory only)', () => {
+  assert.match(SERVER_SRC, /app\.post\('\/api\/owner-diagnostics'/);
+  assert.match(SERVER_SRC, /app\.get\('\/api\/owner-diagnostics'/);
+  assert.match(SERVER_SRC, /latestOwnerDiagnostics/, 'capture stored in-memory');
+  // Not part of the access path and not persisted anywhere.
+  assert.match(SERVER_SRC, /in memory only/);
+  assert.ok(!SERVER_SRC.includes("service_role"), 'no service_role secret in the server');
+});
+
+/* ================================================================== */
 console.log('\n────────────────────────────────────────');
 console.log(`Phase 17.1 owner dashboard foundation: ${passed} passed, ${failed} failed`);
 if (failed > 0) {
