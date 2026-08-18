@@ -36,6 +36,31 @@ app.get('/api/health', (_req, res) => {
 });
 
 /* ------------------------------------------------------------------ *
+ * OWNER DASHBOARD — live database diagnostics capture (ops tooling).
+ *
+ * The browser posts the session-resolved ownership diagnostics
+ * (src/lib/ownerDiagnostics.ts) here so the operator can read the ACTUAL
+ * live-database results from this server log. The payload contains only
+ * the posting session's own ids/rows — never tokens, never another
+ * tenant's data — and lives in memory only (never persisted, never sent
+ * anywhere else).
+ * ------------------------------------------------------------------ */
+let latestOwnerDiagnostics: unknown = null;
+app.post('/api/owner-diagnostics', (req, res) => {
+  try {
+    latestOwnerDiagnostics = req.body ?? null;
+    console.log('[owner-diagnostics]', JSON.stringify(req.body ?? null));
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Owner diagnostics capture failed:', error);
+    res.status(500).json({ error: 'Could not capture diagnostics' });
+  }
+});
+app.get('/api/owner-diagnostics', (_req, res) => {
+  res.json(latestOwnerDiagnostics);
+});
+
+/* ------------------------------------------------------------------ *
  * Nominatim geocoding proxy
  *
  * Nominatim's usage policy requires (a) at most 1 request/second and
