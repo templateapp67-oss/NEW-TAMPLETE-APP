@@ -61,6 +61,7 @@ const React = (await import('react')).default;
 const { render, cleanup, act, fireEvent } = await import('@testing-library/react');
 
 const { resolveOwnerSalonId } = await import('../src/lib/ownerSalon.ts');
+const { runOwnerResolutionDiagnostics } = await import('../src/lib/ownerDiagnostics.ts');
 const { loadOwnerDashboardContext } = await import('../src/lib/ownerDashboard.ts');
 const { supabase } = await import('../src/lib/supabaseClient.ts');
 const { PAYMENT_STORE_KEY, PAYMENT_STORE_VERSION } = await import('../src/lib/siteBookingPayment.ts');
@@ -858,6 +859,58 @@ await test('LIVE DIVERGENCE — linked owner whose membership table is RLS-hidde
     assert.match(denied.textContent, /could not verify/i);
     assert.ok(await utils.findByTestId('owner-dashboard-denied-retry'), 'retry must be offered');
     await act(async () => { cleanup(); });
+  });
+});
+
+/* ================================================================== */
+section('3 · Live diagnostics report (observability harness)');
+
+await test('diagnostics report resolves one salon for a healthy linked owner, matching production', async () => {
+  await withHarness({ helper: 'none' }, async (h) => {
+    await h.signIn(OWNER_A);
+    const report = await runOwnerResolutionDiagnostics();
+    assert.equal(report.configured, true);
+    assert.equal(report.auth.userId, OWNER_A);
+    assert.equal(report.membership.status, 'success');
+    assert.deepEqual(report.membership.organizationIds, [ORG_A]);
+    assert.equal(report.salons.status, 'success');
+    assert.equal(report.salons.rows.length, 1);
+    assert.equal(report.salons.rows[0].id, SALON_A);
+    assert.equal(report.salons.rows[0].organizationId, ORG_A);
+    assert.equal(report.productionResolution.status, 'resolved');
+    assert.equal(report.productionResolution.salonId, SALON_A);
+    assert.equal(report.verdict.code, 'resolved');
+  });
+});
+
+await test('diagnostics report surfaces the RLS-hidden membership as unverifiable, never a false resolved', async () => {
+  await withHarness({ helper: 'none', hideOrgMembers: true }, async (h) => {
+    await h.signIn(OWNER_A);
+    const report = await runOwnerResolutionDiagnostics();
+    assert.equal(report.membership.status, 'success');
+    assert.equal(report.membership.rows.length, 0, 'RLS hides the rows');
+    assert.equal(report.membershipProbe.anyVisibleRow, false);
+    assert.equal(report.productionResolution.status, 'unverifiable');
+    assert.equal(report.verdict.code, 'membership-unverifiable');
+  });
+});
+
+await test('diagnostics report surfaces an ambiguous owner without ever picking one salon', async () => {
+  await withHarness({ helper: 'none' }, async (h) => {
+    // Owner A owns a second salon in the same org — two live salons map to
+    // the same organization, so the report must call the resolution
+    // ambiguous and name both rows, never fabricate a single pick.
+    await h.admin(`insert into public.salons (id, organization_id, name, slug, city, is_active)
+                   values ('${SALON_A2}', '${ORG_A}', 'Second Branch', 'second-branch', 'Kota', true)`);
+    await h.signIn(OWNER_A);
+    const report = await runOwnerResolutionDiagnostics();
+    assert.equal(report.membership.status, 'success');
+    assert.deepEqual(report.membership.organizationIds, [ORG_A]);
+    assert.equal(report.salons.status, 'success');
+    assert.equal(report.salons.rows.length, 2);
+    assert.deepEqual(new Set(report.salons.rows.map((s) => s.id)), new Set([SALON_A, SALON_A2]));
+    assert.equal(report.productionResolution.status, 'ambiguous');
+    assert.equal(report.verdict.code, 'ambiguous');
   });
 });
 
