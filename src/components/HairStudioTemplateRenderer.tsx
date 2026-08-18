@@ -9,6 +9,7 @@ import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteCustomerAccount from './SiteCustomerAccount';
 import SiteContactLockNotice from './SiteContactLockNotice';
 import SiteSeo from './SiteSeo';
 import { setActiveTheme, markPerformance } from '../lib/sitePerformance';
@@ -330,6 +331,7 @@ export default function HairStudioTemplateRenderer({ data, mode }: Props) {
       <SiteFloatingActions themeId="hair_studio_color_bar" data={data} mode={mode} />
       <SiteMobileActionBar themeId="hair_studio_color_bar" data={data} mode={mode} />
       <SiteBookingHost themeId="hair_studio_color_bar" data={data} />
+      <SiteCustomerAccount themeId="hair_studio_color_bar" data={data} />
       <SiteContactLockNotice themeId="hair_studio_color_bar" data={data} />
     </div>
   );

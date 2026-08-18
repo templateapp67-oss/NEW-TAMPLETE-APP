@@ -11,6 +11,7 @@ import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteCustomerAccount from './SiteCustomerAccount';
 import SiteProtectedContactAction from './SiteProtectedContactAction';
 import SiteContactLockNotice from './SiteContactLockNotice';
 import { displayContactNumber, resolveSiteContactAccess } from '../lib/siteContactAccess';
@@ -318,6 +319,7 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
       <SiteFloatingActions themeId="nail_lash_studio" data={data} mode={mode} />
       <SiteMobileActionBar themeId="nail_lash_studio" data={data} mode={mode} />
       <SiteBookingHost themeId="nail_lash_studio" data={data} />
+      <SiteCustomerAccount themeId="nail_lash_studio" data={data} />
       <SiteContactLockNotice themeId="nail_lash_studio" data={data} />
     </div>
   );

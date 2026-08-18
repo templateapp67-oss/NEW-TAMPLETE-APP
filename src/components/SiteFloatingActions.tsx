@@ -24,6 +24,7 @@ import {
   surfacesOf,
 } from '../lib/themeSurfaces';
 import { ArrowUp, CalendarCheck, MessageCircle, Phone } from 'lucide-react';
+import SiteFavoriteButton from './SiteFavoriteButton';
 
 function fabSkin(themeId: SiteHeaderThemeId, appearance: 'light' | 'dark') {
   if (themeId === 'barber_mens_grooming') {
@@ -133,6 +134,13 @@ export default function SiteFloatingActions({
         data-mode={mode}
         className="absolute inset-x-0 bottom-0 z-40 pointer-events-none"
       >
+        {/* PHASE 20.6 — favorite heart above the dock (44px touch target). */}
+        <SiteFavoriteButton
+          themeId={themeId}
+          data={data}
+          className={`${skin.btn} absolute right-16 -top-14 shadow-md`}
+          style={skin.btnStyle}
+        />
         <button
           type="button"
           data-testid="site-back-to-top"
@@ -154,6 +162,8 @@ export default function SiteFloatingActions({
       data-mode={mode}
       className="absolute right-3 bottom-6 z-50 flex flex-col gap-2 pointer-events-none"
     >
+      {/* PHASE 20.6 — favorite heart on the salon website. */}
+      <SiteFavoriteButton themeId={themeId} data={data} className={skin.btn} style={skin.btnStyle} />
       {showCall && (
         <SiteProtectedContactAction
           action="call"

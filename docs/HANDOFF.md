@@ -1,10 +1,370 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-17** (session `arena/01a00df7-new-tamplete-app`, Phase 17.3).
+> Last updated: **2026-08-18** (session `arena/01a0115e-new-tamplete-app`, Phase 20.3).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+- **PHASE 20.10 — CUSTOMER ACCOUNT FINAL QA & POLISH: COMPLETE (17 tests).**
+  - Full QA walkthrough of every Customer Account section in the
+    running-app architecture (jsdom against the real stores). No new
+    features, no redesign, no unrelated modules touched.
+  - **Audit results**: no unused imports in any account component (static
+    scan), no mixed-language UI strings (static scan), no dead navigation
+    buttons (every home button + Back opens its real screen — verified by
+    test), no placeholder navigation, no fake success actions.
+  - **Navigation**: all sections (Profile / Saved Salons / My Reviews /
+    Notifications / Help & Support / My Bookings → Details → Reschedule →
+    Cancel → Receipt) open their real screens; Back returns home; refresh
+    (remount) resets to the account home (no wrong-section persistence);
+    Escape + close button close the panel.
+  - **Data integrity**: everything derives from the existing real stores
+    (bookings, reviews, favorites, profile read-state, notification
+    read-state). Backend limitations stay documented and honest (no fake
+    persistence).
+  - **QA fixes applied this phase**: none required in product code — the
+    only changes are the new QA suite (`scripts/test-phase-20.10.mjs`,
+    `npm run test:phase-20.10`, 17/17) + package.json + HANDOFF.
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.10 68,
+    17.1 56, 10.1 80, 10.2 49, 20.3 13, 20.4 26, 20.5 12, 20.6 11,
+    20.7 17, 20.8 11, 20.9 10, 20.10 17.
+  - NEXT: none queued. (Backend booking migration still deferred — the
+    server-side race-safe reschedule + backend favorites/profile/review/
+    notification persistence + a real support-ticket system remain the
+    known architectural gaps, requiring the draft migration apply +
+    explicit approval.)
+
+
+- **PHASE 20.9 — HELP & SUPPORT: COMPLETE (10 tests).**
+  - Help & Support section inside Customer Account (new view + button).
+  - **FAQ**: six categories (Booking / Payment / Reschedule & Cancellation
+    / Account & Profile / Salon / General) with expandable/collapsible
+    questions. Answers describe ONLY functionality that actually exists
+    (booking flow, advance payment, reschedule/cancel eligibility,
+    profile edit, favorites, no-auto-refund honesty) — no invented
+    policies, refund rules or features.
+  - **Contact options** derived from the salon's REAL published data via
+    `helpContactOptions(data)` (reuses `canCall` / `canWhatsApp` /
+    `salonTelHref` / `salonWhatsAppHref` + email) — Call / WhatsApp /
+    Email render only when the salon actually configured them; nothing is
+    fabricated.
+  - **No support-ticket backend** exists in this architecture (no support
+    table, no ticket system) — the section states this honestly instead
+    of faking a submission. "Open Salon Website" reuses the existing
+    account action.
+  - New: `src/lib/siteHelpCenter.ts` (FAQ content EN/HI + contact
+    derivation), `src/components/SiteHelpCenter.tsx`,
+    `scripts/test-phase-20.9.mjs` (`npm run test:phase-20.9`, 10/10).
+    Additive: `SiteCustomerAccount.tsx` (help view + button).
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.10 68,
+    16.7 39, 17.1 56, 10.1 80, 10.2 49, 20.3 13, 20.4 26, 20.5 12,
+    20.6 11, 20.7 17, 20.8 11, 20.9 10.
+  - NEXT: none queued. (Backend booking migration still deferred — the
+    server-side race-safe reschedule + backend favorites/profile/review/
+    notification persistence + a real support-ticket system remain the
+    known architectural gaps, requiring the draft migration apply +
+    explicit approval.)
+
+
+- **PHASE 20.8 — CUSTOMER NOTIFICATIONS: COMPLETE (11 tests).**
+  - Notifications center inside Customer Account, following the SAME
+    honest pattern as the owner dashboard's 17.8 module: the spec's
+    `notifications` table (draft M10/M12) is unapplied, so notifications
+    are DERIVED deterministically from the customer's OWN real
+    booking/payment records and reviews — no fake notification records,
+    no invented ids, no second event system.
+  - **Events (only what the records can express)**: booking confirmed /
+    cancelled / completed, payment pending / failed, and "Booking
+    updated" for a live booking touched after creation (updatedAt >
+    createdAt — the record has no slot/status history, so reschedule and
+    later status changes are reported honestly as "updated"; the
+    distinction cannot be proven from the stored data).
+  - **Read/unread** persisted in the app's existing browser-scoped store
+    (`nexora_site_customer_notification_read`, versioned localStorage,
+    identity internal via `bookingBrowserId()`) — mark one / mark all as
+    read, unread indicator, survives refresh. Another browser's
+    notifications AND read-state are structurally unreachable (tested).
+  - **Actions**: booking notifications open the EXISTING Booking Details
+    view (E2E-tested); review notifications have no navigation.
+  - Empty / loading / error / unread / read states; EN/HI + light/dark;
+    panel-responsive. Only reads the customer's own records (no
+    unnecessary data loads).
+  - New: `src/lib/siteCustomerNotifications.ts`,
+    `src/components/SiteNotifications.tsx`, `scripts/test-phase-20.8.mjs`
+    (`npm run test:phase-20.8`, 11/11). Additive: `SiteCustomerAccount.tsx`
+    (notifications view + button), one allowlist line in
+    `scripts/test-phase-16.10.mjs`.
+  - **Persistence honesty**: notification events are derived (not stored);
+    read-state is the only persisted per-customer data and lives in the
+    existing browser store model. Server-side notifications require the
+    deferred backend migration (draft `notifications` table) and were NOT
+    invented. No push/email/SMS infrastructure added.
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.10 68,
+    16.7 39, 17.1 56, 10.1 80, 10.2 49, 20.3 13, 20.4 26, 20.5 12,
+    20.6 11, 20.7 17, 20.8 11.
+  - NEXT: none queued. (Backend booking migration still deferred — the
+    server-side race-safe reschedule + backend favorites/profile/review/
+    notification persistence remain the known architectural gaps,
+    requiring the draft migration apply + explicit approval.)
+
+
+- **PHASE 20.7 — CUSTOMER REVIEWS & RATINGS: COMPLETE (17 tests).**
+  - Built on the EXISTING Phase 10.8 review engine (`siteReviews.ts`) —
+    no duplicate review system, no new tables/columns. The engine already
+    enforces eligibility (own confirmed/pay_at_salon booking with date
+    today or earlier), rating 1–5 + body 12–800, one review per booking,
+    spam + rate limits, and moderation (`pending` until approved;
+    `publicReviews` shows only approved).
+  - **Booking Details**: eligible past bookings now show a "Write a
+    Review" / "Edit Review" action (gated by the EXISTING
+    `isBookingEligibleForReview` rule), opening the new `SiteReviewForm`
+    (stars + textarea + submit), which reuses `submitReview` / new
+    `updateReview`. `submitReview` gained an optional `bookingId` so the
+    review targets the SPECIFIC booking (additive; legacy behaviour kept).
+  - **My Reviews** section inside Customer Account (`SiteMyReviews`):
+    own reviews only (new `readMyReviews()`, identity internal), each row
+    shows salon, service, stars, review text, date and the existing
+    moderation status; Edit (own review only) and View Salon actions;
+    empty state.
+  - **Security**: identity resolved inside every read/mutation; another
+    customer's review or booking can never be submitted/edited
+    (tested). No customer IDs accepted from the frontend.
+  - **Moderation**: new/edited reviews stay `pending`; the salon website's
+    public list + average rating already only show `approved` reviews
+    (Phase 10.8). No new admin system built — the existing approval
+    helpers (`setReviewStatus` / `approveReview`) remain the flow.
+  - **Persistence honesty**: reviews persist in the EXISTING
+    `nexora_site_reviews` browser-scoped store (same model as payments);
+    no backend review table exists (draft migrations unapplied) — server
+    persistence requires the deferred migration and was NOT invented.
+  - New: `src/components/SiteReviewForm.tsx`,
+    `src/components/SiteMyReviews.tsx`, `scripts/test-phase-20.7.mjs`
+    (`npm run test:phase-20.7`, 17/17). Additive: `siteReviews.ts`
+    (`readMyReviews`, `findMyReviewForBooking`, `updateReview`,
+    `ReviewUpdateResult`, optional `SubmitReviewInput.bookingId`,
+    `targetedEligibleBooking`), `SiteBookingDetails.tsx` (review action +
+    mode), `SiteCustomerAccount.tsx` (My Reviews view + button).
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.10 68,
+    16.7 39, 17.1 56, 10.1 80, 10.2 49, 20.3 13, 20.4 26, 20.5 12,
+    20.6 11, 20.7 17.
+  - NEXT: none queued. (Backend booking migration still deferred — the
+    server-side race-safe reschedule + backend favorites/profile/review
+    persistence remain the known architectural gaps, requiring the draft
+    migration apply + explicit approval.)
+
+
+- **PHASE 20.6 — FAVORITES / SAVED SALONS: COMPLETE (11 tests).**
+  - **Favorite heart** on the salon website: a `SiteFavoriteButton` (Heart
+    FAB, filled when saved) mounted in the shared `SiteFloatingActions`
+    (one integration point → all five themes, desktop + mobile 44px
+    targets). Tapping saves/unsaves THIS browser's favorite for the salon
+    whose website is open.
+  - **Saved Salons section** inside Customer Account (new 'favorites'
+    view): real saved salons with name, logo/theme icon, theme label,
+    address, tenant key; Open/View Salon and Remove actions; clear empty
+    state with a Book-appointment CTA.
+  - **Data layer** `src/lib/siteFavorites.ts`: browser-scoped store
+    (`nexora_site_customer_favorites`, versioned localStorage — the SAME
+    identity + persistence model as bookings/profile), identity resolved
+    INTERNALLY (`bookingBrowserId()`), snapshots the REAL `SalonData`
+    (name, logo, address, websiteSlug, `bookingBusinessId` tenant key),
+    deduped per business+theme, remove/isFavorite helpers. No fake salon
+    records, no hardcoded lists.
+  - **Security**: another browser's saved salons are structurally
+    unreachable (identity internal — tested).
+  - **Persistence honesty**: favorites persist in the app's existing
+    browser-scoped store (survives refresh). There is NO backend favorites
+    table (draft migrations unapplied) — server-side favorite persistence
+    requires the deferred backend migration and was NOT invented here.
+  - New: `src/lib/siteFavorites.ts`, `src/components/SiteFavoriteButton.tsx`,
+    `src/components/SiteFavorites.tsx`, `scripts/test-phase-20.6.mjs`
+    (`npm run test:phase-20.6`, 11/11). Additive: `SiteFloatingActions.tsx`
+    (mounts the heart), `SiteCustomerAccount.tsx` (favorites view +
+    button), one allowlist line in `scripts/test-phase-16.10.mjs`.
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.10 68,
+    16.7 39, 17.1 56, 10.1 80, 10.2 49, 20.3 13, 20.4 26, 20.5 12,
+    20.6 11.
+  - NEXT: none queued. (Backend booking migration still deferred — the
+    server-side race-safe reschedule + backend favorites/profile
+    persistence remain the known architectural gaps, requiring the draft
+    migration apply + explicit approval.)
+
+
+- **PHASE 20.5 — CUSTOMER PROFILE MANAGEMENT: COMPLETE (12 tests).**
+  - "My Profile" section inside the Customer Account (new third view).
+    Shows the REAL profile — name / mobile / email, the ONLY customer
+    fields the existing booking architecture stores
+    (`BookingCustomerSnapshot`) — from the stored profile or, when none
+    exists yet, the customer's most recent real booking snapshot (no fake
+    data, no hardcoded values).
+  - **Edit Profile**: view → edit → validate (the EXISTING booking-details
+    rules: name ≥ 2 chars, mobile 10–13 digits, optional valid email, all
+    trimmed) → save → success banner → updated info shown immediately.
+    Persistence is the app's existing browser-scoped store model
+    (`nexora_site_customer_profile`, versioned localStorage, identity
+    resolved INTERNALLY via `bookingBrowserId()`) — the same identity and
+    persistence model as every other customer store in this app. It
+    survives page refresh (re-read from the store, not React state), and
+    `readCustomerAccountInfo()` now prefers it, so the account header and
+    My Bookings reflect the edit while booking-history snapshots stay
+    untouched.
+  - **Security**: another browser's profile is structurally unreachable
+    (identity internal — tested). No second auth/identity system; the
+    customer identity remains the existing anonymous browser id.
+  - **Avatar**: no profile-image storage exists in the app, so the
+    existing initials-avatar behavior is kept — no fake upload system
+    (per Phase 20.5 requirement).
+  - New: `src/lib/siteCustomerProfile.ts`,
+    `src/components/SiteCustomerProfile.tsx`,
+    `scripts/test-phase-20.5.mjs` (`npm run test:phase-20.5`, 12/12).
+    Additive: `siteCustomerAccount.ts` (`readCustomerAccountInfo` prefers
+    stored profile), `SiteCustomerAccount.tsx` (profile view + event
+    listener), one allowlist line in `scripts/test-phase-16.10.mjs` for
+    the new store key.
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.10 68,
+    16.6 54, 16.7 39, 16.9 47, 17.1 56, 10.1 80, 10.2 49, 20.3 13,
+    20.4 26, 20.5 12.
+  - NEXT: none queued. (Backend booking migration still deferred — the
+    server-side race-safe reschedule remains the one known architectural
+    gap, requiring the draft M08/M09/M12 apply + explicit approval.)
+
+
+- **PHASE 20.4 — RESCHEDULE & CANCELLATION: COMPLETE (22 tests).**
+  - Real customer reschedule + cancel inside Booking Details, over the
+    EXISTING booking store. No duplicate booking/reschedule system.
+  - Dedicated components (imported + rendered by `SiteBookingDetails`):
+    `src/components/RescheduleBooking.tsx` (3-step flow: current → new
+    date → available slots → confirm) and
+    `src/components/CancelBookingDialog.tsx` (explicit confirmation).
+  - **Reschedule** (`customerRescheduleBooking` in `bookingManagement.ts`):
+    only live bookings (pending/confirmed/pay_at_salon — the existing
+    `customerCanCancel` rule). Dates/slots come from the EXISTING Phase 16
+    engine (`bookingDayList` / `bookingSlotsForDay` /
+    `bookingAvailabilityExtras`), so salon hours, holidays, min-notice,
+    staff windows, holds and REAL booking conflicts are respected; the new
+    slot is re-validated INSIDE the mutation at write time (authoritative,
+    race-free for this store), the rescheduled record excludes its own
+    span, and only dateKey/startMinutes/endMinutes move — salon, customer,
+    services, money and payment stay untouched. Confirmation shows old vs
+    new date/time, services, duration, total, advance paid, remaining and
+    booking status.
+  - **Cancellation** reuses the EXISTING `customerCancelBooking` (16.7):
+    own live bookings only, real status flips to `cancelled`, the slot is
+    released (cancelled records stop blocking availability), paid amounts
+    stay recorded — NO invented refund; the dialog shows the real payment
+    state and states refunds are handled by the salon.
+  - **Security**: identity resolved INSIDE both mutations (browser id);
+    a manually crafted/foreign booking id → `not-found`, never modified
+    (E2E-tested through the account panel).
+  - **Refresh**: after either mutation, PAYMENT_EVENT + explicit re-read
+    update Booking Details and My Bookings (booking moves to Cancelled tab).
+  - UI: Reschedule/Cancel actions only when eligible; disabled
+    holiday/past/current/taken slots; success/error banners; busy states
+    prevent double submit (sync ref guard + idempotent mutation);
+    EN/HI + light/dark; panel-responsive. Cancel dialog is a plain
+    conditional overlay (no AnimatePresence — motion's animation loop
+    hangs the jsdom harness; production behavior identical).
+  - New: `scripts/test-phase-20.4.mjs` (`npm run test:phase-20.4`, 26/26 —
+    includes 4 explicit Phase 16 rule proofs + 3 end-to-end tests through
+    the full Customer Account flow). Additive: `bookingManagement.ts`
+    (`customerRescheduleBooking`, failure reasons `same-slot` /
+    `slot-unavailable`), `SiteBookingDetails.tsx` (mode switching).
+  - **Availability audit (blocker resolution)**: the reschedule path calls
+    the SAME Phase 16 engine functions as the booking flow
+    (`bookingDayList`, `bookingAvailabilityExtras`, `bookingSlotsForDay`,
+    `bookingSlotIsStillAvailable`) with the SAME `SalonData` the renderer
+    passes (openingHours, holidays, bookingRules, team[].schedule,
+    team[].assignedServiceIds). No duplicate schedule/hours source, no
+    hardcoded slots/durations. Explicitly proven by tests: salon-hours
+    (early close), staff-window (10:00–14:00 stylist), service-duration
+    (30-min service, no partial slots before close), booking-conflict
+    (real record blocks span), past/min-notice, holiday, same-slot.
+  - **Race-safety audit (honest)**: booking writes are localStorage-only
+    (`nexora_site_payment_records`) by explicit project decision — the
+    backend booking migration (draft M08/M09/M12, UNAPPLIED) is deferred.
+    `customerRescheduleBooking` is atomic WITHIN the browser store:
+    one synchronous read → identity/eligibility check → blocked spans
+    recomputed from the store → slot check → write (no await points,
+    single-threaded), the same guarantee Phase 16 booking creation has.
+    There is NO Supabase RPC/transaction for bookings in the current
+    architecture, so cross-client server-side atomicity does not exist
+    yet; adding it requires the deferred booking migration + explicit
+    approval (AGENTS.md). No service-role in frontend.
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.6 54,
+    16.7 39, 16.9 47, 16.10 68, 17.1 56, 17.2 49, 17.3 50, 10.1 80,
+    10.2 49, 20.3 13, 20.4 26.
+  - NEXT: Phase 20.5 (Customer Profile) — pending the backend booking
+    migration for server-side race safety.
+
+
+- **PHASE 20.3 — BOOKING DETAILS & RECEIPT: COMPLETE (13 tests).**
+  - A dedicated Booking Details + Receipt view for the Customer Account,
+    connected to the REAL Phase 16 booking records (localStorage store —
+    the current booking architecture; backend migration is still separate).
+  - Clicking any booking in My Bookings (`SiteCustomerAccount`) opens
+    `SiteBookingDetails` inside the account panel (dedicated view with
+    Back / Close / View Salon actions). No reschedule/cancel/profile/etc.
+  - **Secure access**: `readCustomerBooking(bookingId)` reads the browser
+    identity INSIDE the helper (same rule as 16.6/16.7) and returns ONE
+    own record or null — a tampered/foreign booking id renders the
+    existing not-found card, never data.
+  - **Reuses the existing 16.6 `SiteBookingConfirmation`** (status banner,
+    reference, detail rows) inside the details view — no duplicate
+    booking-details system. Real statuses via `bookingConfirmationState`
+    (confirmed / payment_pending / payment_failed / cancelled / completed);
+    payment status stays separate.
+  - **Supplements**: salon header with logo (only when the booking belongs
+    to the salon whose site is open — `bookingBusinessId(data)` match),
+    service categories resolved from the current salon's own catalog,
+    customer name/mobile/email (the customer's OWN record), and an explicit
+    payment breakdown (total / required advance = `amountDue` / advance
+    paid / remaining / payment status) — all from the persisted record.
+  - **Receipt**: clean receipt card (salon, customer, services, date/time,
+    totals, statuses, reference) + download reusing the existing
+    `bookingConfirmationReceiptText`. Responsive inside the panel
+    (full-width on mobile, `max-w-sm` on desktop), EN/HI + light/dark via
+    the existing surfaces, no horizontal overflow.
+  - States: not-found (tampered/foreign id) via the existing
+    `BookingConfirmationStateCard`; cancelled / payment pending / payment
+    failed / confirmed / completed banners come from the record state.
+    Loading is synchronous from the local store (no fake async, no fake
+    data while loading).
+  - New: `src/components/SiteBookingDetails.tsx`,
+    `scripts/test-phase-20.3.mjs` (`npm run test:phase-20.3`, 13/13).
+    Additive: `siteCustomerAccount.ts` (`readCustomerBooking`),
+    `SiteCustomerAccount.tsx` (details sub-view, booking list opens it),
+    five theme renderers now pass `data` to the account panel.
+  - Validation: lint 0; build green; verify-22-screens 25/25; 16.6 54,
+    16.7 39, 16.9 47, 16.10 68, 10.1 80, 10.2 49; phase-20.3 13/13.
+  - NEXT: Phase 20.4 (reschedule + cancellation UI/availability).
+
+- **PHASE 20.2 — MY BOOKINGS & BOOKING HISTORY: COMPLETE.**
+  - My Bookings section inside the Customer Account panel: THIS browser's
+    own records grouped into Upcoming / Past / Cancelled tabs with correct
+    sort order (upcoming nearest-first; past/cancelled most-recent-first),
+    real detail cards (salon, services, date, time, duration, staff,
+    booking id, totals, statuses, failure reason). Grouping helpers in
+    `siteCustomerAccount.ts` (`groupCustomerBookings`,
+    `readGroupedCustomerBookings`). EN/HI + light/dark via existing
+    surfaces; empty states per tab; no invented data.
+
+- **PHASE 20.1 — CUSTOMER ACCOUNT FOUNDATION: COMPLETE.**
+  - A themed, locale-aware slide-over account panel (`SiteCustomerAccount`)
+    opened from a new "My Account" user button in the site header (desktop
+    + mobile), with identity info derived from the EXISTING booking records
+    (`readCustomerAccountInfo`). Data layer `src/lib/siteCustomerAccount.ts`
+    (browser identity internal; no fake auth/db). Mounted in all five
+    theme renderers alongside `SiteBookingHost`; the legacy `TemplateRenderer`
+    delegates to those renderers.
+
+- **OWNER DASHBOARD SIDEBAR FIX (session hardening): COMPLETE.**
+  - All 7 sidebar items were already wired to the existing 17.2–17.8
+    sections; hardened the shell so clicks visibly respond in every state:
+    section heading now always reflects the active sidebar item (body stays
+    gated behind the owner-session check), a clear accent indicator bar on
+    the active item, and scroll-to-top on section change. Verified 18-point
+    nav matrix + full 17.x regression.
 
 - **PHASE 17.3 — UPCOMING APPOINTMENTS: COMPLETE (50 tests).**
   - The Upcoming Appointments section of the Owner Dashboard, over the

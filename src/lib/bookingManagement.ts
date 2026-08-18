@@ -43,8 +43,11 @@ import {
   readPaymentRecordsForBusiness,
 } from './siteBookingPayment';
 import type { BookingStatus, PaymentRecord, PaymentStatus } from './siteBookingPayment';
-import { bookingBrowserId } from './siteBookingFlow';
+import { bookingBrowserId, bookingSlotIsStillAvailable } from './siteBookingFlow';
+import { bookingAvailabilityExtras } from './siteBookingAvailability';
+import { salonNow, weekdayKeyOf } from './salonStatus';
 import { PAYMENT_STORE_KEY, PAYMENT_STORE_VERSION } from './siteBookingPayment';
+import type { SalonData } from '../types';
 
 /* ------------------------------------------------------------------ */
 /* Actor resolution (mirrors 14.6 gallery / 15.6 video management)     */
@@ -217,7 +220,9 @@ export type BookingUpdateFailure =
   | 'not-found'                      // no such row for this tenant
   | 'invalid-transition'             // status machine refused
   | 'advance-payment-required'       // required gateway payment has not succeeded
-  | 'duplicate-update';              // persisted status already equals request
+  | 'duplicate-update'               // persisted status already equals request
+  | 'same-slot'                      // PHASE 20.4 — reschedule to the identical slot
+  | 'slot-unavailable';              // PHASE 20.4 — new slot is past/taken/closed
 
 export interface UpdateResult {
   ok: boolean;
@@ -325,6 +330,82 @@ export function customerCancelBooking(
   };
   if (record.paymentStatus === 'pending') patch.paymentStatus = 'cancelled';
   const updated = patchRecordRaw(record.id, patch);
+  if (!updated) return { ok: false, reason: 'not-found' };
+  return { ok: true, record: updated };
+}
+
+/**
+ * PHASE 20.4 — CUSTOMER RESCHEDULE of THEIR OWN booking.
+ *
+ * The identity is read from the browser, never from the caller; a record
+ * owned by someone else (or in a terminal state) is refused — a manually
+ * crafted booking id can never move another customer's booking.
+ *
+ * The NEW slot is validated through the EXISTING Phase 16 engine BEFORE the
+ * write (authoritative, not just hidden buttons):
+ *   - the day must be inside the booking window and open (weekly hours,
+ *     holidays, today's min-notice/close rules),
+ *   - the slot must fit the selected service(s) duration,
+ *   - the slot must not be past, not held by someone else, and not blocked
+ *     by another REAL booking record (the rescheduled record excludes its
+ *     OWN span so it never blocks itself).
+ *
+ * Salon, customer, services and all money/payment fields are preserved —
+ * only the appointment slot (dateKey / startMinutes / endMinutes) moves.
+ * The mutation and the write are synchronous, so the re-validation is
+ * race-free for this store.
+ */
+export function customerRescheduleBooking(options: {
+  businessId: string;
+  themeId: string;
+  bookingId: string;
+  /** Local salon calendar day `YYYY-MM-DD`. */
+  dateKey: string;
+  /** Minutes from midnight when the appointment starts. */
+  startMinutes: number;
+  /** Salon data the EXISTING availability engine validates against. */
+  data: Pick<SalonData, 'openingHours' | 'holidays' | 'bookingRules' | 'team'>;
+}): UpdateResult {
+  const { businessId, themeId, bookingId, dateKey, startMinutes, data } = options;
+  const me = bookingBrowserId();
+  const record = readPaymentRecordsForBusiness(businessId, themeId)
+    .find((r) => r.bookingId === bookingId);
+  if (!record || record.customerId !== me) return { ok: false, reason: 'not-found' };
+  // Only live bookings may move (pending / confirmed / pay_at_salon).
+  if (!customerCanCancel(record)) return { ok: false, reason: 'invalid-transition' };
+  if (record.dateKey === dateKey && record.startMinutes === startMinutes) {
+    return { ok: false, reason: 'same-slot' };
+  }
+
+  // The combined sitting of the EXISTING service lines (same rule the
+  // 16.2 selection engine uses for the slot key + duration).
+  const serviceIds = record.services && record.services.length > 0
+    ? record.services.map((line) => line.serviceId)
+    : [record.serviceId];
+  const duration = record.services && record.services.length > 0
+    ? record.services.reduce((sum, line) => sum + line.durationMinutes, 0)
+    : Math.max(0, record.endMinutes - record.startMinutes);
+  const slotService = { id: serviceIds.slice().sort().join('+'), duration: Math.max(duration, 1) };
+  const selectedServices = serviceIds.map((id) => ({ id }));
+
+  const date = new Date(`${dateKey}T12:00:00`);
+  const extras = bookingAvailabilityExtras(
+    data,
+    businessId,
+    themeId,
+    selectedServices,
+    weekdayKeyOf(date),
+    bookingId, // exclude this booking's own span so it does not block itself
+  );
+  if (!bookingSlotIsStillAvailable(data, themeId, slotService, date, startMinutes, salonNow(), extras)) {
+    return { ok: false, reason: 'slot-unavailable' };
+  }
+
+  const updated = patchRecordRaw(record.id, {
+    dateKey,
+    startMinutes,
+    endMinutes: startMinutes + slotService.duration,
+  });
   if (!updated) return { ok: false, reason: 'not-found' };
   return { ok: true, record: updated };
 }

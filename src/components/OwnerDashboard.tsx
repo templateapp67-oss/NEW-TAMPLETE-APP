@@ -27,7 +27,7 @@
  *
  * Phase 17.10 final acceptance testing is deliberately not implemented here.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   AlertCircle,
@@ -329,7 +329,7 @@ function NavList({
         const isActive = section.id === active;
         const label = t(section.labelKey);
         return (
-          <li key={section.id}>
+          <li key={section.id} className="relative">
             <button
               type="button"
               data-testid={`${idPrefix}-${section.id}`}
@@ -344,6 +344,14 @@ function NavList({
                 color: isActive ? palette.accent : palette.muted,
               }}
             >
+              {/* Clear active indicator bar (desktop sidebar / drawer) */}
+              {isActive && !compact && (
+                <span
+                  className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full"
+                  style={{ backgroundColor: palette.accent }}
+                  aria-hidden="true"
+                />
+              )}
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
               {!compact && <span className="truncate">{label}</span>}
               {compact && <span className="sr-only">{label}</span>}
@@ -490,6 +498,9 @@ export default function OwnerDashboard({ loadContext }: Props) {
   const [context, setContext] = useState<OwnerDashboardContext>(LOADING_OWNER_DASHBOARD_CONTEXT);
   const [active, setActive] = useState<OwnerDashboardSectionId>(() => readStoredOwnerDashboardSection());
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // The scrollable content column — reset to top whenever the section changes
+  // so the newly selected section is immediately visible from its heading.
+  const contentRef = useRef<HTMLElement | null>(null);
   // PHASE 17.9 — one filter state shared by every real-data section. It is a
   // transient UI preference only and never changes the session tenant scope.
   const [filters, setFilters] = useState<OwnerDashboardFilterState>({ ...DEFAULT_OWNER_FILTERS });
@@ -524,6 +535,15 @@ export default function OwnerDashboard({ loadContext }: Props) {
     setActive(next);
     persistOwnerDashboardSection(next);
     setDrawerOpen(false);
+    // Show the newly selected section from its top — never leave the content
+    // column scrolled down into the previous section.
+    if (contentRef.current && typeof contentRef.current.scrollTo === 'function') {
+      try {
+        contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {
+        contentRef.current.scrollTop = 0;
+      }
+    }
   }, []);
 
   const access = context.access;
@@ -820,16 +840,20 @@ export default function OwnerDashboard({ loadContext }: Props) {
           })}
         </div>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-6">
+        <main
+          ref={contentRef}
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-6"
+        >
           <div className="mx-auto min-w-0 w-full max-w-6xl space-y-4 sm:space-y-5">
-            {canView && (
-              <div data-testid="owner-dashboard-section-heading">
-                <h2 className="text-base font-extrabold tracking-tight">{t(section.titleKey)}</h2>
-                <p className="mt-1 text-xs font-semibold" style={{ color: palette.muted }}>
-                  {t(section.descriptionKey)}
-                </p>
-              </div>
-            )}
+            {/* Section heading — always reflects the ACTIVE sidebar item so a
+                click visibly switches the screen even while the section body
+                itself stays gated behind the owner-session check below. */}
+            <div data-testid="owner-dashboard-section-heading">
+              <h2 className="text-base font-extrabold tracking-tight">{t(section.titleKey)}</h2>
+              <p className="mt-1 text-xs font-semibold" style={{ color: palette.muted }}>
+                {t(section.descriptionKey)}
+              </p>
+            </div>
             {canView && tenant && active !== 'overview' && (
               <OwnerDashboardFilters
                 actor={bookingActor}

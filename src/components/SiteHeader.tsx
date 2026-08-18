@@ -24,6 +24,7 @@ import {
   setSiteAppearance,
   setSiteLocale,
 } from '../lib/siteNavigation';
+import { openCustomerAccount } from '../lib/siteCustomerAccount';
 import type { SiteAppearance, SiteHeaderThemeId, SiteNavItem } from '../lib/siteNavigation';
 import {
   ArrowRight,
@@ -35,6 +36,7 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  User,
   Users,
   X,
 } from 'lucide-react';
@@ -682,6 +684,17 @@ export default function SiteHeader({ themeId, data, mode }: Props) {
                 {labels(item.key)}
               </button>
             ))}
+            <button
+              type="button"
+              data-testid="site-header-account"
+              aria-label={locale === 'hi' ? 'मेरा खाता' : 'My Account'}
+              title={locale === 'hi' ? 'मेरा खाता' : 'My Account'}
+              className={design.modeButtonClass}
+              style={design.modeButtonStyle(appearance)}
+              onClick={openCustomerAccount}
+            >
+              <User className="w-3.5 h-3.5" style={{ color: design.modeIconColor(appearance) }} />
+            </button>
             {languageControl('site-header')}
             {darkControl('site-header')}
             <button
@@ -699,6 +712,17 @@ export default function SiteHeader({ themeId, data, mode }: Props) {
         {/* Mobile navigation — compact controls + hamburger drawer. */}
         {mode === 'mobile' && (
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="site-header-account-mobile"
+              aria-label={locale === 'hi' ? 'मेरा खाता' : 'My Account'}
+              title={locale === 'hi' ? 'मेरा खाता' : 'My Account'}
+              className={design.modeButtonClass}
+              style={design.modeButtonStyle(appearance)}
+              onClick={openCustomerAccount}
+            >
+              <User className="w-3.5 h-3.5" style={{ color: design.modeIconColor(appearance) }} />
+            </button>
             {darkControl('site-header-mobile')}
             <button
               type="button"

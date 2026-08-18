@@ -8,6 +8,7 @@ import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteCustomerAccount from './SiteCustomerAccount';
 import SiteContactLockNotice from './SiteContactLockNotice';
 import SiteAnnouncementBar from './SiteAnnouncementBar';
 import BarberHero from './heroes/BarberHero';
@@ -318,6 +319,7 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
       <SiteFloatingActions themeId="barber_mens_grooming" data={data} mode={mode} />
       <SiteMobileActionBar themeId="barber_mens_grooming" data={data} mode={mode} />
       <SiteBookingHost themeId="barber_mens_grooming" data={data} />
+      <SiteCustomerAccount themeId="barber_mens_grooming" data={data} />
       <SiteContactLockNotice themeId="barber_mens_grooming" data={data} />
     </div>
   );

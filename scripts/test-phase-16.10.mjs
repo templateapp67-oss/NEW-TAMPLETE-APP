@@ -1290,6 +1290,9 @@ section('J. Static hygiene — no secrets, placeholder env, no invented stores')
       'nexora_site_booking_browser',
       'nexora_site_booking_drafts',
       'nexora_site_booking_holds',
+      'nexora_site_customer_favorites', // 20.6 — saved salons for THIS browser identity
+      'nexora_site_customer_notification_read', // 20.8 — notification read-state for THIS browser identity
+      'nexora_site_customer_profile', // 20.5 — customer profile for THIS browser identity
       'nexora_site_payment_records',
       'nexora_site_reviews',
       'nexora_video_likes',
