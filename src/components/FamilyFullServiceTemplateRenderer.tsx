@@ -10,6 +10,7 @@ import SiteFooter from './SiteFooter';
 import SiteFloatingActions from './SiteFloatingActions';
 import SiteMobileActionBar from './SiteMobileActionBar';
 import SiteBookingHost from './SiteBookingHost';
+import SiteCustomerAccount from './SiteCustomerAccount';
 import SiteProtectedContactAction from './SiteProtectedContactAction';
 import SiteContactLockNotice from './SiteContactLockNotice';
 import { displayContactNumber, resolveSiteContactAccess } from '../lib/siteContactAccess';
@@ -519,6 +520,7 @@ export default function FamilyFullServiceTemplateRenderer({ data, mode }: Props)
       <SiteFloatingActions themeId="family_full_service" data={data} mode={mode} />
       <SiteMobileActionBar themeId="family_full_service" data={data} mode={mode} />
       <SiteBookingHost themeId="family_full_service" data={data} />
+      <SiteCustomerAccount themeId="family_full_service" data={data} />
       <SiteContactLockNotice themeId="family_full_service" data={data} />
     </div>
   );

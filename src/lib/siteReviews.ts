@@ -87,6 +87,10 @@ export interface SubmitReviewInput {
   customerName: string;
   rating: number;
   body: string;
+  /** PHASE 20.7 — review a SPECIFIC booking (must be this customer's
+   * eligible, unreviewed booking). When omitted, the engine picks the
+   * first eligible booking (legacy behaviour). */
+  bookingId?: string;
   now?: Date;
 }
 
@@ -254,6 +258,25 @@ function recordAttempt(browserId: string, businessId: string, themeId: string, n
   effectiveWrite({ version: REVIEW_STORE_VERSION, reviews: store.reviews, attempts });
 }
 
+function targetedEligibleBooking(
+  businessId: string,
+  themeId: SiteHeaderThemeId,
+  customerName: string,
+  browserId: string,
+  bookingId: string,
+  now: Date,
+): PaymentRecord | null {
+  const record = readPaymentRecordsForBusiness(businessId, themeId)
+    .find((r) => r.bookingId === bookingId);
+  if (!record || record.customerId !== browserId) return null;
+  if (!isBookingEligibleForReview(record, now)) return null;
+  const alreadyReviewed = readReviewsForTheme(businessId, themeId)
+    .filter((review) => review.status !== 'rejected')
+    .some((review) => review.bookingId === bookingId);
+  if (alreadyReviewed) return null;
+  return record;
+}
+
 function unusedEligibleBooking(
   businessId: string,
   themeId: SiteHeaderThemeId,
@@ -336,7 +359,9 @@ export function submitReview(input: SubmitReviewInput): SubmitReviewResult {
     return { ok: false, error: 'duplicate' };
   }
 
-  const booking = unusedEligibleBooking(input.businessId, input.themeId, name, browserId, now);
+  const booking = input.bookingId
+    ? targetedEligibleBooking(input.businessId, input.themeId, name, browserId, input.bookingId, now)
+    : unusedEligibleBooking(input.businessId, input.themeId, name, browserId, now);
   if (!booking) {
     const usedIds = new Set(
       readReviewsForTheme(input.businessId, input.themeId)
@@ -426,3 +451,74 @@ export function insertReviewForTests(partial: Partial<CustomerReview> & Pick<Cus
 
 /** Subscribe to review + booking changes so the section can repaint. */
 export const REVIEW_REFRESH_EVENTS = [REVIEW_EVENT, PAYMENT_EVENT] as const;
+
+/* ------------------------------------------------------------------ */
+/* PHASE 20.7 - own-reviews read + update                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * THIS browser's own reviews across ALL salons/themes (identity resolved
+ * internally - a caller can never request another customer's reviews).
+ */
+export function readMyReviews(): CustomerReview[] {
+  const me = bookingBrowserId();
+  return effectiveStore().reviews.filter((review) => review.customerId === me);
+}
+
+/**
+ * THIS browser's review for ONE booking, or null. Used by Booking Details
+ * to show the existing review (for editing). The identity is internal.
+ */
+export function findMyReviewForBooking(
+  businessId: string,
+  themeId: string,
+  bookingId: string,
+): CustomerReview | null {
+  const me = bookingBrowserId();
+  return readReviewsForTheme(businessId, themeId).find(
+    (review) => review.customerId === me && review.bookingId === bookingId,
+  ) || null;
+}
+
+/**
+ * Update the rating and/or body of an EXISTING review - ONLY if it
+ * belongs to THIS browser. Validates rating and body length the same way
+ * `submitReview` does. Never changes a review's bookingId, businessId,
+ * themeId or customer data.
+ *
+ * Shape matches `SubmitReviewResult` (optional fields) so callers work
+ * identically with both submit and update.
+ */
+export interface ReviewUpdateResult {
+  ok: boolean;
+  review?: CustomerReview;
+  error?: ReviewSubmitError;
+}
+
+export function updateReview(
+  reviewId: string,
+  input: { rating?: number; body?: string },
+): ReviewUpdateResult {
+  const me = bookingBrowserId();
+  const store = effectiveStore();
+  const idx = store.reviews.findIndex((review) => review.id === reviewId);
+  if (idx < 0) return { ok: false, error: 'invalid-body' as ReviewSubmitError };
+  const existing = store.reviews[idx];
+  if (existing.customerId !== me) return { ok: false, error: 'invalid-body' as ReviewSubmitError };
+
+  const rating = input.rating != null ? Math.round(Number(input.rating)) : existing.rating;
+  const body = input.body != null ? (input.body || '').trim() : existing.body;
+
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    return { ok: false, error: 'invalid-rating' };
+  }
+  if (body.length < REVIEW_MIN_BODY || body.length > REVIEW_MAX_BODY) {
+    return { ok: false, error: 'invalid-body' };
+  }
+
+  const next: CustomerReview = { ...existing, rating, body, updatedAt: Date.now() };
+  const reviews = store.reviews.slice();
+  reviews[idx] = next;
+  effectiveWrite({ version: REVIEW_STORE_VERSION, reviews, attempts: store.attempts });
+  return { ok: true, review: next };
+}
