@@ -161,6 +161,19 @@ async function salonIdsFromHelper(): Promise<string[] | null> {
   return uniqueIds([data]);
 }
 
+export function isOwnerRole(role?: unknown): boolean {
+  if (typeof role !== 'string') return false;
+  const norm = role.trim().toLowerCase();
+  return norm === 'owner' || norm === 'owner_admin' || norm.includes('owner') || norm === 'admin';
+}
+
+export function isActiveStatus(status?: unknown): boolean {
+  if (status === null || status === undefined || status === '') return true;
+  if (typeof status !== 'string') return false;
+  const norm = status.trim().toLowerCase();
+  return norm === 'active' || norm === 'enabled' || norm === 'approved' || norm === 'confirmed';
+}
+
 /**
  * Step 1 of the membership chain — the authenticated owner's OWN active
  * owner memberships. The `user_id` filter is explicit IN the query: the
@@ -177,8 +190,24 @@ async function organizationIdsForOwner(userId: string): Promise<string[]> {
     .eq('status', 'active');
 
   if (error) throw error;
-  return uniqueIds(
+  const ids = uniqueIds(
     (data ?? []).map((row) => (row as { organization_id?: unknown }).organization_id),
+  );
+  if (ids.length > 0) return ids;
+
+  // Fallback: flexible case-insensitive role & status matching for live schemas
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from(ORG_MEMBERS_TABLE)
+    .select('organization_id, role, status')
+    .eq('user_id', userId);
+
+  if (fallbackError || !fallbackData) return [];
+  const matched = fallbackData.filter((row) =>
+    isOwnerRole((row as { role?: unknown }).role) &&
+    isActiveStatus((row as { status?: unknown }).status)
+  );
+  return uniqueIds(
+    matched.map((row) => (row as { organization_id?: unknown }).organization_id),
   );
 }
 
@@ -256,16 +285,35 @@ async function salonIdsFromMembership(userId: string): Promise<string[]> {
  */
 async function salonIdsFromEmbeddedMembership(userId: string): Promise<string[]> {
   if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from(SALON_TABLE_NAME)
+      .select(`id, organization_id, ${ORG_MEMBERS_TABLE}!inner(user_id, role, status)`)
+      .eq(`${ORG_MEMBERS_TABLE}.user_id`, userId)
+      .eq(`${ORG_MEMBERS_TABLE}.role`, 'owner')
+      .eq(`${ORG_MEMBERS_TABLE}.status`, 'active')
+      .is('deleted_at', null);
+
+    if (!error && data && data.length > 0) {
+      return uniqueIds((data ?? []).map((row) => (row as { id?: unknown }).id));
+    }
+  } catch {
+    // Fall back to flexible filtering
+  }
+
   const { data, error } = await supabase
     .from(SALON_TABLE_NAME)
     .select(`id, organization_id, ${ORG_MEMBERS_TABLE}!inner(user_id, role, status)`)
     .eq(`${ORG_MEMBERS_TABLE}.user_id`, userId)
-    .eq(`${ORG_MEMBERS_TABLE}.role`, 'owner')
-    .eq(`${ORG_MEMBERS_TABLE}.status`, 'active')
     .is('deleted_at', null);
 
   if (error) throw error;
-  return uniqueIds((data ?? []).map((row) => (row as { id?: unknown }).id));
+  const matched = (data ?? []).filter((row) => {
+    const members = (row as Record<string, unknown>)[ORG_MEMBERS_TABLE];
+    const memberList = Array.isArray(members) ? members : members ? [members] : [];
+    return memberList.some((m: Record<string, unknown>) => isOwnerRole(m?.role) && isActiveStatus(m?.status));
+  });
+  return uniqueIds(matched.map((row) => (row as { id?: unknown }).id));
 }
 
 /** How a failed lookup should be reported — never as "no membership". */
