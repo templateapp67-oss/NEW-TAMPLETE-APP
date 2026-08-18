@@ -21,12 +21,17 @@ The app contains:
   (`src/components/PreviewPane.tsx` + dashboard tabs in `src/App.tsx`).
 - **Salon Owner Dashboard (screen 26, Phase 17.1)** —
   `src/components/OwnerDashboard.tsx` over `src/lib/ownerDashboard.ts`:
-  sections for Overview, Today's / Upcoming Appointments, Customers,
-  Revenue/Payments, Calendar and Notifications, scoped to the signed-in
-  owner's OWN salon. Today's Appointments (17.2) and Upcoming Appointments
-  (17.3) are live, read-only over the existing booking records and sharing
-  ONE row renderer (`OwnerAppointmentRow.tsx`); the other four sections are
-  placeholders. It is a sibling
+  ALL seven sections are live — Overview, Today's / Upcoming Appointments
+  (17.2–17.3, read-only over the existing booking records), Customers
+  (17.5), Revenue/Payments (17.6), Calendar (17.7) and Notifications
+  (17.8), with shared filters/responsive UX (17.9). Salon identity is
+  resolved ONLY from the authenticated session through
+  `resolveOwnerSalonId()` (`organization_members role='owner'` →
+  `salons.organization_id`; the `nexora_owner_salon_ids()` helper first,
+  then the equivalent two-step membership chain with an explicit
+  `user_id` filter — a failed lookup is never reported as
+  "not linked"). Verified end-to-end against a PGlite model of the live
+  schema by `npm run test:owner-salon-resolution`. It is a sibling
   module of the 18–25 dashboard, **not** a replacement — do not fork a
   second dashboard system.
 - **Booking confirmation** (dashboard demo screen

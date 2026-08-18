@@ -1,10 +1,65 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-18** (session `arena/01a0115e-new-tamplete-app`, Phase 20.3).
+> Last updated: **2026-08-18** (session `arena/01a01301-new-tamplete-app`,
+> owner-dashboard activation).
 > Read `AGENTS.md` first; read `docs/database-migrations-plan.md` before touching
 > any database work.
 
 ## Current repository state
+
+
+- **OWNER DASHBOARD ACTIVATION — FALSE "NOT LINKED" FIX: COMPLETE (21 tests).**
+  - **Problem**: an authenticated owner whose salon IS linked through
+    `organization_members → salons.organization_id` could see
+    "Dashboard unavailable — Your account is not linked to a salon."
+    Root cause in `resolveOwnerSalonId()` (src/lib/ownerSalon.ts): when the
+    `nexora_owner_salon_ids()` helper was not exposed, the fallback embedded
+    `organization_members` under `salons` with NO `user_id` filter — a
+    relationship that does not exist in the live schema (the tables only
+    relate through `organizations`), so correctness depended entirely on
+    RLS and could silently return zero rows, which was then reported as
+    "no membership".
+  - **Fix (src/lib/ownerSalon.ts only — ownership rule unchanged)**:
+    1. helper RPC first (unchanged);
+    2. when the helper is missing OR answers empty, the documented chain is
+       executed directly as TWO queries —
+       `organization_members (user_id = session user, role='owner',
+       status='active')` → `organization_id` → `salons.organization_id`
+       (`deleted_at is null`) — with the user filter IN the query, so no
+       RLS quirk or missing embed can fake "not linked";
+    3. a corrected salon-side embed (now with the explicit `user_id`
+       filter) remains as a last resort;
+    4. failure classification is honest: permission/lookup failures surface
+       as `permission-denied`/`error` (retryable), NEVER as
+       `no-membership`. Only a lookup that actually RAN and returned empty
+       may report "not linked".
+  - **New verification layer** — `scripts/test-owner-salon-resolution.mjs`
+    (`npm run test:owner-salon-resolution`, 21/21): boots a PGlite model of
+    the LIVE legacy schema (`auth.users`, `organizations`,
+    `organization_members`, `salons`, RLS, `auth.uid()`, anon/authenticated
+    roles, optional `nexora_owner_salon_ids()`) and bridges the REAL
+    supabase-js client (auth + REST + RPC) into it. Covers: helper
+    missing/present/empty, tenant isolation between owners,
+    staff/invited/deleted exclusions, ambiguity refusal, honest
+    permission-denied vs "not linked", and a full component E2E mounting
+    `<OwnerDashboard />` (production path, no test seam) — salon resolves,
+    Overview/Today/Upcoming/Customers/Revenue/Calendar/Notifications all
+    render REAL seeded booking records, another tenant's rows never leak,
+    section selection survives a remount ("refresh"), mobile pills +
+    drawer navigation work, and the unlinked account still shows the honest
+    unavailable state.
+  - No schema/migration change; `job_salon_members` still never consulted;
+  all 7 sections were already live from Phases 17.1–17.9 — this session
+  fixed the resolution that gates them and proved the whole surface
+  end-to-end. Validation: lint 0; build green; verify-22-screens 25/25;
+  17.1 56, 17.2 49, 17.3 50, 17.4 22, 17.5 33, 17.6 33, 17.7 35, 17.8 33,
+  17.9 33, 17.10 full acceptance (incl. 16.3/16.7/16.9/16.10
+  regressions), 15.6 34, 14.6 26, owner-salon-resolution 21.
+  - NEXT: none queued. (Backend booking migration still deferred — the
+  server-side race-safe reschedule + backend favorites/profile/review/
+  notification persistence + a real support-ticket system remain the
+  known architectural gaps, requiring the draft migration apply +
+  explicit approval.)
 
 - **PHASE 20.10 — CUSTOMER ACCOUNT FINAL QA & POLISH: COMPLETE (17 tests).**
   - Full QA walkthrough of every Customer Account section in the
