@@ -76,6 +76,7 @@ import OwnerRevenueSummary from './OwnerRevenueSummary';
 import OwnerCalendarSchedule from './OwnerCalendarSchedule';
 import OwnerNotifications from './OwnerNotifications';
 import OwnerDashboardFilters from './OwnerDashboardFilters';
+import BookingManagementPanel from './BookingManagementPanel';
 import OwnerResolutionDiagnostics from './OwnerResolutionDiagnostics';
 import { DEFAULT_OWNER_FILTERS } from '../lib/ownerDashboardFilters';
 import type { OwnerDashboardFilterState } from '../lib/ownerDashboardFilters';
@@ -666,7 +667,14 @@ export default function OwnerDashboard({ loadContext }: Props) {
     }
     if (active === 'overview') {
       return (
-        <OverviewFoundation palette={palette} context={context} t={t} onSelect={selectSection} />
+        <div className="space-y-5">
+          <OverviewFoundation palette={palette} context={context} t={t} onSelect={selectSection} />
+          <BookingManagementPanel
+            actor={bookingActor}
+            businessId={context.salon.id}
+            themeId={SITE_HEADER_THEME_IDS[0]}
+          />
+        </div>
       );
     }
     // PHASE 17.2 — Today's Appointments. The actor and tenant keys are BOTH
