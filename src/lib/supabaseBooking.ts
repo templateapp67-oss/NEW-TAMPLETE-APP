@@ -592,8 +592,27 @@ export async function createSupabaseBooking(input: CreateSupabaseBookingInput): 
   const user = await authenticatedUser();
   const client = requireSupabase();
   const catalog = await readSupabaseBookingCatalogWithClient(client, input.salonId, input.themeId);
-  const record = await createSupabaseBookingWithClient(client, user, input);
-  return enrichRecordWithCatalog(record, catalog);
+  const created = await createSupabaseBookingWithClient(client, user, input);
+
+  // The RPC response proves creation, but confirmation must not depend only on
+  // that response surviving in React state. Read the booking back through the
+  // same authenticated, customer-scoped repository used by refresh, My
+  // Bookings and Booking Details. The canonical booking number/UUID returned
+  // by the insert is the lookup key; no confirmation id is generated here.
+  const persisted = await readMySupabaseBookingByReferenceWithClient(
+    client,
+    user,
+    input.salonId,
+    catalog.themeId,
+    created.bookingId,
+  );
+  if (!persisted || persisted.id !== created.id || persisted.bookingId !== created.bookingId) {
+    throw new SupabaseBookingError(
+      'database',
+      'The booking was saved but could not be reloaded. Open My Bookings and try again.',
+    );
+  }
+  return persisted;
 }
 
 async function readContact(

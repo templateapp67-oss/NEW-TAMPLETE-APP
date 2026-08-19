@@ -24,6 +24,7 @@ const authUser = {
 };
 let createCalls = 0;
 const createBodies = [];
+const bookingReadUrls = [];
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
@@ -92,7 +93,34 @@ globalThis.fetch = async (input, init = {}) => {
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   if (url.includes('/rest/v1/bookings')) {
-    return new Response(JSON.stringify([]), {
+    bookingReadUrls.push(url);
+    return new Response(JSON.stringify([{
+      id: BOOKING_ID,
+      salon_id: SALON_ID,
+      customer_user_id: USER_ID,
+      staff_id: null,
+      booking_number: 'LIVE-1640',
+      appointment_start: '2031-08-20T05:30:00.000Z',
+      appointment_end: '2031-08-20T07:00:00.000Z',
+      status: 'pending',
+      total_paise: 125000,
+      currency: 'INR',
+      customer_note: 'Please be gentle',
+      source: null,
+      created_by: USER_ID,
+      created_at: '2031-08-19T05:30:00.000Z',
+      updated_at: '2031-08-19T05:30:00.000Z',
+      booking_items: [{
+        id: ITEM_ID,
+        booking_id: BOOKING_ID,
+        service_id: SERVICE_ID,
+        quantity: 1,
+        unit_price_paise: 125000,
+        line_total_paise: 125000,
+        service_name_snapshot: 'Database Balayage',
+        duration_minutes_snapshot: 90,
+      }],
+    }]), {
       status: 200, headers: { 'content-type': 'application/json' },
     });
   }
@@ -238,6 +266,11 @@ try {
   await act(async () => { fireEvent.click(view.getByTestId('supabase-booking-retry')); });
   await waitFor(() => assert.ok(view.getByTestId('supabase-booking-persisted')));
   assert.equal(createCalls, 2);
+  assert.ok(bookingReadUrls.length >= 1, 'confirmation must reload the created booking from Supabase');
+  const confirmationReadUrl = decodeURIComponent(bookingReadUrls.at(-1));
+  assert.match(confirmationReadUrl, new RegExp(`salon_id=eq.${SALON_ID}`));
+  assert.match(confirmationReadUrl, new RegExp(`customer_user_id=eq.${USER_ID}`));
+  assert.match(confirmationReadUrl, /booking_number=eq\.LIVE-1640/);
   assert.equal(createBodies[1].p_customer_id, undefined);
   assert.deepEqual(createBodies[1].p_service_ids, [SERVICE_ID]);
   assert.equal(createBodies[1].p_phone, '+919999999999');

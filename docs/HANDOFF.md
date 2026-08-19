@@ -783,8 +783,9 @@
 - **PHASE 16.6 — REAL BOOKING CONFIRMATION + MOCK RECEIPT (55 tests).**
   - Configured flow now consumes the merged Phase 16.1–16.4 Supabase booking
     authority: authenticated details + server catalog → `create_customer_booking`
-    → persisted booking/items → the exact returned booking number (or UUID) →
-    shared confirmation. No second booking or reference is generated.
+    → persisted booking/items → authenticated read-back by the exact returned
+    booking number (or UUID) → shared confirmation. No second booking or
+    reference is generated, and confirmation does not rely only on React state.
   - Supabase rows project as `bookingSource: 'supabase'` and **Booking saved**,
     independently from payment. Unconfigured legacy rows remain visibly marked
     **DEMO BOOKING DATA** and are never mistaken for database authority.

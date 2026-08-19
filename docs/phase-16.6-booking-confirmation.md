@@ -14,10 +14,14 @@ Configured builds use the Phase 16.1–16.4 Supabase path:
 3. The database RPC derives customer identity from `auth.uid()`, validates the
    salon/services, prices and duration server-side, creates the booking and
    `booking_items`, and returns the persisted row and items.
-4. `supabaseBookingToPaymentRecord()` maps that authorized response without
+4. The client immediately reloads that exact returned booking number/UUID via
+   `readMySupabaseBookingByReferenceWithClient()`, constrained by salon and the
+   authenticated customer. Confirmation does not rely only on the RPC response
+   remaining in React state.
+5. `supabaseBookingToPaymentRecord()` maps the authorized database read without
    changing its identity. `booking_number` is used when present; otherwise the
    persisted booking UUID is the canonical reference.
-5. `SiteBookingConfirmation` renders that returned record with
+6. `SiteBookingConfirmation` renders the reloaded row with
    `bookingSource: 'supabase'` and state **Booking saved**.
 
 No second booking or confirmation identifier is generated. Booking creation is
