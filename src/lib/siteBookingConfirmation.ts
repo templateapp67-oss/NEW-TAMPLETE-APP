@@ -3,10 +3,10 @@
  * authorized booking/payment record.
  *
  * There is still exactly ONE booking architecture. This module does NOT
- * create bookings, tables, columns, ids or amounts. Configured builds supply
- * records from authenticated Supabase booking/item reads; unconfigured legacy
- * tests may still supply the browser sandbox record shape. It derives the
- * confirmation view a customer is allowed to see:
+ * create bookings, tables, columns, ids or payment rows. Configured builds
+ * supply authorized records from Supabase booking/item reads; unconfigured
+ * legacy tests may supply the browser demo shape. Source provenance remains
+ * explicit, while Phase 16.6's 25% figures are a read-only TEST/MOCK display:
  *
  *   - **Booking reference** = the existing record's `bookingId` (the live
  *     database booking number/UUID in configured builds). Never invented here.
@@ -55,6 +55,7 @@ import type { AppLocale } from './locale';
  * existing terminal `completed` state owned by the 16.7 status machine.
  */
 export type BookingConfirmationState =
+  | 'booking_created'
   | 'confirmed'
   | 'payment_pending'
   | 'payment_failed'
@@ -62,6 +63,7 @@ export type BookingConfirmationState =
   | 'completed';
 
 export const BOOKING_CONFIRMATION_STATES: BookingConfirmationState[] = [
+  'booking_created',
   'confirmed',
   'payment_pending',
   'payment_failed',
@@ -78,12 +80,15 @@ export const BOOKING_CONFIRMATION_STATES: BookingConfirmationState[] = [
  * is pending, failed or cancelled.
  */
 export function bookingConfirmationState(
-  record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus'>,
+  record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus'> & Partial<Pick<PaymentRecord, 'persistence'>>,
 ): BookingConfirmationState {
   const { bookingStatus, paymentStatus } = record;
   if (bookingStatus === 'cancelled' || paymentStatus === 'cancelled') return 'cancelled';
   if (bookingStatus === 'failed' || paymentStatus === 'failed') return 'payment_failed';
   if (bookingStatus === 'completed') return 'completed';
+  // A customer-authorized Supabase row proves that the booking was created,
+  // independently of the intentionally deferred payment backend.
+  if (record.persistence === 'supabase') return 'booking_created';
   if (bookingStatus === 'pay_at_salon') return 'confirmed';
   if (bookingStatus === 'confirmed') {
     // Never claim a confirmation the payment did not earn.
@@ -101,7 +106,44 @@ export function isConfirmedState(state: BookingConfirmationState): boolean {
 /* View                                                                */
 /* ------------------------------------------------------------------ */
 
+export const MOCK_PAYMENT_STATUS = 'TEST / MOCK — PAYMENT BACKEND DEFERRED' as const;
+
+/**
+ * Phase 16.6-only receipt projection. This is deliberately not a payment
+ * record and this function performs no write. Booking details remain sourced
+ * from `BookingConfirmationView`; only the demo payment breakdown is derived
+ * here so it can never be mistaken for provider or database authority.
+ */
+export interface MockPaymentDisplay {
+  mode: 'mock';
+  status: typeof MOCK_PAYMENT_STATUS;
+  receiptReference: string;
+  totalAmount: number;
+  testAdvanceAmount: number;
+  testRemainingAmount: number;
+}
+
+export function mockPaymentForConfirmation(
+  booking: Pick<BookingConfirmationView, 'reference' | 'totalAmount'>,
+): MockPaymentDisplay {
+  const totalAmount = Math.max(0, booking.totalAmount);
+  const testAdvanceAmount = Math.round(totalAmount * 0.25);
+  return {
+    mode: 'mock',
+    status: MOCK_PAYMENT_STATUS,
+    receiptReference: `TEST-RECEIPT-${booking.reference}`,
+    totalAmount,
+    testAdvanceAmount,
+    testRemainingAmount: Math.max(0, totalAmount - testAdvanceAmount),
+  };
+}
+
 export interface BookingConfirmationView {
+  /**
+   * Source provenance is explicit so the current browser demo can never be
+   * mistaken for a Supabase-authoritative booking after a refresh.
+   */
+  bookingSource: 'supabase' | 'browser_demo';
   /** Booking reference from the EXISTING record (`NX-#####`). */
   reference: string;
   /** Internal row id (never shown to the customer). */
@@ -167,6 +209,7 @@ export function bookingServiceLines(record: PaymentRecord): PaymentServiceLine[]
 export function toBookingConfirmation(record: PaymentRecord): BookingConfirmationView {
   const money = bookingMoney(record);
   return {
+    bookingSource: record.persistence === 'supabase' ? 'supabase' : 'browser_demo',
     reference: record.bookingId,
     recordId: record.id,
     state: bookingConfirmationState(record),
@@ -306,9 +349,12 @@ export function bookingConfirmationReceiptText(
   salonName: string,
 ): string {
   const money = (value: number) => `${view.currency === 'INR' ? '₹' : ''}${value.toLocaleString(locale === 'hi' ? 'hi-IN' : 'en-IN')}`;
+  const mock = mockPaymentForConfirmation(view);
   const lines: string[] = [];
   lines.push(T['receipt.title']);
+  lines.push(T['mock.receiptWarning']);
   lines.push('================================');
+  lines.push(`${T['mock.receiptReference']}: ${mock.receiptReference}`);
   lines.push(`${T['field.reference']}: ${view.reference}`);
   lines.push(`${T['field.status']}: ${T[`state.${view.state}`] || view.state}`);
   lines.push('');
@@ -322,15 +368,14 @@ export function bookingConfirmationReceiptText(
   );
   lines.push(`${T['field.duration']}: ${view.durationMinutes} ${T['common.minutes']}`);
   lines.push('');
-  lines.push(`${T['field.total']}: ${money(view.totalAmount)}`);
-  lines.push(`${T['field.advancePaid']}: ${money(view.advancePaid)}`);
-  lines.push(`${T['field.remaining']}: ${money(view.remainingAmount)}`);
-  lines.push(`${T['field.paymentStatus']}: ${T[`payment.${view.paymentStatus}`] || view.paymentStatus}`);
-  if (view.gatewayRef) lines.push(`${T['field.gatewayRef']}: ${view.gatewayRef}`);
+  lines.push(`${T['field.total']}: ${money(mock.totalAmount)}`);
+  lines.push(`${T['mock.advance']}: ${money(mock.testAdvanceAmount)}`);
+  lines.push(`${T['mock.remaining']}: ${money(mock.testRemainingAmount)}`);
+  lines.push(`${T['field.paymentStatus']}: ${mock.status}`);
   lines.push('');
   lines.push(`${T['field.customer']}: ${view.customer.name}`);
   lines.push(`${T['field.mobile']}: ${view.customer.mobile}`);
-  if (view.customer.email) lines.push(`${T['field.email'] || 'Email'}: ${view.customer.email}`);
+  if (view.customer.email) lines.push(`${T['field.email']}: ${view.customer.email}`);
   lines.push('');
   lines.push(`${T['receipt.issued']}: ${new Date(view.updatedAt || view.createdAt).toISOString()}`);
   return lines.join('\n');

@@ -196,8 +196,11 @@ export function ownerAllowedTransitions(status: BookingStatus): BookingStatus[] 
 export function ownerAllowedTransitionsForRecord(
   record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus' | 'paymentOption' | 'persistence'>,
 ): BookingStatus[] {
-  if (record.persistence === 'supabase') return [];
   const transitions = ownerAllowedTransitions(record.bookingStatus);
+  // Real Supabase booking lifecycle is independent of the deferred payment
+  // backend. Server-side Phase 16.7 RPC authorization + transition checks are
+  // authoritative for these rows; never gate booking status on mock payment.
+  if (record.persistence === 'supabase') return transitions;
   if (
     record.bookingStatus === 'pending_payment'
     && record.paymentOption !== 'pay_at_salon'

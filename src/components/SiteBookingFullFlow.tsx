@@ -19,8 +19,11 @@ import { bookingFlowText } from '../lib/siteBookingI18n';
 import { bookingSurfaces } from '../lib/siteBookingTheme';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
+  BOOKING_CONFIRMATION_QUERY,
   bookingSalonIdCandidate,
   createSupabaseBooking,
+  isDatabaseUuid,
+  readMySupabaseBookingByReference,
   readSupabaseBookingCatalog,
   readSupabaseCustomerDetails,
   SupabaseBookingError,
@@ -45,6 +48,20 @@ import SiteBookingConfirmation from './SiteBookingConfirmation';
  * (the `open` state lives in `SiteBookingHost`, which mounts this only
  * when the booking widget should be visible).
  */
+function bookingDeepLinkId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const value = new URLSearchParams(window.location.search).get(BOOKING_CONFIRMATION_QUERY);
+  return isDatabaseUuid(value) ? value : null;
+}
+
+function setBookingDeepLink(bookingId: string | null): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  if (bookingId) url.searchParams.set(BOOKING_CONFIRMATION_QUERY, bookingId);
+  else url.searchParams.delete(BOOKING_CONFIRMATION_QUERY);
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 type BookingSubmissionSummary = {
   serviceId: string;
   serviceBusinessId?: string;
@@ -72,6 +89,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   );
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [customerRetry, setCustomerRetry] = useState(0);
+  const deepLinkBookingIdRef = useRef<string | null>(bookingDeepLinkId());
   const catalogSalonId = useMemo(() => bookingSalonIdCandidate(data, null), [data]);
   const bookingData = useMemo<SalonData>(() => {
     if (!isSupabaseConfigured) return data;
@@ -84,6 +102,40 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       offers: [],
     };
   }, [data, catalogServices]);
+
+  useEffect(() => {
+    const persistedId = deepLinkBookingIdRef.current;
+    if (!isSupabaseConfigured || !persistedId) return;
+    if (!catalogSalonId) {
+      setPersistenceError('This booking could not be loaded for the active salon.');
+      setPhase('persistence-error');
+      return;
+    }
+    let active = true;
+    setPersistenceError(null);
+    setPhase('persisting');
+    void readMySupabaseBookingByReference(catalogSalonId, themeId, persistedId)
+      .then((record) => {
+        if (!active) return;
+        if (!record || record.id !== persistedId) {
+          setDatabaseRecord(null);
+          setPersistenceError('Booking not found or you are not authorized to view it.');
+          setPhase('persistence-error');
+          return;
+        }
+        setDatabaseRecord(record);
+        setPhase('persisted');
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setDatabaseRecord(null);
+        setPersistenceError(error instanceof SupabaseBookingError
+          ? error.message
+          : 'The booking could not be loaded. Please try again.');
+        setPhase('persistence-error');
+      });
+    return () => { active = false; };
+  }, [catalogSalonId, themeId]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -193,6 +245,11 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       startMinutes: submission.startMinutes,
       customer: submission.customer,
     }).then((record) => {
+      // Carry only the immutable persisted UUID into refresh/navigation. The
+      // confirmation details are immediately re-read inside
+      // createSupabaseBooking and are never reconstructed from this URL value.
+      setBookingDeepLink(record.id);
+      deepLinkBookingIdRef.current = record.id;
       setDatabaseRecord(record);
       const draftBusinessId = bookingBusinessId(bookingData);
       clearBookingDraft(draftBusinessId, record.themeId);
@@ -257,6 +314,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   }, []);
 
   const handleStartNewBooking = useCallback(() => {
+    setBookingDeepLink(null);
+    deepLinkBookingIdRef.current = null;
     setSummary(null);
     setDatabaseRecord(null);
     setPersistenceError(null);
@@ -483,7 +542,6 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
               data={bookingData}
               view={persistenceView}
               variant="history"
-              showActions={false}
             />
             <div className="flex flex-wrap justify-end gap-2">
               <button

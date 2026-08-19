@@ -43,8 +43,8 @@ import {
 } from 'lucide-react';
 import type { SalonData } from '../types';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
-import { readCustomerBooking, customerBookingMoney } from '../lib/siteCustomerAccount';
-import { toBookingConfirmation, bookingConfirmationReceiptText } from '../lib/siteBookingConfirmation';
+import { readCustomerBooking } from '../lib/siteCustomerAccount';
+import { toBookingConfirmation, bookingConfirmationReceiptText, mockPaymentForConfirmation } from '../lib/siteBookingConfirmation';
 import type { BookingConfirmationView } from '../lib/siteBookingConfirmation';
 import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
 import { useSiteLocale, useThemeAppearance } from './SiteHeader';
@@ -243,8 +243,7 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
   }
 
   // ---------- real data from the record ----------
-  const money = customerBookingMoney(record);
-  const requiredAdvance = record.amountDue;
+  const mockPayment = mockPaymentForConfirmation(view);
   const belongsToCurrentSalon = record.businessId === bookingBusinessId(data);
   const salonName = belongsToCurrentSalon
     ? salonDisplayName(data, themeId)
@@ -458,24 +457,21 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
         <h3 className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: s.muted }}>
           {L('Payment breakdown', 'भुगतान का विवरण')}
         </h3>
-        <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Total amount', 'कुल राशि')} value={formatCurrency(money.total)} />
-        {(record.persistence !== 'supabase' || requiredAdvance > 0) && (
-          <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Required advance', 'आवश्यक एडवांस')} value={formatCurrency(requiredAdvance)} />
-        )}
+        <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Total amount', 'कुल राशि')} value={formatCurrency(mockPayment.totalAmount)} />
         <InfoRow
           s={s}
           icon={<Wallet className="w-3 h-3" />}
-          label={L('Advance paid', 'दिया गया एडवांस')}
-          value={formatCurrency(money.advancePaid)}
-          valueColor={money.advancePaid > 0 ? s.success : s.textStrong}
+          label={L('Test advance (25%)', 'टेस्ट एडवांस (25%)')}
+          value={formatCurrency(mockPayment.testAdvanceAmount)}
+          valueColor={s.accent}
         />
-        <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Remaining amount', 'शेष राशि')} value={formatCurrency(money.remaining)} />
+        <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Test remaining', 'टेस्ट शेष राशि')} value={formatCurrency(mockPayment.testRemainingAmount)} />
         <InfoRow
           s={s}
           icon={<Wallet className="w-3 h-3" />}
           label={L('Payment status', 'भुगतान स्थिति')}
-          value={T[`payment.${view.paymentStatus}` as keyof typeof T] || view.paymentStatus}
-          valueColor={view.paymentStatus === 'paid' ? s.success : view.paymentStatus === 'failed' || view.paymentStatus === 'cancelled' ? s.danger : s.textStrong}
+          value={mockPayment.status}
+          valueColor={s.accent}
         />
       </div>
 
@@ -533,23 +529,24 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
             >
               <div className="text-center pb-2 border-b" style={{ borderColor: s.chipLine }}>
                 <p className="text-sm font-extrabold" style={{ color: s.textStrong }}>{salonName}</p>
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: s.muted }}>
-                  {L('BOOKING RECEIPT', 'बुकिंग रसीद')}
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: s.accent }}>
+                  {L('TEST / MOCK BOOKING RECEIPT — NOT PROOF OF PAYMENT', 'टेस्ट / मॉक बुकिंग रसीद — भुगतान का प्रमाण नहीं')}
                 </p>
               </div>
-              <ReceiptRow s={s} label={L('Reference', 'संदर्भ')} value={view.reference} />
+              <ReceiptRow s={s} label={L('Test receipt reference', 'टेस्ट रसीद संदर्भ')} value={mockPayment.receiptReference} />
+              <ReceiptRow s={s} label={L('Booking reference', 'बुकिंग संदर्भ')} value={view.reference} />
               <ReceiptRow s={s} label={L('Date', 'तारीख़')} value={dateLabel} />
               <ReceiptRow s={s} label={L('Time', 'समय')} value={timeLabel} />
               <ReceiptRow s={s} label={L('Services', 'सेवाएँ')} value={serviceLines.map((l) => l.name).join(' + ')} />
               <ReceiptRow s={s} label={L('Duration', 'अवधि')} value={`${view.durationMinutes} ${L('min', 'मिनट')}`} />
               <div className="border-t my-1.5" style={{ borderColor: s.chipLine }} />
-              <ReceiptRow s={s} label={L('Total amount', 'कुल राशि')} value={formatCurrency(money.total)} strong />
-              <ReceiptRow s={s} label={L('Advance paid', 'दिया गया एडवांस')} value={formatCurrency(money.advancePaid)} />
-              <ReceiptRow s={s} label={L('Remaining amount', 'शेष राशि')} value={formatCurrency(money.remaining)} />
+              <ReceiptRow s={s} label={L('Total amount', 'कुल राशि')} value={formatCurrency(mockPayment.totalAmount)} strong />
+              <ReceiptRow s={s} label={L('Test advance (25%)', 'टेस्ट एडवांस (25%)')} value={formatCurrency(mockPayment.testAdvanceAmount)} />
+              <ReceiptRow s={s} label={L('Test remaining', 'टेस्ट शेष राशि')} value={formatCurrency(mockPayment.testRemainingAmount)} />
               <ReceiptRow
                 s={s}
                 label={L('Payment status', 'भुगतान स्थिति')}
-                value={T[`payment.${view.paymentStatus}` as keyof typeof T] || view.paymentStatus}
+                value={mockPayment.status}
               />
               <ReceiptRow
                 s={s}

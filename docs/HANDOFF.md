@@ -780,91 +780,55 @@
     16.2 55, 16.3 36, 16.5 24, 16.6 54, 16.7 38; validate:migrations
     21/21; lint 0; build green; verify-22-screens 25/25.
 
-- **PHASE 16.6 — BOOKING CONFIRMATION: COMPLETE (54 tests).**
-  - A clear Booking Confirmation screen over the EXISTING booking /
-    payment / auth architecture (the 10.7/16.5 record store) — no
-    duplicate booking system, no invented tables/columns/ids/amounts;
-    M08/M09 stay unapplied drafts.
-  - **Real data, existing reference**: salon, service(s), date, time,
-    duration, total, advance paid, remaining, payment status, booking
-    status and the reference produced by the EXISTING
-    `generateBookingId()` (`PaymentRecord.bookingId`, `NX-#####`). Money
-    comes through the shared 16.7 `bookingMoney` rule, so the
-    confirmation and the booking list can never disagree.
-  - **New read-only layer** `src/lib/siteBookingConfirmation.ts`:
-    `bookingConfirmationState`, `toBookingConfirmation`,
-    `readBookingConfirmation` / `readMyBookingConfirmations` (own rows
-    only — identity read INSIDE the helper, tenant+theme keyed),
-    `findActiveBookingForContext` / `bookingContextKey`,
-    `bookingConfirmationReceiptText`. It never writes to the store.
-  - **States**: Confirmed / Payment Pending / Payment Failed / Cancelled
-    (+ the 16.7 `completed`), each with its own colour, headline and
-    chip. **"Confirmed" is never shown until the required advance
-    actually succeeded** — a row claiming `confirmed` while unpaid
-    fail-closes to Payment pending/failed. `pay_at_salon` (no advance
-    required) is a legitimate confirmed path.
-  - **Shared panel** `SiteBookingConfirmation.tsx` renders BOTH the
-    payment flow's confirmation step (as `payment-confirm-card`, 10.7
-    test ids preserved) and the re-openable **summary/receipt in the
-    booking history** (a View-summary toggle per row in
-    `SiteMyBookings`), plus a downloadable text summary.
-  - **Duplicate protection**: before ANY record creation the flow looks
-    for a live booking with the same salon+theme+services+date+slot+
-    mobile (digits, country code stripped) owned by THIS browser; an
-    already-confirmed match re-opens its confirmation, a pending match
-    donates its reference. Failed/cancelled rows stay re-bookable.
-    Refresh / re-entry / retry / double Continue all yield ONE record.
-  - Privacy: foreign customers, salons and themes are structurally
-    unreachable (`not-found`, never data).
-  - Loading / error(+Retry) via the shared 'booking' seam, not-found
-    card, payment-failure reason, retry-payment action for recoverable
-    states; EN/HI complete; light/dark + five distinct theme surfaces;
-    mobile-first fluid layout (desktop/tablet/mobile).
-  - NOT in 16.6: Call/WhatsApp protection, notifications, final
-    acceptance, DB execution; 16.7 was reused, not re-implemented.
-  - Validation: `test:phase-16.6` **54/54**; 16.1 55, 16.2 55, 16.3 36,
-    16.5 24, 16.7 38; 10.6 107; 10.7 66; Phases 10–15 fully green;
-    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
-    verify-22-screens 25/25. Details:
+- **PHASE 16.6 — REAL BOOKING CONFIRMATION + MOCK RECEIPT (55 tests).**
+  - Configured flow now consumes the merged Phase 16.1–16.4 Supabase booking
+    authority: authenticated details + server catalog → `create_customer_booking`
+    → persisted booking/items → authenticated read-back by the exact returned
+    booking number (or UUID) → shared confirmation. No second booking or
+    reference is generated, and confirmation does not rely only on React state.
+  - Supabase rows project as `bookingSource: 'supabase'` and **Booking saved**,
+    independently from payment. Unconfigured legacy rows remain visibly marked
+    **DEMO BOOKING DATA** and are never mistaken for database authority.
+  - Refresh/history/details use authenticated, salon-scoped Supabase reads with
+    an explicit `customer_user_id = auth user` defense plus RLS. The immutable
+    booking UUID is carried in the `booking` URL query solely to reopen the
+    flow; every detail is reloaded from Supabase after a full refresh. Foreign
+    or missing UUIDs resolve not-found/unauthorized; configured builds never
+    fall back to localStorage.
+  - The payment card stays a pure read-only projection: total, Test Advance =
+    rounded 25%, Test Remaining, status **TEST / MOCK — PAYMENT BACKEND
+    DEFERRED**, and `TEST-RECEIPT-{booking-reference}`. It writes neither the
+    booking payment status nor a payment row and appears consistently after
+    reload in Booking Details.
+  - Validation: `test:phase-16.6` **55/55**; `test:phase-16.4-supabase` **3/3**;
+    Supabase guardrails **16/16**, configured catalog **3/3**; 16.1 **55/55**,
+    16.2 **55/55**, 16.3 **36/36**; lint and production build green. Details:
     `docs/phase-16.6-booking-confirmation.md`.
 
-- **PHASE 16.7 — BOOKING MANAGEMENT: COMPLETE (38 tests).**
-  - Booking management over the EXISTING booking/payment/auth architecture
-    (the 10.7/16.5 record store IS the booking list — no duplicate system,
-    no new tables; `bookings`/M08 stays an unapplied draft that this layer
-    mirrors).
-  - **Customer "My Bookings"** (`SiteMyBookings`, mounted in the booking
-    flow's salon step): own rows ONLY — `readMyBookings` reads the browser
-    identity INSIDE the helper, so another customer's private rows are
-    structurally unreachable. Status chip + salon/services/date/time/
-    total/advance/remaining/payment-status + cancel (own, not-yet-completed
-    rows). Renders nothing for first-time visitors.
-  - **Owner panel** (`BookingManagementPanel` in the dashboard bookings
-    tab): session-resolved actor via the EXISTING `useAuth` +
-    `resolveOwnerSalonId` chain (14.6/15.6 pattern); tenant =
-    `bookingBusinessId(data)` — never typed in. Full detail rows, status
-    filters, actions per the machine, denial card for unauthorized actors.
-    The old demo planner stays untouched below the real panel.
-  - **Status machine** (draft-spec aligned; `completed` added additively to
-    `BookingStatus`): pending→confirm/cancel; confirmed/pay-at-salon→
-    complete/cancel; terminal immutable. Completing settles the remaining
-    balance at the salon; owner-cancel keeps paid amounts (no invented
-    refunds). All transitions validated in `bookingManagement.ts` —
-    permission + row ownership + legality re-checked inside every
-    read/mutation, not just hidden buttons.
-  - Isolation verified: foreign-salon rows `not-found` even for authorized
-    actors; unauthorized actors get refusals, never data; foreign-theme /
-    foreign-customer rows never render.
-  - Loading / error(+Retry) / empty / cancelled states via the shared
-    'booking' seam; EN/HI full tables; light/dark via existing surfaces;
-    responsive card layouts.
-  - NOT in 16.7: Call/WhatsApp protection, notifications, final acceptance,
-    DB execution, refunds.
-  - Validation: `test:phase-16.7` **38/38**; 16.1 55, 16.2 55, 16.3 36,
-    16.5 24; 10.6 107; 10.7 66; Phases 10–15 fully green;
-    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
-    verify-22-screens 25/25. Details:
-    `docs/phase-16.7-booking-management.md`.
+- **PHASE 16.7 — REAL SUPABASE BOOKING MANAGEMENT (39 + 11 tests).**
+  - Configured customer My Bookings remains exclusively backed by authenticated,
+    salon-scoped Supabase reads; local browser rows are never merged.
+  - Owner reads/status writes use `get_owner_bookings()` and
+    `update_owner_booking_status(uuid,text,text)`. Both derive salon scope from
+    `auth.uid() → organization_members → salons.organization_id`; no salon or
+    customer identity is trusted from the browser and `job_salon_members` is
+    never used.
+  - Database transition graph: pending→confirmed/cancelled;
+    confirmed→completed/cancelled; completed/cancelled terminal. Mutation locks
+    the row and verifies the expected current status, blocking stale/repeated
+    and invalid actions. UI buttons disable while updating.
+  - RLS stays enabled. Additive owner SELECT policies cover only own-salon
+    bookings/items; RPC execution is authenticated-only. Customer-self RLS is
+    unchanged.
+  - `BookingManagementPanel` switches to real async Supabase reads/mutations in
+    configured builds and is mounted in Owner Dashboard Overview. Customer
+    refresh re-reads the current database status.
+  - Payment is untouched/deferred: no payment table/status/RPC/mock amount is
+    changed by booking lifecycle operations.
+  - Validation: `test:phase-16.7` **39/39** and
+    `test:phase-16.7-supabase` **11/11**; details:
+    `docs/phase-16.7-booking-management.md` and
+    `docs/phase-16.7-booking-status-management.sql`.
 
 - **PHASE 16.5 — ADVANCE PAYMENT / DEPOSIT: COMPLETE (24 tests).**
   - The 16.x booking flow is connected to the EXISTING Phase 10.7 payment

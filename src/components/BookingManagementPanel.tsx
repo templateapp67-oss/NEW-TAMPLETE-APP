@@ -48,6 +48,12 @@ import {
 } from '../lib/bookingManagement';
 import type { BookingActorContext } from '../lib/bookingManagement';
 import { formatMinutesLabel, PAYMENT_EVENT } from '../lib/siteBookingPayment';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  readOwnerSupabaseBookings,
+  updateOwnerSupabaseBookingStatus,
+} from '../lib/supabaseBookingManagement';
+import { SUPABASE_BOOKING_EVENT } from '../lib/supabaseBooking';
 import type { BookingStatus, PaymentRecord } from '../lib/siteBookingPayment';
 import { injectedSectionStatus } from '../lib/siteStructure';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
@@ -72,6 +78,11 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
   const [version, setVersion] = useState(0);
   const [retry, setRetry] = useState(0);
   const [filter, setFilter] = useState<StatusFilter>('all');
+  const [databaseRecords, setDatabaseRecords] = useState<PaymentRecord[]>([]);
+  const [databaseState, setDatabaseState] = useState<'loading' | 'error' | 'ready'>(
+    isSupabaseConfigured ? 'loading' : 'ready',
+  );
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   // PHASE 16.9 — cancellation asks for an inline confirmation first; the
   // booking row is untouched until the explicit confirm button runs.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -79,23 +90,46 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
     window.addEventListener(PAYMENT_EVENT, bump);
-    return () => window.removeEventListener(PAYMENT_EVENT, bump);
+    window.addEventListener(SUPABASE_BOOKING_EVENT, bump);
+    return () => {
+      window.removeEventListener(PAYMENT_EVENT, bump);
+      window.removeEventListener(SUPABASE_BOOKING_EVENT, bump);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !bookingActorCanManage(actor)) return;
+    let active = true;
+    setDatabaseState('loading');
+    void readOwnerSupabaseBookings()
+      .then((records) => {
+        if (!active) return;
+        setDatabaseRecords(records);
+        setDatabaseState('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setDatabaseRecords([]);
+        setDatabaseState('error');
+      });
+    return () => { active = false; };
+  }, [actor, retry, version]);
 
   // Shared seam — loading / error forceable for tests + future async sources.
   const state: 'loading' | 'error' | 'ready' = useMemo(() => {
     const forced = injectedSectionStatus('booking');
     if (forced === 'loading' || forced === 'error') return forced;
-    return 'ready';
+    return isSupabaseConfigured ? databaseState : 'ready';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retry, version]);
+  }, [retry, version, databaseState]);
 
   // The data-layer read re-checks the permission; a denied actor gets the
   // denial (never a foreign salon's rows, never a silent empty list).
   const readResult = useMemo(
-    () => readSalonBookings(actor, businessId, themeId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [actor, businessId, themeId, version],
+    () => isSupabaseConfigured
+      ? ({ ok: true, records: databaseRecords } as const)
+      : readSalonBookings(actor, businessId, themeId),
+    [actor, businessId, themeId, version, databaseRecords],
   );
 
   const records = useMemo(() => {
@@ -108,16 +142,29 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
     return sorted.filter((r) => r.bookingStatus === filter);
   }, [readResult, filter]);
 
-  const changeStatus = useCallback((record: PaymentRecord, next: BookingStatus) => {
-    const result = ownerUpdateBookingStatus(actor, businessId, themeId, record.bookingId, next);
-    onShowToast?.(
-      result.ok
-        ? (next === 'cancelled' ? T['owner.cancelled'] : T['owner.updated'])
-        : T['owner.updateFailed'],
-    );
-    setConfirmingId(null);
-    setVersion((v) => v + 1);
-  }, [actor, businessId, themeId, onShowToast, T]);
+  const changeStatus = useCallback(async (record: PaymentRecord, next: BookingStatus) => {
+    if (updatingId) return;
+    setUpdatingId(record.id);
+    try {
+      if (isSupabaseConfigured) {
+        await updateOwnerSupabaseBookingStatus(record, next);
+        onShowToast?.(next === 'cancelled' ? T['owner.cancelled'] : T['owner.updated']);
+      } else {
+        const result = ownerUpdateBookingStatus(actor, businessId, themeId, record.bookingId, next);
+        onShowToast?.(
+          result.ok
+            ? (next === 'cancelled' ? T['owner.cancelled'] : T['owner.updated'])
+            : T['owner.updateFailed'],
+        );
+      }
+    } catch {
+      onShowToast?.(T['owner.updateFailed']);
+    } finally {
+      setUpdatingId(null);
+      setConfirmingId(null);
+      setVersion((v) => v + 1);
+    }
+  }, [actor, businessId, themeId, onShowToast, T, updatingId]);
 
   /* ---- denied ---- */
   if (!bookingActorCanManage(actor)) {
@@ -268,7 +315,8 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
                   <button
                     type="button"
                     data-testid={`owner-booking-confirm-${record.bookingId}`}
-                    onClick={() => changeStatus(record, 'confirmed')}
+                    disabled={updatingId !== null}
+                    onClick={() => void changeStatus(record, 'confirmed')}
                     className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 inline-flex items-center gap-1.5"
                   >
                     <Check className="w-3 h-3" />
@@ -279,7 +327,8 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
                   <button
                     type="button"
                     data-testid={`owner-booking-complete-${record.bookingId}`}
-                    onClick={() => changeStatus(record, 'completed')}
+                    disabled={updatingId !== null}
+                    onClick={() => void changeStatus(record, 'completed')}
                     className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center gap-1.5"
                   >
                     <CalendarCheck className="w-3 h-3" />
@@ -327,7 +376,8 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
                 <button
                   type="button"
                   data-testid={`owner-booking-cancel-yes-${record.bookingId}`}
-                  onClick={() => changeStatus(record, 'cancelled')}
+                  disabled={updatingId !== null}
+                  onClick={() => void changeStatus(record, 'cancelled')}
                   className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 inline-flex items-center gap-1.5"
                 >
                   <CalendarX className="w-3 h-3" />

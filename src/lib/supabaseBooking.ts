@@ -13,6 +13,8 @@ import type {
 
 /** Browser event emitted only after a database booking write/read succeeds. */
 export const SUPABASE_BOOKING_EVENT = 'nexora:supabase-booking';
+/** URL key carrying only the immutable persisted booking UUID for refresh. */
+export const BOOKING_CONFIRMATION_QUERY = 'booking';
 
 export type SupabaseBookingErrorKind =
   | 'configuration'
@@ -276,6 +278,29 @@ function mapRow(value: unknown): LiveBookingRow {
     updated_at: asString(row.updated_at, 'booking updated time'),
     booking_items: Array.isArray(row.booking_items) ? row.booking_items.map(mapItem) : null,
   };
+}
+
+function logCreateBookingDiagnostic(data: unknown, error: unknown): void {
+  // Development-only and intentionally metadata-only: never print auth data,
+  // customer fields, notes, credentials, or the complete RPC payload.
+  if (!import.meta.env?.DEV) return;
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : null;
+  const booking = payload?.booking && typeof payload.booking === 'object' && !Array.isArray(payload.booking)
+    ? payload.booking as Record<string, unknown>
+    : null;
+  const rpcError = error && typeof error === 'object'
+    ? error as { code?: unknown }
+    : null;
+  console.debug('[booking] create_customer_booking response', {
+    hasData: Boolean(payload),
+    errorCode: typeof rpcError?.code === 'string' ? rpcError.code : null,
+    responseKeys: payload ? Object.keys(payload).sort() : [],
+    bookingId: typeof booking?.id === 'string' ? booking.id : null,
+    bookingNumber: typeof booking?.booking_number === 'string' ? booking.booking_number : null,
+    itemCount: Array.isArray(payload?.items) ? payload.items.length : 0,
+  });
 }
 
 function parseCreateResponse(value: unknown): CreateBookingResponse {
@@ -562,6 +587,7 @@ export async function createSupabaseBookingWithClient(
     p_customer_note: input.customer.notes?.trim() || null,
     p_phone: input.customer.mobile?.trim() || null,
   });
+  logCreateBookingDiagnostic(data, error);
   if (error) {
     console.error('Supabase booking creation failed:', error);
     throw safeDatabaseError(error, 'The booking could not be saved. Please try again.');
@@ -592,8 +618,28 @@ export async function createSupabaseBooking(input: CreateSupabaseBookingInput): 
   const user = await authenticatedUser();
   const client = requireSupabase();
   const catalog = await readSupabaseBookingCatalogWithClient(client, input.salonId, input.themeId);
-  const record = await createSupabaseBookingWithClient(client, user, input);
-  return enrichRecordWithCatalog(record, catalog);
+  const created = await createSupabaseBookingWithClient(client, user, input);
+
+  // The RPC response proves creation, but confirmation must not depend only on
+  // that response surviving in React state. Read the booking back through the
+  // same authenticated, customer-scoped repository used by refresh, My
+  // Bookings and Booking Details. The immutable persisted booking UUID is the
+  // lookup key; the returned booking number remains the customer-facing
+  // reference. No confirmation id is generated here.
+  const persisted = await readMySupabaseBookingByReferenceWithClient(
+    client,
+    user,
+    input.salonId,
+    catalog.themeId,
+    created.id,
+  );
+  if (!persisted || persisted.id !== created.id || persisted.bookingId !== created.bookingId) {
+    throw new SupabaseBookingError(
+      'database',
+      'The booking was saved but could not be reloaded. Open My Bookings and try again.',
+    );
+  }
+  return persisted;
 }
 
 async function readContact(

@@ -18,21 +18,24 @@ const EN = {
   'screen.notFound': 'We could not find this booking for your account.',
 
   /* states */
+  'state.booking_created': 'Booking saved',
   'state.confirmed': 'Confirmed',
   'state.payment_pending': 'Payment pending',
   'state.payment_failed': 'Payment failed',
   'state.cancelled': 'Cancelled',
   'state.completed': 'Completed',
 
+  'state.booking_created.headline': 'Your booking was saved',
   'state.confirmed.headline': 'Your booking is confirmed',
   'state.payment_pending.headline': 'Payment pending',
   'state.payment_failed.headline': 'Payment failed',
   'state.cancelled.headline': 'Booking cancelled',
   'state.completed.headline': 'Booking completed',
 
-  'state.confirmed.body': 'Your advance payment succeeded and your slot is reserved. Please arrive 10 minutes early.',
-  'state.payment_pending.body': 'This booking is not confirmed yet. Complete the required advance payment to confirm your slot.',
-  'state.payment_failed.body': 'The payment did not go through, so this booking is not confirmed. You can retry without losing your details.',
+  'state.booking_created.body': 'This booking is saved in Supabase. Payment remains a separate TEST / MOCK display and has not been marked paid.',
+  'state.confirmed.body': 'Your booking flow reached confirmation. The payment figures below are test/mock values only; no real payment is claimed.',
+  'state.payment_pending.body': 'This booking is awaiting its production payment flow. The payment figures below remain test/mock only.',
+  'state.payment_failed.body': 'The mock payment attempt did not complete. No real payment is claimed and your booking details remain separate.',
   'state.cancelled.body': 'This booking was cancelled. No slot is reserved for it.',
   'state.completed.body': 'This appointment has been completed. Thank you for visiting us.',
 
@@ -56,6 +59,8 @@ const EN = {
   'field.customer': 'Customer',
   'field.mobile': 'Mobile',
   'field.email': 'Email',
+  'field.salonInfo': 'Salon information',
+  'field.category': 'Category',
   'field.staff': 'Staff',
   'field.anyStaff': 'Anyone available',
   'field.failureReason': 'Reason',
@@ -83,8 +88,19 @@ const EN = {
   'history.badgeSaved': 'Saved to your booking history',
 
   /* receipt */
-  'receipt.title': 'BOOKING SUMMARY',
+  'receipt.title': 'TEST / MOCK BOOKING RECEIPT',
   'receipt.issued': 'Issued',
+
+  /* Phase 16.6 mock-only payment presentation */
+  'mock.bookingBadge': 'DEMO BOOKING DATA',
+  'mock.bookingNotice': 'This confirmation is using the browser demo booking source, not a Supabase booking row.',
+  'mock.badge': 'TEST / MOCK PAYMENT',
+  'mock.notice': 'Demo payment breakdown only. No Razorpay payment was made and no real payment record was created.',
+  'mock.status': 'TEST / MOCK — PAYMENT BACKEND DEFERRED',
+  'mock.advance': 'Test Advance (25%)',
+  'mock.remaining': 'Test Remaining',
+  'mock.receiptReference': 'Test receipt reference',
+  'mock.receiptWarning': 'TEST / MOCK — NOT PROOF OF PAYMENT',
 
   /* duplicate protection */
   'duplicate.notice': 'You already have this booking — showing your existing booking instead of creating a new one.',
@@ -104,21 +120,24 @@ const HI: Record<keyof typeof EN, string> = {
   'screen.notFound': 'आपके खाते के लिए यह बुकिंग नहीं मिली।',
 
   /* states */
+  'state.booking_created': 'बुकिंग सेव हुई',
   'state.confirmed': 'पक्की',
   'state.payment_pending': 'भुगतान लंबित',
   'state.payment_failed': 'भुगतान विफल',
   'state.cancelled': 'रद्द',
   'state.completed': 'पूर्ण',
 
+  'state.booking_created.headline': 'आपकी बुकिंग सेव हो गई है',
   'state.confirmed.headline': 'आपकी बुकिंग पक्की हो गई है',
   'state.payment_pending.headline': 'भुगतान लंबित है',
   'state.payment_failed.headline': 'भुगतान विफल रहा',
   'state.cancelled.headline': 'बुकिंग रद्द हो गई',
   'state.completed.headline': 'बुकिंग पूरी हो गई',
 
-  'state.confirmed.body': 'आपका एडवांस भुगतान सफल रहा और आपका स्लॉट सुरक्षित है। कृपया 10 मिनट पहले पहुँचें।',
-  'state.payment_pending.body': 'यह बुकिंग अभी पक्की नहीं है। स्लॉट पक्का करने के लिए ज़रूरी एडवांस भुगतान पूरा करें।',
-  'state.payment_failed.body': 'भुगतान पूरा नहीं हुआ, इसलिए यह बुकिंग पक्की नहीं है। आप अपना विवरण खोए बिना फिर कोशिश कर सकते हैं।',
+  'state.booking_created.body': 'यह बुकिंग Supabase में सेव है। भुगतान अलग TEST / MOCK प्रदर्शन है और इसे भुगतान हुआ नहीं माना गया है।',
+  'state.confirmed.body': 'आपका बुकिंग प्रवाह पुष्टि तक पहुँच गया है। नीचे की भुगतान राशियाँ केवल टेस्ट/मॉक हैं; किसी वास्तविक भुगतान का दावा नहीं है।',
+  'state.payment_pending.body': 'यह बुकिंग उत्पादन भुगतान प्रवाह की प्रतीक्षा में है। नीचे की भुगतान राशियाँ केवल टेस्ट/मॉक हैं।',
+  'state.payment_failed.body': 'मॉक भुगतान प्रयास पूरा नहीं हुआ। किसी वास्तविक भुगतान का दावा नहीं है और बुकिंग विवरण अलग रहता है।',
   'state.cancelled.body': 'यह बुकिंग रद्द कर दी गई थी। इसके लिए कोई स्लॉट सुरक्षित नहीं है।',
   'state.completed.body': 'यह अपॉइंटमेंट पूरी हो चुकी है। हमारे यहाँ आने के लिए धन्यवाद।',
 
@@ -142,6 +161,8 @@ const HI: Record<keyof typeof EN, string> = {
   'field.customer': 'ग्राहक',
   'field.mobile': 'मोबाइल',
   'field.email': 'ईमेल',
+  'field.salonInfo': 'सैलून की जानकारी',
+  'field.category': 'श्रेणी',
   'field.staff': 'स्टाफ',
   'field.anyStaff': 'कोई भी उपलब्ध',
   'field.failureReason': 'कारण',
@@ -169,8 +190,19 @@ const HI: Record<keyof typeof EN, string> = {
   'history.badgeSaved': 'आपकी बुकिंग हिस्ट्री में सहेजा गया',
 
   /* receipt */
-  'receipt.title': 'बुकिंग सारांश',
+  'receipt.title': 'टेस्ट / मॉक बुकिंग रसीद',
   'receipt.issued': 'जारी',
+
+  /* Phase 16.6 mock-only payment presentation */
+  'mock.bookingBadge': 'डेमो बुकिंग डेटा',
+  'mock.bookingNotice': 'यह पुष्टि ब्राउज़र डेमो बुकिंग स्रोत का उपयोग कर रही है, Supabase बुकिंग पंक्ति का नहीं।',
+  'mock.badge': 'टेस्ट / मॉक भुगतान',
+  'mock.notice': 'यह केवल डेमो भुगतान विवरण है। कोई Razorpay भुगतान नहीं हुआ और कोई वास्तविक भुगतान रिकॉर्ड नहीं बनाया गया।',
+  'mock.status': 'टेस्ट / मॉक — भुगतान बैकएंड स्थगित',
+  'mock.advance': 'टेस्ट एडवांस (25%)',
+  'mock.remaining': 'टेस्ट शेष राशि',
+  'mock.receiptReference': 'टेस्ट रसीद संदर्भ',
+  'mock.receiptWarning': 'टेस्ट / मॉक — भुगतान का प्रमाण नहीं',
 
   /* duplicate protection */
   'duplicate.notice': 'यह बुकिंग पहले से मौजूद है — नई बनाने के बजाय आपकी मौजूदा बुकिंग दिखाई जा रही है।',

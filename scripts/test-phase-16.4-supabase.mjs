@@ -24,6 +24,7 @@ const authUser = {
 };
 let createCalls = 0;
 const createBodies = [];
+const bookingReadUrls = [];
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
@@ -92,7 +93,39 @@ globalThis.fetch = async (input, init = {}) => {
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   if (url.includes('/rest/v1/bookings')) {
-    return new Response(JSON.stringify([]), {
+    bookingReadUrls.push(url);
+    if (!decodeURIComponent(url).includes(`id=eq.${BOOKING_ID}`)) {
+      return new Response(JSON.stringify([]), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify([{
+      id: BOOKING_ID,
+      salon_id: SALON_ID,
+      customer_user_id: USER_ID,
+      staff_id: null,
+      booking_number: 'LIVE-1640',
+      appointment_start: '2031-08-20T05:30:00.000Z',
+      appointment_end: '2031-08-20T07:00:00.000Z',
+      status: 'pending',
+      total_paise: 125000,
+      currency: 'INR',
+      customer_note: 'Please be gentle',
+      source: null,
+      created_by: USER_ID,
+      created_at: '2031-08-19T05:30:00.000Z',
+      updated_at: '2031-08-19T05:30:00.000Z',
+      booking_items: [{
+        id: ITEM_ID,
+        booking_id: BOOKING_ID,
+        service_id: SERVICE_ID,
+        quantity: 1,
+        unit_price_paise: 125000,
+        line_total_paise: 125000,
+        service_name_snapshot: 'Database Balayage',
+        duration_minutes_snapshot: 90,
+      }],
+    }]), {
       status: 200, headers: { 'content-type': 'application/json' },
     });
   }
@@ -147,6 +180,7 @@ window.localStorage.setItem('sb-supabase-booking-auth-token', JSON.stringify({
 const React = (await import('react')).default;
 const { act, cleanup, fireEvent, render, waitFor } = await import('@testing-library/react');
 const SiteBookingFullFlow = (await import('../src/components/SiteBookingFullFlow.tsx')).default;
+const SiteBookingHost = (await import('../src/components/SiteBookingHost.tsx')).default;
 const { initialData } = await import('../src/types.ts');
 const { setSalonClockForTests } = await import('../src/lib/salonStatus.ts');
 const { setSiteAppearance, setSiteLocale } = await import('../src/lib/siteNavigation.ts');
@@ -238,6 +272,11 @@ try {
   await act(async () => { fireEvent.click(view.getByTestId('supabase-booking-retry')); });
   await waitFor(() => assert.ok(view.getByTestId('supabase-booking-persisted')));
   assert.equal(createCalls, 2);
+  assert.ok(bookingReadUrls.length >= 1, 'confirmation must reload the created booking from Supabase');
+  const confirmationReadUrl = decodeURIComponent(bookingReadUrls.at(-1));
+  assert.match(confirmationReadUrl, new RegExp(`salon_id=eq.${SALON_ID}`));
+  assert.match(confirmationReadUrl, new RegExp(`customer_user_id=eq.${USER_ID}`));
+  assert.match(confirmationReadUrl, new RegExp(`id=eq.${BOOKING_ID}`));
   assert.equal(createBodies[1].p_customer_id, undefined);
   assert.deepEqual(createBodies[1].p_service_ids, [SERVICE_ID]);
   assert.equal(createBodies[1].p_phone, '+919999999999');
@@ -247,9 +286,38 @@ try {
   assert.match(view.getByTestId('booking-confirmation-customer').textContent, /Asha Customer/);
   assert.match(view.getByTestId('booking-confirmation-customer-mobile').textContent, /9999999999/);
   assert.match(view.getByTestId('booking-confirmation-customer-email').textContent, /asha@example\.test/);
-  assert.equal(view.getByTestId('booking-confirmation').dataset.state, 'payment_pending');
+  assert.equal(view.getByTestId('booking-confirmation').dataset.state, 'booking_created');
+  assert.equal(view.getByTestId('booking-confirmation').dataset.bookingSource, 'supabase');
   assert.equal(view.getByTestId('booking-confirmation').dataset.confirmed, 'false');
-  assert.equal(view.getByTestId('booking-confirmation-payment-status').textContent.includes('Unpaid'), true);
+  assert.equal(view.getByTestId('booking-confirmation-payment-status').textContent.includes('TEST / MOCK'), true);
+  assert.equal(view.queryByTestId('booking-confirmation-demo-booking'), null);
+  assert.equal(new URLSearchParams(window.location.search).get('booking'), BOOKING_ID);
+  assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
+
+  // Full browser refresh: the host reopens from the persisted UUID in the URL,
+  // then reloads all confirmation details through the authenticated Supabase
+  // query rather than React state or localStorage.
+  cleanup();
+  const refreshed = render(React.createElement(SiteBookingHost, {
+    themeId: 'hair_studio_color_bar', data,
+  }));
+  await waitFor(() => assert.ok(refreshed.getByTestId('supabase-booking-persisted')));
+  assert.match(refreshed.getByTestId('supabase-booking-persisted').textContent, /LIVE-1640/);
+  assert.match(refreshed.getByTestId('supabase-booking-persisted').textContent, /Database Balayage/);
+  assert.equal(refreshed.getByTestId('booking-confirmation').dataset.bookingSource, 'supabase');
+  assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
+
+  // A valid-looking UUID owned by somebody else is hidden by the scoped query
+  // and RLS. It never renders this customer's prior confirmation as fallback.
+  cleanup();
+  const foreignId = '90000000-0000-4000-8000-000000000009';
+  window.history.replaceState(null, '', `/?booking=${foreignId}`);
+  const blocked = render(React.createElement(SiteBookingHost, {
+    themeId: 'hair_studio_color_bar', data,
+  }));
+  await waitFor(() => assert.ok(blocked.getByTestId('supabase-booking-error')));
+  assert.match(blocked.getByTestId('supabase-booking-error').textContent, /not found|not authorized/i);
+  assert.doesNotMatch(blocked.getByTestId('supabase-booking-error').textContent, /LIVE-1640|Database Balayage/);
   assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
 
   console.log('PASS authenticated customer and salon relationship prefill the existing details step');

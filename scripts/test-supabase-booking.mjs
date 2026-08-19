@@ -464,7 +464,7 @@ await test('direct booking/receipt lookup is authenticated, tenant-scoped and RL
   ]);
 });
 
-await test('Supabase records expose no local cancel, owner transition, or payment mutation', () => {
+await test('Supabase records expose no local customer cancel or payment mutation; owner transitions use the server adapter', () => {
   const record = {
     id: BOOKING_ID,
     idempotencyKey: `supabase:${BOOKING_ID}`,
@@ -494,7 +494,7 @@ await test('Supabase records expose no local cancel, owner transition, or paymen
   };
   assert.equal(customerCanCancel(record), false);
   assert.equal(groupCustomerBookings([{ ...record, customerId: USER_ID }]).upcoming.length, 1);
-  assert.deepEqual(ownerAllowedTransitionsForRecord(record), []);
+  assert.deepEqual(ownerAllowedTransitionsForRecord(record), ['confirmed', 'cancelled']);
   assert.throws(
     () => simulateGateway(record, { method: 'upi', upiId: 'asha@upi' }),
     /cannot use the local payment simulator/i,
