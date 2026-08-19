@@ -1,19 +1,17 @@
 /**
- * PHASE 16.6 — BOOKING CONFIRMATION · derivation layer over the EXISTING
- * booking/payment record store.
+ * PHASE 16.6 — BOOKING CONFIRMATION · pure projection layer over an
+ * authorized booking/payment record.
  *
  * There is still exactly ONE booking architecture. This module does NOT
- * create bookings, tables, columns, ids or amounts — it only READS the
- * records the Phase 10.7 / 16.5 engine already persists
- * (`siteBookingPayment.ts`) and derives the confirmation view a customer
- * is allowed to see:
+ * create bookings, tables, columns, ids or amounts. Configured builds supply
+ * records from authenticated Supabase booking/item reads; unconfigured legacy
+ * tests may still supply the browser sandbox record shape. It derives the
+ * confirmation view a customer is allowed to see:
  *
- *   - **Booking reference** = the EXISTING `PaymentRecord.bookingId`
- *     produced by the existing `generateBookingId()` (`NX-#####`). Never
- *     invented, never hardcoded here.
- *   - **Money** = the EXISTING 16.5 money snapshot, read through the
- *     SAME rule the 16.7 management layer uses (`bookingMoney`) so total /
- *     advance paid / remaining can never disagree between screens.
+ *   - **Booking reference** = the existing record's `bookingId` (the live
+ *     database booking number/UUID in configured builds). Never invented here.
+ *   - **Money** = the authorized record's money snapshot, read through the
+ *     same `bookingMoney` rule so total / paid / remaining stay consistent.
  *   - **State** = derived strictly from the persisted booking + payment
  *     status pair. A booking is reported `confirmed` ONLY when the
  *     required payment actually succeeded (`paymentStatus === 'paid'`) or
@@ -32,9 +30,8 @@
  *     creating a second row when the visitor refreshes, retries or comes
  *     back to the confirmation screen.
  *
- * When the drafted M08/M09 schema is eventually applied, `bookings` /
- * `payments` become the source of these same fields — the shape here
- * mirrors those columns so the swap changes the source, not the screens.
+ * Supabase-backed records remain read-only in this layer. Mock payment state
+ * is never promoted into a configured confirmation.
  */
 import { bookingBrowserId } from './siteBookingFlow';
 import { bookingMoney, bookingServiceNames } from './bookingManagement';
@@ -316,7 +313,9 @@ export function bookingConfirmationReceiptText(
   lines.push(`${T['field.status']}: ${T[`state.${view.state}`] || view.state}`);
   lines.push('');
   lines.push(`${T['field.salon']}: ${salonName}`);
-  lines.push(`${T['field.services']}: ${view.serviceNames.join(' + ')}`);
+  lines.push(`${T['field.services']}: ${view.services.map((service) =>
+    service.category ? `${service.serviceName} (${service.category})` : service.serviceName
+  ).join(' + ')}`);
   lines.push(`${T['field.date']}: ${view.dateKey}`);
   lines.push(
     `${T['field.time']}: ${formatMinutesLabel(view.startMinutes, locale)} – ${formatMinutesLabel(view.endMinutes, locale)}`,
@@ -331,6 +330,7 @@ export function bookingConfirmationReceiptText(
   lines.push('');
   lines.push(`${T['field.customer']}: ${view.customer.name}`);
   lines.push(`${T['field.mobile']}: ${view.customer.mobile}`);
+  if (view.customer.email) lines.push(`${T['field.email'] || 'Email'}: ${view.customer.email}`);
   lines.push('');
   lines.push(`${T['receipt.issued']}: ${new Date(view.updatedAt || view.createdAt).toISOString()}`);
   return lines.join('\n');

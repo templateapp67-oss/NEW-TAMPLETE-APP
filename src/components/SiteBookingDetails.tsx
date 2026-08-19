@@ -53,6 +53,7 @@ import SiteBookingConfirmation, { BookingConfirmationStateCard } from './SiteBoo
 import { salonDisplayName } from '../lib/siteBooking';
 import { bookingBusinessId } from '../lib/siteBookingFlow';
 import { formatMinutesLabel, PAYMENT_EVENT } from '../lib/siteBookingPayment';
+import type { PaymentRecord } from '../lib/siteBookingPayment';
 import { formatCurrency } from '../lib/pricing';
 import { THEME_LABELS } from '../lib/themeServices';
 import type { BookingFlowSurface } from '../lib/siteBookingTheme';
@@ -62,14 +63,21 @@ import CancelBookingDialog from './CancelBookingDialog';
 import SiteReviewForm from './SiteReviewForm';
 import { findMyReviewForBooking, isBookingEligibleForReview, REVIEW_EVENT } from '../lib/siteReviews';
 import type { CustomerReview } from '../lib/siteReviews';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  bookingSalonIdCandidate,
+  readMySupabaseBookingByReference,
+} from '../lib/supabaseBooking';
 
 interface Props {
   /** The CURRENT site theme — the panel stays consistent with it. */
   themeId: SiteHeaderThemeId;
   /** The salon whose website is open (source of salon name/logo/catalog). */
   data: SalonData;
-  /** Booking reference from the EXISTING record (`NX-#####`). */
+  /** Booking reference from the existing record. */
   bookingId: string;
+  /** Phase 16.1 database row already authorized and loaded through Supabase RLS. */
+  persistedRecord?: PaymentRecord | null;
   onBack: () => void;
   onClose: () => void;
   onViewSalon: () => void;
@@ -134,7 +142,7 @@ function Banner({
 /* Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export default function SiteBookingDetails({ themeId, data, bookingId, onBack, onClose, onViewSalon }: Props) {
+export default function SiteBookingDetails({ themeId, data, bookingId, persistedRecord, onBack, onClose, onViewSalon }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const s = bookingSurfaces(themeId, appearance);
@@ -143,6 +151,12 @@ export default function SiteBookingDetails({ themeId, data, bookingId, onBack, o
   const [receiptOpen, setReceiptOpen] = useState(false);
   // Refresh the record whenever the store changes (after reschedule/cancel).
   const [version, setVersion] = useState(0);
+  const [directRecord, setDirectRecord] = useState<PaymentRecord | null>(null);
+  const [directState, setDirectState] = useState<'loading' | 'error' | 'ready'>(
+    isSupabaseConfigured && persistedRecord === undefined ? 'loading' : 'ready',
+  );
+  const [directRetry, setDirectRetry] = useState(0);
+  const directSalonId = useMemo(() => bookingSalonIdCandidate(data, null), [data]);
   const [mode, setMode] = useState<'details' | 'reschedule' | 'review'>('details');
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -158,11 +172,36 @@ export default function SiteBookingDetails({ themeId, data, bookingId, onBack, o
     };
   }, []);
 
-  // SECURE resolve: own rows only — identity is read inside the helper.
+  useEffect(() => {
+    if (!isSupabaseConfigured || persistedRecord !== undefined) return;
+    if (!directSalonId) {
+      setDirectRecord(null);
+      setDirectState('ready');
+      return;
+    }
+    let active = true;
+    setDirectState('loading');
+    void readMySupabaseBookingByReference(directSalonId, themeId, bookingId)
+      .then((record) => {
+        if (!active) return;
+        setDirectRecord(record);
+        setDirectState('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setDirectRecord(null);
+        setDirectState('error');
+      });
+    return () => { active = false; };
+  }, [persistedRecord, directSalonId, themeId, bookingId, directRetry]);
+
+  // Supabase rows are supplied only after the authenticated RLS read. Legacy
+  // unconfigured builds retain the browser-local own-row resolver.
   const record = useMemo(
-    () => readCustomerBooking(bookingId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bookingId, version],
+    () => isSupabaseConfigured
+      ? (persistedRecord !== undefined ? persistedRecord : directRecord)
+      : readCustomerBooking(bookingId),
+    [bookingId, version, persistedRecord, directRecord],
   );
   const view: BookingConfirmationView | null = useMemo(
     () => (record ? toBookingConfirmation(record) : null),
@@ -170,6 +209,19 @@ export default function SiteBookingDetails({ themeId, data, bookingId, onBack, o
   );
 
   const L = (en: string, hi: string) => (locale === 'hi' ? hi : en);
+
+  if (directState === 'loading') {
+    return <BookingConfirmationStateCard themeId={themeId} state="loading" />;
+  }
+  if (directState === 'error') {
+    return (
+      <BookingConfirmationStateCard
+        themeId={themeId}
+        state="error"
+        onRetry={() => setDirectRetry((value) => value + 1)}
+      />
+    );
+  }
 
   // ---------- secure not-found (tampered / foreign booking id) ----------
   if (!record || !view) {
@@ -206,7 +258,7 @@ export default function SiteBookingDetails({ themeId, data, bookingId, onBack, o
 
   const serviceLines = view.services.map((line) => ({
     name: line.serviceName,
-    category: categoryFor(line.serviceId),
+    category: line.category || categoryFor(line.serviceId),
   }));
 
   const dateLabel = useMemo(
@@ -407,7 +459,9 @@ export default function SiteBookingDetails({ themeId, data, bookingId, onBack, o
           {L('Payment breakdown', 'भुगतान का विवरण')}
         </h3>
         <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Total amount', 'कुल राशि')} value={formatCurrency(money.total)} />
-        <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Required advance', 'आवश्यक एडवांस')} value={formatCurrency(requiredAdvance)} />
+        {(record.persistence !== 'supabase' || requiredAdvance > 0) && (
+          <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Required advance', 'आवश्यक एडवांस')} value={formatCurrency(requiredAdvance)} />
+        )}
         <InfoRow
           s={s}
           icon={<Wallet className="w-3 h-3" />}
@@ -505,6 +559,7 @@ export default function SiteBookingDetails({ themeId, data, bookingId, onBack, o
               <div className="border-t my-1.5" style={{ borderColor: s.chipLine }} />
               <ReceiptRow s={s} label={L('Customer', 'ग्राहक')} value={view.customer.name} />
               {view.customer.mobile && <ReceiptRow s={s} label={L('Mobile', 'मोबाइल')} value={view.customer.mobile} />}
+              {view.customer.email && <ReceiptRow s={s} label={L('Email', 'ईमेल')} value={view.customer.email} />}
               <p className="text-center text-[8px] font-semibold pt-2" style={{ color: s.disabledText }}>
                 {L('Thank you for choosing us.', 'हमें चुनने के लिए धन्यवाद।')}
               </p>

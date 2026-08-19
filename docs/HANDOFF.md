@@ -1,10 +1,35 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-18** (session `arena/01a01326-new-tamplete-app`,
-> owner-dashboard root-cause fix).
+> Last updated: **2026-08-19** (session `arena/01a015d6-new-tamplete-app`,
+> pre-Phase Supabase connection foundation).
 
 ## Current repository state
 
+- **PRE-PHASE SUPABASE FOUNDATION — LIVE VERIFIED.**
+  - The one browser client validates both Vite settings, rejects example
+    placeholders and service-role/private keys, and keeps Supabase-js session
+    persistence/refresh enabled. No second client or environment system exists.
+  - Auth startup validates a persisted session with `getUser()` before treating
+    it as application identity. Configuration, anonymous, auth, network and
+    timeout states remain distinct. Owner resolution no longer promotes an
+    unvalidated cached session to owner identity.
+  - The first real running-app walkthrough established that login/session worked
+    but `organization_members` returned permission denied. The operator then
+    applied the minimum, idempotent existing-schema correction in
+    `docs/owner-dashboard-ownership-fix.sql`: authenticated own-membership read,
+    session-derived `nexora_owner_salon_ids()`, and owner-only salon read. No
+    tables, columns or rows were created; RLS remained enabled;
+    `job_salon_members` remained untouched.
+  - The post-correction running-app walkthrough passed: real owner login → real
+    salon on Screen 26 → refresh retained session/dashboard → logout cleared the
+    session. This is operator-observed live evidence; no owner password/token was
+    shared with or stored by the repository.
+  - `scripts/probe-live-owner.mjs` remains the strict read-only automation gate
+    for environments that supply operator credentials securely. It requires
+    RPC/direct-chain agreement and verified logout and never uses service-role.
+  - Local-storage classifications and follow-on Phase 16 boundaries are recorded
+    in `docs/pre-phase-supabase-foundation.md`. No booking/payment implementation
+    or migration was performed in this pre-phase.
 
 - **OWNER DASHBOARD — FALSE "NOT LINKED" ROOT-CAUSE FIX (24 resolution tests).**
   - **Problem (reproduced live)**: the owner dashboard still showed
@@ -29,9 +54,10 @@
        `worstFailure` even when the embed answered EMPTY, which could mask
        a permission failure as "no membership" — now only an embed that
        actually returned salons clears it.
-    3. `getAuthenticatedUserId()` now falls back to the locally-cached
-       session when the `getUser()` auth-server round trip fails, so a
-       network blip can never masquerade as "signed out".
+    3. Historical note: this session originally allowed a locally cached
+       session fallback. The newer pre-Phase Supabase foundation above
+       supersedes that behavior and now fails closed unless `getUser()`
+       validates the session.
     4. `OwnerDashboard` re-runs resolution when the auth session user
        changes, so signing in while the screen is open clears the stale
        refusal instead of showing it until refresh.

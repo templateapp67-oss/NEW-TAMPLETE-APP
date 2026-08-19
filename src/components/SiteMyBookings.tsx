@@ -35,8 +35,15 @@ import { salonDisplayName } from '../lib/siteBooking';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
 import { useEffect } from 'react';
 import SiteBookingConfirmation from './SiteBookingConfirmation';
-import { readBookingConfirmation } from '../lib/siteBookingConfirmation';
+import { readBookingConfirmation, toBookingConfirmation } from '../lib/siteBookingConfirmation';
 import type { BookingConfirmationView } from '../lib/siteBookingConfirmation';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  bookingSalonIdCandidate,
+  readMySupabaseBookings,
+  SUPABASE_BOOKING_EVENT,
+} from '../lib/supabaseBooking';
+import { useAuth } from '../lib/useAuth';
 import { bookingConfirmationText } from '../lib/siteBookingConfirmationI18n';
 import type { BookingNoticeInput } from '../lib/siteBookingNotices';
 
@@ -57,44 +64,90 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
   const CT = bookingConfirmationText(locale);
   const [version, setVersion] = useState(0);
   const [retry, setRetry] = useState(0);
+  const [databaseBookings, setDatabaseBookings] = useState<PaymentRecord[]>([]);
+  const [databaseState, setDatabaseState] = useState<'loading' | 'error' | 'ready'>(
+    isSupabaseConfigured ? 'loading' : 'ready',
+  );
+  const { user, loading: authLoading } = useAuth();
+  const liveSalonId = useMemo(
+    () => bookingSalonIdCandidate(
+      data,
+      (data.services || []).find((service) => service.businessId) || data.services?.[0],
+    ),
+    [data],
+  );
   // PHASE 16.6 — which booking's full confirmation/receipt summary is open.
   const [openReference, setOpenReference] = useState<string | null>(null);
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
     window.addEventListener(PAYMENT_EVENT, bump);
-    return () => window.removeEventListener(PAYMENT_EVENT, bump);
+    window.addEventListener(SUPABASE_BOOKING_EVENT, bump);
+    return () => {
+      window.removeEventListener(PAYMENT_EVENT, bump);
+      window.removeEventListener(SUPABASE_BOOKING_EVENT, bump);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    if (authLoading) {
+      setDatabaseState('loading');
+      return;
+    }
+    if (!user || !liveSalonId) {
+      setDatabaseBookings([]);
+      setDatabaseState('ready');
+      return;
+    }
+    let active = true;
+    setDatabaseState('loading');
+    void readMySupabaseBookings(liveSalonId, themeId)
+      .then((records) => {
+        if (!active) return;
+        setDatabaseBookings(records);
+        setDatabaseState('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setDatabaseBookings([]);
+        setDatabaseState('error');
+      });
+    return () => { active = false; };
+  }, [authLoading, user?.id, liveSalonId, themeId, retry, version]);
 
   // Shared seam: loading / error forceable exactly like the other booking states.
   const state: 'loading' | 'error' | 'ready' = useMemo(() => {
     const forced = injectedSectionStatus('booking');
     if (forced === 'loading' || forced === 'error') return forced;
-    return 'ready';
+    return isSupabaseConfigured ? databaseState : 'ready';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retry, version]);
+  }, [retry, version, databaseState]);
 
-  // OWN rows only (identity read inside the helper), narrowed to the
-  // active salon + theme — a different salon's rows never render here.
+  // Configured builds use Supabase exclusively. The legacy local store remains
+  // only for unconfigured/test builds and is never merged with database rows.
   const bookings = useMemo(
     () => sortBookingsForList(
-      readMyBookings().filter((r) => r.businessId === businessId && r.themeId === themeId),
+      isSupabaseConfigured
+        ? databaseBookings
+        : readMyBookings().filter((r) => r.businessId === businessId && r.themeId === themeId),
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [businessId, themeId, version],
+    [businessId, themeId, version, databaseBookings],
   );
 
   /**
    * PHASE 16.6 — the summary the customer re-opens from their history.
-   * Resolved through `readBookingConfirmation`, which reads the browser
-   * identity internally and is tenant+theme keyed, so this can only ever
-   * return THIS visitor's own booking at THIS salon.
+   * Configured builds project an already RLS-authorized Supabase row; legacy
+   * unconfigured builds keep the browser-scoped local confirmation resolver.
    */
   const openSummary: BookingConfirmationView | null = useMemo(() => {
     if (!openReference) return null;
+    if (isSupabaseConfigured) {
+      const found = bookings.find((record) => record.bookingId === openReference);
+      return found ? toBookingConfirmation(found) : null;
+    }
     const found = readBookingConfirmation(openReference, businessId, themeId);
     return found.ok ? found.view : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openReference, businessId, themeId, version]);
+  }, [openReference, businessId, themeId, version, bookings]);
 
   // PHASE 16.9 — cancellation asks for an inline, themed confirmation
   // (replaces the blocking native `window.confirm`); the destructive

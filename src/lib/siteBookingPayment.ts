@@ -182,6 +182,14 @@ export interface PaymentRecord {
   updatedAt: number;
   /** Whether this record came from a no-payment path (pay_at_salon). */
   payAtSalon: boolean;
+  /**
+   * Persistence authority. Absent/`local` is the legacy browser sandbox;
+   * `supabase` is a live database booking and must never be mutated through
+   * the local payment/cancel/reschedule engines.
+   */
+  persistence?: 'local' | 'supabase';
+  /** Existing live database status retained verbatim for diagnostics/display. */
+  databaseStatus?: string;
 }
 
 export interface BookingCustomerSnapshot {
@@ -200,6 +208,8 @@ export interface BookingCustomerSnapshot {
 export interface PaymentServiceLine {
   serviceId: string;
   serviceName: string;
+  /** Existing live category context when resolved from the Supabase catalog. */
+  category?: string;
   /** Offer-aware price actually charged for this line (existing pricing). */
   price: number;
   durationMinutes: number;
@@ -446,7 +456,7 @@ function createBookingRecordInternal(
 function patchRecord(id: string, patch: Partial<PaymentRecord>): PaymentRecord | null {
   const store = effectiveStore();
   const idx = store.records.findIndex((r) => r.id === id);
-  if (idx < 0) return null;
+  if (idx < 0 || store.records[idx].persistence === 'supabase') return null;
   const next: PaymentRecord = { ...store.records[idx], ...patch, updatedAt: Date.now() };
   const records = store.records.slice();
   records[idx] = next;
@@ -550,6 +560,9 @@ export const SALON_METHOD_LABEL: Record<string, string> = {
  *    timer to mark the attempt as `timeout`.
  */
 export function simulateGateway(record: PaymentRecord, form: Partial<GatewayForm>): GatewayAttempt {
+  if (record.persistence === 'supabase') {
+    throw new Error('Supabase bookings cannot use the local payment simulator.');
+  }
   const attemptId = randToken('att');
   const startedAt = Date.now();
   let cancelTimer: ReturnType<typeof setTimeout> | null = null;
@@ -690,6 +703,9 @@ export function simulateGateway(record: PaymentRecord, form: Partial<GatewayForm
  * confirmed payment for the same amount.
  */
 export function retryPayment(record: PaymentRecord, form: Partial<GatewayForm>): GatewayAttempt {
+  if (record.persistence === 'supabase') {
+    throw new Error('Supabase bookings cannot use the local payment simulator.');
+  }
   // Re-create the record in `pending` state — but never create a second row.
   const refreshed = patchRecord(record.id, {
     paymentStatus: 'pending',

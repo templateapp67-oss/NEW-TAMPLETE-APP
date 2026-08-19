@@ -750,11 +750,13 @@ export interface BookingDetailsErrors {
 
 export function validateBookingCustomer(details: BookingCustomerDetails): BookingDetailsErrors {
   const errors: BookingDetailsErrors = {};
-  if ((details.name || '').trim().length < 2) errors.name = true;
-  const digits = digitsOnly(details.mobile);
-  if (digits.length < 10 || digits.length > 13) errors.mobile = true;
+  const name = (details.name || '').trim();
+  if (name.length < 2 || name.length > 100) errors.name = true;
+  const mobile = (details.mobile || '').trim();
+  const digits = digitsOnly(mobile);
+  if (mobile.length > 32 || digits.length < 10 || digits.length > 13) errors.mobile = true;
   const email = (details.email || '').trim();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = true;
+  if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) errors.email = true;
   return errors;
 }
 

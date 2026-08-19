@@ -162,7 +162,11 @@ function isCancelled(record: PaymentRecord): boolean {
 export function groupCustomerBookings(records: PaymentRecord[]): GroupedBookings {
   const me = bookingBrowserId();
 
-  const mine = records.filter((r) => r.customerId === me);
+  const mine = records.filter((r) =>
+    // Supabase rows reached this helper only after the authenticated RLS read;
+    // legacy local rows must still match the browser identity.
+    r.persistence === 'supabase' || r.customerId === me,
+  );
 
   const upcoming: PaymentRecord[] = [];
   const past: PaymentRecord[] = [];

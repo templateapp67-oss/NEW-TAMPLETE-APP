@@ -286,6 +286,8 @@ const EN = {
   /* Unauthorized / refusals */
   'denied.title': 'Dashboard unavailable',
   'denied.login': 'Please log in with your owner account to open the dashboard.',
+  'denied.authError': 'Your login session could not be verified. Please log out, log in again, and retry.',
+  'denied.network': 'Supabase could not be reached. Check your connection and retry.',
   'denied.noSalon': 'Your account is not linked to a salon.',
   'denied.unverifiable':
     'We could not verify which salon is linked to your account. Please try again.',
@@ -553,6 +555,8 @@ const HI: Record<OwnerDashboardTextKey, string> = {
 
   'denied.title': 'डैशबोर्ड उपलब्ध नहीं है',
   'denied.login': 'डैशबोर्ड खोलने के लिए कृपया अपने ओनर अकाउंट से लॉग इन करें।',
+  'denied.authError': 'आपका लॉगिन सत्र सत्यापित नहीं हो सका। कृपया लॉग आउट करके फिर से लॉग इन करें।',
+  'denied.network': 'Supabase तक पहुँचा नहीं जा सका। अपना कनेक्शन जाँचें और फिर कोशिश करें।',
   'denied.noSalon': 'आपका अकाउंट किसी सैलून से जुड़ा नहीं है।',
   'denied.unverifiable':
     'हम सत्यापित नहीं कर पाए कि आपके खाते से कौन सा सैलून जुड़ा है। कृपया पुनः प्रयास करें।',

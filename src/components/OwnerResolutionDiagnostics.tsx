@@ -119,13 +119,13 @@ function detailFor(report: OwnerResolutionDiagnosticsReport, key: string): strin
           ? `returned salon ids: ${report.helper.salonIds.join(', ')}`
           : 'ran successfully but returned ZERO salon ids';
       }
-      return `${report.helper.status.toUpperCase()} — ${report.helper.error?.code ?? ''} ${report.helper.error?.message ?? ''}`.trim();
+      return `${report.helper.status.toUpperCase()} (${report.helper.error?.kind ?? 'database'}) — ${report.helper.error?.code ?? ''} ${report.helper.error?.message ?? ''}`.trim();
     case 'membership': {
       const rows = report.membership.rows
         .map((r) => `org=${r.organizationId || '(null)'} role=${r.role || '(empty)'} status=${r.status || '(empty)'}`)
         .join(' ; ');
       if (report.membership.status === 'error') {
-        return `read FAILED — ${report.membership.error?.code ?? ''} ${report.membership.error?.message ?? ''}`.trim();
+        return `read FAILED (${report.membership.error?.kind ?? 'database'}) — ${report.membership.error?.code ?? ''} ${report.membership.error?.message ?? ''}`.trim();
       }
       const probe = report.membershipProbe.anyVisibleRow
         ? `probe: rows visible (${report.membershipProbe.rolesStatuses.map((r) => `${r.role}/${r.status}`).join(', ') || 'empty roles/statuses'}) — table readable`
@@ -134,7 +134,7 @@ function detailFor(report: OwnerResolutionDiagnosticsReport, key: string): strin
     }
     case 'salons':
       if (report.salons.status === 'error') {
-        return `read FAILED — ${report.salons.error?.code ?? ''} ${report.salons.error?.message ?? ''}`.trim();
+        return `read FAILED (${report.salons.error?.kind ?? 'database'}) — ${report.salons.error?.code ?? ''} ${report.salons.error?.message ?? ''}`.trim();
       }
       if (report.salons.status === 'skipped') return 'skipped — no organization ids resolved';
       const rows = report.salons.rows

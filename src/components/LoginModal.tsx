@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { signInWithPassword, signUpWithPassword } from '../lib/useAuth';
-import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { isSupabaseConfigured, supabaseConfigurationMessage } from '../lib/supabaseClient';
 
 /**
  * Sign in / sign up against the existing Supabase Auth (email + password,
@@ -105,7 +105,8 @@ export default function LoginModal({
     }
     if (!isSupabaseConfigured) {
       setError(
-        'Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
+        supabaseConfigurationMessage()
+          ?? 'Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
       );
       return;
     }
@@ -234,7 +235,8 @@ export default function LoginModal({
             <div>
               <p className="font-semibold text-amber-900">Supabase Not Connected</p>
               <p className="mt-0.5 text-amber-800">
-                Authentication form is ready, but Supabase is not connected. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app.
+                {supabaseConfigurationMessage()
+                  ?? 'Authentication form is ready, but Supabase is not connected. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app.'}
               </p>
             </div>
           </div>
