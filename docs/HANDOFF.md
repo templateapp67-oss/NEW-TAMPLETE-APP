@@ -1,10 +1,35 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-18** (session `arena/01a01326-new-tamplete-app`,
-> owner-dashboard root-cause fix).
+> Last updated: **2026-08-19** (session `arena/01a015d6-new-tamplete-app`,
+> pre-Phase Supabase connection foundation).
 
 ## Current repository state
 
+- **PRE-PHASE SUPABASE FOUNDATION — LIVE VERIFIED.**
+  - The one browser client validates both Vite settings, rejects example
+    placeholders and service-role/private keys, and keeps Supabase-js session
+    persistence/refresh enabled. No second client or environment system exists.
+  - Auth startup validates a persisted session with `getUser()` before treating
+    it as application identity. Configuration, anonymous, auth, network and
+    timeout states remain distinct. Owner resolution no longer promotes an
+    unvalidated cached session to owner identity.
+  - The first real running-app walkthrough established that login/session worked
+    but `organization_members` returned permission denied. The operator then
+    applied the minimum, idempotent existing-schema correction in
+    `docs/owner-dashboard-ownership-fix.sql`: authenticated own-membership read,
+    session-derived `nexora_owner_salon_ids()`, and owner-only salon read. No
+    tables, columns or rows were created; RLS remained enabled;
+    `job_salon_members` remained untouched.
+  - The post-correction running-app walkthrough passed: real owner login → real
+    salon on Screen 26 → refresh retained session/dashboard → logout cleared the
+    session. This is operator-observed live evidence; no owner password/token was
+    shared with or stored by the repository.
+  - `scripts/probe-live-owner.mjs` remains the strict read-only automation gate
+    for environments that supply operator credentials securely. It requires
+    RPC/direct-chain agreement and verified logout and never uses service-role.
+  - Local-storage classifications and follow-on Phase 16 boundaries are recorded
+    in `docs/pre-phase-supabase-foundation.md`. No booking/payment implementation
+    or migration was performed in this pre-phase.
 
 - **OWNER DASHBOARD — FALSE "NOT LINKED" ROOT-CAUSE FIX (24 resolution tests).**
   - **Problem (reproduced live)**: the owner dashboard still showed
@@ -29,9 +54,10 @@
        `worstFailure` even when the embed answered EMPTY, which could mask
        a permission failure as "no membership" — now only an embed that
        actually returned salons clears it.
-    3. `getAuthenticatedUserId()` now falls back to the locally-cached
-       session when the `getUser()` auth-server round trip fails, so a
-       network blip can never masquerade as "signed out".
+    3. Historical note: this session originally allowed a locally cached
+       session fallback. The newer pre-Phase Supabase foundation above
+       supersedes that behavior and now fails closed unless `getUser()`
+       validates the session.
     4. `OwnerDashboard` re-runs resolution when the auth session user
        changes, so signing in while the screen is open clears the stale
        refusal instead of showing it until refresh.
@@ -754,26 +780,26 @@
     16.2 55, 16.3 36, 16.5 24, 16.6 54, 16.7 38; validate:migrations
     21/21; lint 0; build green; verify-22-screens 25/25.
 
-- **PHASE 16.6 — BOOKING CONFIRMATION + MOCK RECEIPT (54 tests).**
-  - Confirmation/receipt UX only. Razorpay, webhook, signature, payment RPC,
-    and authoritative payment persistence are explicitly deferred.
-  - Runtime audit found that the active public booking source is still the
-    10.7/16.5 browser demo store, not Supabase. Confirmation provenance is
-    therefore explicit (`bookingSource: 'browser_demo'`) and the UI displays
-    **DEMO BOOKING DATA**; it does not claim Supabase persistence.
-  - `mockPaymentForConfirmation()` is a pure Phase 16.6 projection: total from
-    the booking snapshot, Test Advance = rounded 25%, Test Remaining = total
-    minus advance, status **TEST / MOCK — PAYMENT BACKEND DEFERRED**, and safe
-    reference `TEST-RECEIPT-{booking-reference}`. It performs no write.
-  - The shared responsive panel shows salon name/info, service names/categories,
-    slot/duration/staff, customer name/mobile/email, booking status/reference,
-    and the separately labelled mock breakdown. Downloaded receipts state
-    **TEST / MOCK — NOT PROOF OF PAYMENT** and omit simulated gateway ids.
-  - Existing own-customer + tenant/theme reads remain unchanged; foreign rows
-    resolve `not-found`. Refresh/remount reconstructs the display without a
-    payment row or payment-status mutation. No DB/migration/RPC changes.
-  - Validation: `test:phase-16.6` **54/54**; 16.1 **55/55**, 16.2 **55/55**,
-    16.3 **36/36**, 16.5 **24/24**; lint and production build green. Details:
+- **PHASE 16.6 — REAL BOOKING CONFIRMATION + MOCK RECEIPT (55 tests).**
+  - Configured flow now consumes the merged Phase 16.1–16.4 Supabase booking
+    authority: authenticated details + server catalog → `create_customer_booking`
+    → persisted booking/items → the exact returned booking number (or UUID) →
+    shared confirmation. No second booking or reference is generated.
+  - Supabase rows project as `bookingSource: 'supabase'` and **Booking saved**,
+    independently from payment. Unconfigured legacy rows remain visibly marked
+    **DEMO BOOKING DATA** and are never mistaken for database authority.
+  - Refresh/history/details use authenticated, salon-scoped Supabase reads with
+    an explicit `customer_user_id = auth user` defense plus RLS. Foreign or
+    missing references resolve not-found; configured builds never fall back to
+    localStorage.
+  - The payment card stays a pure read-only projection: total, Test Advance =
+    rounded 25%, Test Remaining, status **TEST / MOCK — PAYMENT BACKEND
+    DEFERRED**, and `TEST-RECEIPT-{booking-reference}`. It writes neither the
+    booking payment status nor a payment row and appears consistently after
+    reload in Booking Details.
+  - Validation: `test:phase-16.6` **55/55**; `test:phase-16.4-supabase` **3/3**;
+    Supabase guardrails **16/16**, configured catalog **3/3**; 16.1 **55/55**,
+    16.2 **55/55**, 16.3 **36/36**; lint and production build green. Details:
     `docs/phase-16.6-booking-confirmation.md`.
 
 - **PHASE 16.7 — BOOKING MANAGEMENT: COMPLETE (38 tests).**

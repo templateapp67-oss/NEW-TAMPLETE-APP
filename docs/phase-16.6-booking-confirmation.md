@@ -1,65 +1,75 @@
-# Phase 16.6 — Booking Confirmation + Mock Receipt (all 5 themes)
+# Phase 16.6 — Real Booking Confirmation + Mock Receipt
 
-> Scope: confirmation and receipt UX only. Razorpay, webhooks, signature
-> verification, payment RPCs, and authoritative payment persistence are
-> intentionally deferred.
+> Scope: authenticated Supabase booking confirmation and receipt UX only.
+> Razorpay, webhooks, signature verification, payment RPCs, and authoritative
+> payment persistence remain intentionally deferred.
 
-## Runtime source audit
+## Real booking authority
 
-The current repository does **not** persist public-site bookings in Supabase.
-The active 16.x demo flow reads its booking-shaped records from the existing
-browser store in `siteBookingPayment.ts`. Phase 16.6 therefore marks that
-provenance as `browser_demo` and displays **DEMO BOOKING DATA**. A future
-Supabase-backed projection can set `bookingSource: 'supabase'` without changing
-the receipt UI.
+Configured builds use the Phase 16.1–16.4 Supabase path:
 
-Phase 16.6 never writes a booking or payment. Existing customer, tenant, and
-theme filtering remains in `readBookingConfirmation`; unknown, foreign-customer,
-foreign-salon, and foreign-theme references remain inaccessible.
+1. `SiteBookingFullFlow` loads the authenticated customer's details and the
+   active salon's real service catalog.
+2. Summary submission calls `createSupabaseBooking()`.
+3. The database RPC derives customer identity from `auth.uid()`, validates the
+   salon/services, prices and duration server-side, creates the booking and
+   `booking_items`, and returns the persisted row and items.
+4. `supabaseBookingToPaymentRecord()` maps that authorized response without
+   changing its identity. `booking_number` is used when present; otherwise the
+   persisted booking UUID is the canonical reference.
+5. `SiteBookingConfirmation` renders that returned record with
+   `bookingSource: 'supabase'` and state **Booking saved**.
+
+No second booking or confirmation identifier is generated. Booking creation is
+independent from the intentionally deferred payment backend.
+
+## Refresh, My Bookings, and direct Booking Details
+
+`readMySupabaseBookings()` and `readMySupabaseBookingByReference()` reload
+`bookings` with nested `booking_items`. Every read requires an authenticated
+session and is constrained by salon plus `customer_user_id = user.id`, in
+addition to database RLS. A foreign or missing reference returns not-found and
+never falls back to localStorage in configured builds.
+
+The reloaded record preserves the booking reference, salon, service snapshots,
+category context, date/time, duration, authenticated customer details, and
+booking status. Confirmation and receipt projections are read-only.
 
 ## Explicit mock payment layer
 
-`mockPaymentForConfirmation()` is a pure, read-only Phase 16.6 presentation
-projection:
+`mockPaymentForConfirmation()` is a pure Phase 16.6 display projection:
 
 - status: `TEST / MOCK — PAYMENT BACKEND DEFERRED`
-- total: booking snapshot total
+- total: persisted booking total
 - test advance: `round(total × 25%)`
 - test remaining: `total − test advance`
 - receipt reference: `TEST-RECEIPT-{booking-reference}`
 
-The confirmation and downloaded receipt both say that no Razorpay payment was
-made, no real payment record was created, and the receipt is not proof of
-payment. Simulated gateway references and simulated `paid` status are never
-shown as real payment evidence in the Phase 16.6 panel.
+The UI and downloaded receipt state that no Razorpay payment occurred and the
+receipt is not proof of payment. These values never update the booking payment
+status, write `public.payments`, or create a local authoritative payment row.
+The same mock disclosure and math appear on the initial confirmation and on
+Booking Details after a Supabase reload.
 
-## Confirmation and receipt fields
+## Unconfigured development fallback
 
-The responsive shared panel displays:
+Legacy unconfigured tests retain the existing browser demo flow. Its projection
+is explicitly marked `browser_demo` and the screen displays **DEMO BOOKING
+DATA**. It is never presented as Supabase authority.
 
-- booking reference and booking status (kept separate from mock payment status)
-- salon name, address, phone, and email when present
-- service names and categories
-- appointment date, start/end time, duration, and staff preference
-- customer name, mobile, and email when present
-- total, test 25% advance, test remaining, mock status, and safe test receipt
-  reference
+## Validation
 
-The same panel is available in the flow and booking history. Refresh/remount
-reconstructs the mock presentation from the booking view; it creates no payment
-row and changes no payment status.
-
-## Files
-
-- `src/lib/siteBookingConfirmation.ts` — source provenance plus pure mock
-  payment/receipt projection.
-- `src/lib/siteBookingConfirmationI18n.ts` — EN/HI demo and mock disclosures.
-- `src/components/SiteBookingConfirmation.tsx` — responsive confirmation,
-  customer/salon/category details, mock payment card, and receipt.
-- `scripts/test-phase-16.6.mjs` — mock labeling, 25% math, safe test reference,
-  privacy, refresh/remount, and no-write checks.
+- `test:phase-16.4-supabase`: authenticated details, validation, one RPC under
+  double-click, safe failure/retry, real returned reference and confirmation.
+- `test:supabase-booking`: server-derived identity/catalog/money guardrails,
+  nested booking-item reads, direct-reference authorization, and no local
+  authority in configured mode.
+- `test:phase-16.6`: real Supabase provenance/reference state plus mock 25%
+  receipt behavior, responsive UI, privacy, EN/HI, and no writes.
+- Phase 16.1–16.3 legacy regression suites, typecheck, and production build.
 
 ## Database and payment changes
 
-None. No migration, RPC, Supabase payment write, Razorpay integration, webhook,
-or signature-verification work is part of Phase 16.6.
+This Phase 16.6 integration adds no new database or payment change. It consumes
+the merged Phase 16.1–16.4 Supabase booking foundation and keeps payment fully
+mock/deferred.

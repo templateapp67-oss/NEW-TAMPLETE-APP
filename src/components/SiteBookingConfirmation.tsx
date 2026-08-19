@@ -9,10 +9,10 @@
  *     `SiteMyBookings`), so a customer can re-open the same summary /
  *     receipt at any time.
  *
- * Booking details are READ from the supplied booking view. The current
- * browser-only source is explicitly labelled DEMO BOOKING DATA. Payment is a
- * separate Phase 16.6-only presentation projection, visibly labelled TEST /
- * MOCK PAYMENT; it never writes payment state and is never proof of payment.
+ * Booking details are READ from the supplied authorized view. Configured
+ * builds use Supabase; the unconfigured browser fallback is explicitly marked
+ * DEMO BOOKING DATA. Payment is a separate Phase 16.6-only projection visibly
+ * labelled TEST / MOCK PAYMENT; it never writes payment state.
  *
  * Theming: the panel uses the existing per-theme payment surfaces (which
  * extend the 10.6 booking surfaces), so it inherits each theme's identity
@@ -90,6 +90,7 @@ export function confirmationStateColors(
   s: PaymentFlowSurface,
 ): { fg: string; bg: string; border: string } {
   switch (state) {
+    case 'booking_created':
     case 'confirmed':
     case 'completed':
       return { fg: s.success, bg: s.successSoft, border: s.success };
@@ -103,7 +104,7 @@ export function confirmationStateColors(
 }
 
 function stateIcon(state: BookingConfirmationState, color: string): ReactNode {
-  if (state === 'confirmed' || state === 'completed') {
+  if (state === 'booking_created' || state === 'confirmed' || state === 'completed') {
     return <CheckCircle2 className="w-8 h-8" style={{ color }} />;
   }
   if (state === 'payment_pending') return <Hourglass className="w-8 h-8" style={{ color }} />;
@@ -140,7 +141,7 @@ export default function SiteBookingConfirmation({
   const mockPayment = useMemo(() => mockPaymentForConfirmation(view), [view]);
   const serviceCategories = useMemo(() => {
     const categories = view.services
-      .map((line) => data.services?.find((service) => service.id === line.serviceId)?.category)
+      .map((line) => line.category || data.services?.find((service) => service.id === line.serviceId)?.category)
       .filter((category): category is string => Boolean(category));
     return [...new Set(categories)];
   }, [data.services, view.services]);
@@ -198,6 +199,7 @@ export default function SiteBookingConfirmation({
       data-theme={themeId}
       data-appearance={appearance}
       data-locale={locale}
+      data-booking-source={view.bookingSource}
       data-payment-mode="mock"
       className="flex flex-col gap-3 w-full"
     >
@@ -321,10 +323,37 @@ export default function SiteBookingConfirmation({
         )}
         <DetailRow
           s={s}
+          testid="booking-confirmation-customer"
+          icon={<User className="w-3.5 h-3.5" />}
+          label={T['field.customer']}
+          value={view.customer.name}
+        />
+        {view.customer.mobile && (
+          <DetailRow
+            s={s}
+            testid="booking-confirmation-customer-mobile"
+            icon={<Phone className="w-3.5 h-3.5" />}
+            label={T['field.mobile']}
+            value={view.customer.mobile}
+          />
+        )}
+        {view.customer.email && (
+          <DetailRow
+            s={s}
+            testid="booking-confirmation-customer-email"
+            icon={<Mail className="w-3.5 h-3.5" />}
+            label={T['field.email']}
+            value={view.customer.email}
+          />
+        )}
+        <DetailRow
+          s={s}
           testid="booking-confirmation-services"
           icon={<Sparkles className="w-3.5 h-3.5" />}
           label={T['field.services']}
-          value={view.serviceNames.join(' + ')}
+          value={view.services.map((service) =>
+            service.category ? `${service.serviceName} · ${service.category}` : service.serviceName
+          ).join(' + ')}
         />
         {serviceCategories.length > 0 && (
           <DetailRow
@@ -363,29 +392,6 @@ export default function SiteBookingConfirmation({
           label={T['field.duration']}
           value={`${view.durationMinutes} ${T['common.minutes']}`}
         />
-        <DetailRow
-          s={s}
-          testid="booking-confirmation-customer"
-          icon={<User className="w-3.5 h-3.5" />}
-          label={T['field.customer']}
-          value={view.customer.name}
-        />
-        <DetailRow
-          s={s}
-          testid="booking-confirmation-mobile"
-          icon={<Phone className="w-3.5 h-3.5" />}
-          label={T['field.mobile']}
-          value={view.customer.mobile}
-        />
-        {view.customer.email && (
-          <DetailRow
-            s={s}
-            testid="booking-confirmation-email"
-            icon={<Mail className="w-3.5 h-3.5" />}
-            label={T['field.email']}
-            value={view.customer.email}
-          />
-        )}
         <DetailRow
           s={s}
           testid="booking-confirmation-total"
@@ -429,7 +435,7 @@ export default function SiteBookingConfirmation({
           testid="booking-confirmation-status"
           icon={<CheckCircle2 className="w-3.5 h-3.5" />}
           label={T['field.status']}
-          value={T[`state.${view.state}` as keyof typeof T]}
+          value={view.bookingStatus.replace(/_/g, ' ')}
           valueColor={colors.fg}
         />
       </div>

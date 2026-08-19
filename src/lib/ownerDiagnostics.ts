@@ -24,7 +24,7 @@
  *     report, no bypass.
  *   - job_salon_members is never consulted.
  */
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { supabase, isSupabaseConfigured, supabaseConfiguration } from './supabaseClient';
 import {
   OWNER_SALON_IDS_FN,
   ORG_MEMBERS_TABLE,
@@ -36,6 +36,7 @@ import type { OwnerSalonResolution } from './ownerSalon';
 export interface DiagnosticsError {
   code?: string;
   message?: string;
+  kind?: 'configuration' | 'authentication' | 'permission' | 'network' | 'database';
 }
 
 export interface DiagnosticsAuthStep {
@@ -105,18 +106,26 @@ export interface OwnerResolutionDiagnosticsReport {
   verdict: { code: string; summary: string };
 }
 
-function asError(err: unknown): DiagnosticsError | null {
+function asError(
+  err: unknown,
+  fallbackKind: NonNullable<DiagnosticsError['kind']> = 'database',
+): DiagnosticsError | null {
   if (!err) return null;
   const candidate = err as { code?: unknown; message?: unknown };
-  return {
-    code: typeof candidate.code === 'string' ? candidate.code : undefined,
-    message:
-      typeof candidate.message === 'string'
-        ? candidate.message
-        : typeof err === 'string'
-          ? err
-          : 'Unknown error',
-  };
+  const code = typeof candidate.code === 'string' ? candidate.code : undefined;
+  const message =
+    typeof candidate.message === 'string'
+      ? candidate.message
+      : typeof err === 'string'
+        ? err
+        : 'Unknown error';
+  const kind: NonNullable<DiagnosticsError['kind']> =
+    code === '42501' || code === 'PGRST301' || /permission denied|row-level security/i.test(message)
+      ? 'permission'
+      : /fetch|network|offline|connection|timeout|socket|dns/i.test(message)
+        ? 'network'
+        : fallbackKind;
+  return { code, message, kind };
 }
 
 function firstString(value: unknown): string {
@@ -141,14 +150,9 @@ function normalizeHelperResult(data: unknown): string[] {
   return Array.from(ids);
 }
 
-/** The URL host only — the anon key is never included in a report. */
+/** The configured URL host only — the anon key and full URL are never reported. */
 function supabaseUrlHost(): string | null {
-  if (!isSupabaseConfigured || !supabase) return null;
-  try {
-    return new URL((supabase as unknown as { supabaseUrl?: string }).supabaseUrl ?? '').host;
-  } catch {
-    return null;
-  }
+  return isSupabaseConfigured && supabase ? supabaseConfiguration.host : null;
 }
 
 async function readAuthStep(): Promise<DiagnosticsAuthStep> {
@@ -161,7 +165,7 @@ async function readAuthStep(): Promise<DiagnosticsAuthStep> {
     error: null,
   };
   if (!supabase) {
-    step.error = { message: 'Supabase client is null (not configured)' };
+    step.error = { kind: 'configuration', message: 'Supabase client is null (not configured)' };
     return step;
   }
   try {
@@ -171,17 +175,17 @@ async function readAuthStep(): Promise<DiagnosticsAuthStep> {
     step.userId = data.user?.id ?? null;
     step.email = data.user?.email ?? null;
   } catch (err) {
-    step.error = asError(err);
+    step.error = asError(err, 'authentication');
   }
   try {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
     step.getSessionOk = true;
     step.sessionPresent = Boolean(data.session);
-    if (!step.userId) step.userId = data.session?.user?.id ?? null;
-    if (!step.email) step.email = data.session?.user?.email ?? null;
+    // Deliberately do not derive the diagnostic user identity from the cached
+    // session. `getUser()` is the authoritative validation boundary.
   } catch (err) {
-    if (!step.error) step.error = asError(err);
+    if (!step.error) step.error = asError(err, 'authentication');
   }
   return step;
 }
@@ -373,9 +377,14 @@ function classifyDiagnostics(
     };
   }
   if (!report.auth.userId || !report.auth.sessionPresent) {
+    const errorKind = report.auth.error?.kind;
     return {
-      code: 'not-authenticated',
-      summary: `No authenticated session: getUser=${report.auth.getUserOk}, getSession=${report.auth.getSessionOk}, sessionPresent=${report.auth.sessionPresent}${report.auth.error ? `, last auth error: ${report.auth.error.code ?? ''} ${report.auth.error.message ?? ''}`.trim() : ''}.`,
+      code: errorKind === 'network'
+        ? 'auth-network-error'
+        : errorKind === 'authentication'
+          ? 'auth-validation-error'
+          : 'not-authenticated',
+      summary: `No validated authenticated session: getUser=${report.auth.getUserOk}, getSession=${report.auth.getSessionOk}, sessionPresent=${report.auth.sessionPresent}${report.auth.error ? `, last auth error (${report.auth.error.kind ?? 'unknown'}): ${report.auth.error.code ?? ''} ${report.auth.error.message ?? ''}`.trim() : ''}.`,
     };
   }
 
@@ -391,10 +400,15 @@ function classifyDiagnostics(
   }
 
   if (report.membership.status === 'error') {
+    const kind = report.membership.error?.kind;
     return {
-      code: 'membership-error',
+      code: kind === 'permission'
+        ? 'membership-permission-denied'
+        : kind === 'network'
+          ? 'membership-network-error'
+          : 'membership-database-error',
       summary: [
-        `organization_members read FAILED: ${report.membership.error?.code ?? ''} ${report.membership.error?.message ?? ''}`.trim(),
+        `organization_members read FAILED (${kind ?? 'database'}): ${report.membership.error?.code ?? ''} ${report.membership.error?.message ?? ''}`.trim(),
         ...notes,
       ].join(' | '),
     };
@@ -425,9 +439,14 @@ function classifyDiagnostics(
 
   const orgIds = report.membership.organizationIds.join(', ') || '(none)';
   if (report.salons.status === 'error') {
+    const kind = report.salons.error?.kind;
     return {
-      code: 'salons-error',
-      summary: `organization_members resolved organization(s) ${orgIds}, but the salons read FAILED: ${report.salons.error?.code ?? ''} ${report.salons.error?.message ?? ''}`.trim(),
+      code: kind === 'permission'
+        ? 'salons-permission-denied'
+        : kind === 'network'
+          ? 'salons-network-error'
+          : 'salons-database-error',
+      summary: `organization_members resolved organization(s) ${orgIds}, but the salons read FAILED (${kind ?? 'database'}): ${report.salons.error?.code ?? ''} ${report.salons.error?.message ?? ''}`.trim(),
     };
   }
   if (report.salons.rows.length === 0) {

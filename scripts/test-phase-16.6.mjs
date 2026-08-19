@@ -379,6 +379,33 @@ section('View — every required field read from the existing record');
     const again = toBookingConfirmation(paymentRecord({ bookingId: 'NX-12345' }));
     assert.equal(again.reference, view.reference, 'projection must be stable');
   });
+
+  await test('a Supabase booking is confirmed as saved independently from mock payment', () => {
+    resetState();
+    const record = paymentRecord({
+      id: '11111111-1111-4111-8111-111111111111',
+      bookingId: 'LIVE-1660',
+      persistence: 'supabase',
+      bookingStatus: 'pending_payment',
+      paymentStatus: 'unpaid',
+      baseAmount: 1000,
+      amountDue: 0,
+      remainingAmount: 1000,
+    });
+    const view = toBookingConfirmation(record);
+    assert.equal(view.bookingSource, 'supabase');
+    assert.equal(view.reference, 'LIVE-1660');
+    assert.equal(view.state, 'booking_created');
+    const utils = renderConfirmationPanel('beauty_skin_spa', view);
+    const root = utils.getByTestId('booking-confirmation');
+    assert.equal(root.dataset.bookingSource, 'supabase');
+    assert.equal(utils.queryByTestId('booking-confirmation-demo-booking'), null);
+    assert.ok(utils.getByTestId('booking-confirmation-reference').textContent.includes('LIVE-1660'));
+    assert.ok(utils.getByTestId('booking-confirmation-payment-status').textContent.includes('TEST / MOCK'));
+    assert.ok(utils.getByTestId('booking-confirmation-advance').textContent.includes('₹250'));
+    assert.ok(utils.getByTestId('booking-confirmation-remaining').textContent.includes('₹750'));
+    cleanup();
+  });
 }
 
 /* ================================================================== */

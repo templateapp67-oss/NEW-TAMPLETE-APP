@@ -81,7 +81,7 @@ interface Props {
    * summary Confirm button keeps its 10.6 "next phase" toast behaviour.
    */
   onProceedToPayment?: (payload: {
-    service: { id: string };
+    service: Pick<Service, 'id' | 'businessId'>;
     /** PHASE 16.5 — every selected line (offer-aware price + duration). */
     serviceLines: Array<{ serviceId: string; serviceName: string; price: number; durationMinutes: number }>;
     dateKey: string;
@@ -97,6 +97,8 @@ interface Props {
    * Falls back to the normal start when the draft can't support a summary.
    */
   resumeAtSummary?: boolean;
+  /** Phase 16.4 authenticated Supabase profile/contact prefill. */
+  authenticatedCustomer?: { name: string; mobile: string; email: string; emailReadOnly?: boolean };
 }
 
 /* ------------------------------------------------------------------ */
@@ -244,7 +246,15 @@ const FLOW_DESIGNS: Record<SiteHeaderThemeId, FlowDesign> = {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
-export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShowToast, onProceedToPayment, resumeAtSummary }: Props) {
+export default function SiteBookingFlow({
+  themeId,
+  data,
+  onBackToWebsite,
+  onShowToast,
+  onProceedToPayment,
+  resumeAtSummary,
+  authenticatedCustomer,
+}: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const now = useTickingNow(30_000);
@@ -280,6 +290,12 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   // and the flow opens on the service step. A plain open starts on `salon`.
   // PHASE 16.5 — backing out of the payment flow lands on the summary with
   // the draft-restored selection (only when the draft actually reached it).
+  // In configured Phase 16.4 builds, browser-draft identity never authorizes a
+  // summary: the current authenticated profile/contact must still be valid.
+  const resumeCustomer = authenticatedCustomer
+    ? { ...authenticatedCustomer, notes: initialDraft?.customer?.notes || '' }
+    : initialDraft?.customer;
+  const resumeCustomerErrors = resumeCustomer ? validateBookingCustomer(resumeCustomer) : { name: true, mobile: true };
   const resumeSummaryValid = Boolean(
     resumeAtSummary
     && !initialPrefill
@@ -287,8 +303,9 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
     && initialDraft.status === 'summary_ready'
     && initialDraft.dateKey
     && initialDraft.startMinutes != null
-    && initialDraft.customer?.name
-    && initialDraft.customer?.mobile,
+    && !resumeCustomerErrors.name
+    && !resumeCustomerErrors.mobile
+    && !resumeCustomerErrors.email,
   );
   const [step, setStep] = useState<BookingStepId>(
     resumeSummaryValid ? 'summary' : initialPrefill ? 'service' : 'salon',
@@ -316,9 +333,15 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   );
   const [holdKey, setHoldKey] = useState<string | null>(null);
   const [holdsVersion, setHoldsVersion] = useState(0);
-  const [customer, setCustomer] = useState(
-    () => initialDraft?.customer ?? { name: '', mobile: '', email: '', notes: '' },
-  );
+  const [customer, setCustomer] = useState(() => authenticatedCustomer
+    ? {
+        name: authenticatedCustomer.name,
+        mobile: authenticatedCustomer.mobile,
+        email: authenticatedCustomer.email,
+        // Notes remain temporary draft content; identity/contact never do.
+        notes: initialDraft?.customer?.notes || '',
+      }
+    : initialDraft?.customer ?? { name: '', mobile: '', email: '', notes: '' });
   const [formTouched, setFormTouched] = useState(false);
   // PHASE 16.9 — per-field touch so validation messages appear as soon as
   // the visitor leaves an invalid field (the Continue button stays gated
@@ -332,7 +355,12 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
   const showFieldError = (field: 'name' | 'mobile' | 'email'): boolean =>
     formTouched || touchedFields[field];
   const draftResumed = !initialPrefill && !!initialDraft
-    && !!(initialDraft.serviceId || initialDraft.services?.length || initialDraft.customer?.name || initialDraft.customer?.mobile);
+    && !!(
+      initialDraft.serviceId
+      || initialDraft.services?.length
+      || (!authenticatedCustomer && (initialDraft.customer?.name || initialDraft.customer?.mobile))
+      || initialDraft.customer?.notes
+    );
 
   /* PHASE 16.9 — navigation lock: set by every step transition, cleared
    * once the new step has rendered (see the effect below). Guards against
@@ -1471,6 +1499,8 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                     <input
                       type="text"
                       data-testid="booking-input-name"
+                      autoComplete="name"
+                      maxLength={100}
                       value={customer.name}
                       onChange={(e) => setCustomer((c) => ({ ...c, name: e.target.value }))}
                       onBlur={() => setTouchedFields((t) => ({ ...t, name: true }))}
@@ -1501,6 +1531,8 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                         type="tel"
                         inputMode="numeric"
                         data-testid="booking-input-mobile"
+                        autoComplete="tel"
+                        maxLength={32}
                         value={customer.mobile}
                         onChange={(e) => setCustomer((c) => ({ ...c, mobile: e.target.value }))}
                         onBlur={() => setTouchedFields((t) => ({ ...t, mobile: true }))}
@@ -1531,6 +1563,10 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                       <input
                         type="email"
                         data-testid="booking-input-email"
+                        autoComplete="email"
+                        maxLength={254}
+                        readOnly={Boolean(authenticatedCustomer?.emailReadOnly)}
+                        aria-readonly={Boolean(authenticatedCustomer?.emailReadOnly)}
                         value={customer.email}
                         onChange={(e) => setCustomer((c) => ({ ...c, email: e.target.value }))}
                         onBlur={() => setTouchedFields((t) => ({ ...t, email: true }))}
@@ -1561,6 +1597,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                       <textarea
                         rows={3}
                         data-testid="booking-input-notes"
+                        maxLength={1000}
                         value={customer.notes}
                         onChange={(e) => setCustomer((c) => ({ ...c, notes: e.target.value }))}
                         placeholder={T['details.notesPlaceholder']}
@@ -1775,7 +1812,7 @@ export default function SiteBookingFlow({ themeId, data, onBackToWebsite, onShow
                 && selectedService && selectedDateKey && selectedSlotMinutes != null
               ) {
                 onProceedToPayment({
-                  service: { id: selectedService.id },
+                  service: { id: selectedService.id, businessId: selectedService.businessId },
                   serviceLines: selection.lines.map((line) => ({
                     serviceId: line.service.id,
                     serviceName: line.service.name,

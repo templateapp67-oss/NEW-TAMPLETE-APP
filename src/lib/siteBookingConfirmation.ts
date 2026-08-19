@@ -1,20 +1,17 @@
 /**
- * PHASE 16.6 — BOOKING CONFIRMATION · derivation layer over the EXISTING
- * booking/payment record store.
+ * PHASE 16.6 — BOOKING CONFIRMATION · pure projection layer over an
+ * authorized booking/payment record.
  *
  * There is still exactly ONE booking architecture. This module does NOT
- * create bookings, tables, columns, ids or payment rows — it only READS the
- * records the Phase 10.7 / 16.5 browser demo engine persists
- * (`siteBookingPayment.ts`) and derives the confirmation view a customer
- * is allowed to see. Source provenance remains explicit (`browser_demo`),
- * while Phase 16.6's 25% payment figures are a read-only TEST/MOCK display:
+ * create bookings, tables, columns, ids or payment rows. Configured builds
+ * supply authorized records from Supabase booking/item reads; unconfigured
+ * legacy tests may supply the browser demo shape. Source provenance remains
+ * explicit, while Phase 16.6's 25% figures are a read-only TEST/MOCK display:
  *
- *   - **Booking reference** = the EXISTING `PaymentRecord.bookingId`
- *     produced by the existing `generateBookingId()` (`NX-#####`). Never
- *     invented, never hardcoded here.
- *   - **Money** = the EXISTING 16.5 money snapshot, read through the
- *     SAME rule the 16.7 management layer uses (`bookingMoney`) so total /
- *     advance paid / remaining can never disagree between screens.
+ *   - **Booking reference** = the existing record's `bookingId` (the live
+ *     database booking number/UUID in configured builds). Never invented here.
+ *   - **Money** = the authorized record's money snapshot, read through the
+ *     same `bookingMoney` rule so total / paid / remaining stay consistent.
  *   - **State** = derived strictly from the persisted booking + payment
  *     status pair. A booking is reported `confirmed` ONLY when the
  *     required payment actually succeeded (`paymentStatus === 'paid'`) or
@@ -33,9 +30,8 @@
  *     creating a second row when the visitor refreshes, retries or comes
  *     back to the confirmation screen.
  *
- * When the drafted M08/M09 schema is eventually applied, `bookings` /
- * `payments` become the source of these same fields — the shape here
- * mirrors those columns so the swap changes the source, not the screens.
+ * Supabase-backed records remain read-only in this layer. Mock payment state
+ * is never promoted into a configured confirmation.
  */
 import { bookingBrowserId } from './siteBookingFlow';
 import { bookingMoney, bookingServiceNames } from './bookingManagement';
@@ -59,6 +55,7 @@ import type { AppLocale } from './locale';
  * existing terminal `completed` state owned by the 16.7 status machine.
  */
 export type BookingConfirmationState =
+  | 'booking_created'
   | 'confirmed'
   | 'payment_pending'
   | 'payment_failed'
@@ -66,6 +63,7 @@ export type BookingConfirmationState =
   | 'completed';
 
 export const BOOKING_CONFIRMATION_STATES: BookingConfirmationState[] = [
+  'booking_created',
   'confirmed',
   'payment_pending',
   'payment_failed',
@@ -82,12 +80,15 @@ export const BOOKING_CONFIRMATION_STATES: BookingConfirmationState[] = [
  * is pending, failed or cancelled.
  */
 export function bookingConfirmationState(
-  record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus'>,
+  record: Pick<PaymentRecord, 'bookingStatus' | 'paymentStatus'> & Partial<Pick<PaymentRecord, 'persistence'>>,
 ): BookingConfirmationState {
   const { bookingStatus, paymentStatus } = record;
   if (bookingStatus === 'cancelled' || paymentStatus === 'cancelled') return 'cancelled';
   if (bookingStatus === 'failed' || paymentStatus === 'failed') return 'payment_failed';
   if (bookingStatus === 'completed') return 'completed';
+  // A customer-authorized Supabase row proves that the booking was created,
+  // independently of the intentionally deferred payment backend.
+  if (record.persistence === 'supabase') return 'booking_created';
   if (bookingStatus === 'pay_at_salon') return 'confirmed';
   if (bookingStatus === 'confirmed') {
     // Never claim a confirmation the payment did not earn.
@@ -208,7 +209,7 @@ export function bookingServiceLines(record: PaymentRecord): PaymentServiceLine[]
 export function toBookingConfirmation(record: PaymentRecord): BookingConfirmationView {
   const money = bookingMoney(record);
   return {
-    bookingSource: 'browser_demo',
+    bookingSource: record.persistence === 'supabase' ? 'supabase' : 'browser_demo',
     reference: record.bookingId,
     recordId: record.id,
     state: bookingConfirmationState(record),
@@ -358,7 +359,9 @@ export function bookingConfirmationReceiptText(
   lines.push(`${T['field.status']}: ${T[`state.${view.state}`] || view.state}`);
   lines.push('');
   lines.push(`${T['field.salon']}: ${salonName}`);
-  lines.push(`${T['field.services']}: ${view.serviceNames.join(' + ')}`);
+  lines.push(`${T['field.services']}: ${view.services.map((service) =>
+    service.category ? `${service.serviceName} (${service.category})` : service.serviceName
+  ).join(' + ')}`);
   lines.push(`${T['field.date']}: ${view.dateKey}`);
   lines.push(
     `${T['field.time']}: ${formatMinutesLabel(view.startMinutes, locale)} – ${formatMinutesLabel(view.endMinutes, locale)}`,

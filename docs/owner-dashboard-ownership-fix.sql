@@ -1,101 +1,86 @@
 -- =====================================================================
--- Nexora — Owner Dashboard: restore owner→salon resolution (LIVE fix)
+-- Nexora — Owner Dashboard: minimum live ownership/RLS correction
 -- =====================================================================
--- Run MANUALLY in the Supabase SQL editor. The application never executes
--- any statement in this file.
+-- Run MANUALLY in the Supabase SQL editor with a database-owner account.
+-- The browser application must never execute this SQL and must never receive
+-- a service-role key or database password.
 --
--- WHY THIS EXISTS
--- ---------------
--- The Owner Dashboard resolves the signed-in owner's salon through the
--- project's EXISTING ownership model:
+-- Existing relationship only:
+--   auth.uid()
+--     -> public.organization_members.user_id (owner, active)
+--     -> organization_members.organization_id
+--     -> public.salons.organization_id
+--     -> public.salons.id (deleted_at is null)
 --
---     auth.users.id
---       -> public.organization_members.user_id   (role='owner', status='active')
---       -> organization_members.organization_id
---       -> public.salons.organization_id
---       -> public.salons.id                      (deleted_at is null)
+-- This correction is intentionally narrow:
+--   * no tables, columns, users, memberships, salons or fake rows are created;
+--   * job_salon_members is never read or changed;
+--   * RLS is never disabled;
+--   * authenticated users may read only their own membership rows;
+--   * owner salon reads are restricted to ids returned by the session-derived
+--     helper; private salon columns remain ungranted;
+--   * the helper is created only when absent, never silently replaced.
 --
--- When public.organization_members is NOT readable through PostgREST for
--- the authenticated role (RLS with no readable policy returns ZERO rows
--- with NO error), the app cannot distinguish "table hidden by RLS" from
--- "account has no membership". The frontend fix (src/lib/ownerSalon.ts)
--- now reports that case honestly as UNVERIFIABLE instead of a false
--- "Your account is not linked to a salon." — but the dashboard can only
--- actually RENDER the owner's salon when the database exposes the
--- ownership chain. This file is the minimum server-side correction for
--- that, using ONLY existing tables and the documented relationship.
---
--- WHAT THIS FILE DOES (all conditional / idempotent)
--- --------------------------------------------------
---   1. Ensures the EXISTING ownership helper public.nexora_owner_salon_ids()
---      exists — created ONLY when missing — with the exact join already
---      documented in docs/owner-location-setup.sql. It is SECURITY DEFINER,
---      so it reads past RLS and gives the app an authoritative answer even
---      when direct table reads are hidden.
---   2. Grants execute to authenticated (the role the app uses).
---   3. Adds the minimum column SELECT grant and an OWN-ROWS-ONLY policy on
---      organization_members so the app's two-query fallback also works.
---
--- WHAT THIS FILE DOES NOT DO
--- --------------------------
---   - No new tables, no fake membership/salon/user rows, no column changes.
---   - Never touches job_salon_members (staff relation, not ownership).
---   - Never disables RLS and never weakens an existing policy.
---   - Does not apply the M01–M27 draft migrations.
---
+-- Apply only after confirming organization_members and salons are the live
+-- canonical tables. Re-run the application's strict live probe afterwards.
 -- =====================================================================
 
+begin;
+
 -- ---------------------------------------------------------------------
--- STEP 1 — Ownership helper (create ONLY if missing; never overwrite an
---          existing helper the live project already relies on).
+-- 1. Session-derived helper. A SECURITY DEFINER helper is required because
+--    PostgREST cannot distinguish an RLS-hidden membership from no membership.
+--    Distinct dollar tags are deliberate: this block is valid PL/pgSQL.
 -- ---------------------------------------------------------------------
-do $$
+do $do$
 begin
   if not exists (
-    select 1 from pg_proc p
+    select 1
+    from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'nexora_owner_salon_ids'
+    where n.nspname = 'public'
+      and p.proname = 'nexora_owner_salon_ids'
+      and pg_get_function_identity_arguments(p.oid) = ''
   ) then
     create function public.nexora_owner_salon_ids()
     returns uuid[]
     language sql
     stable
     security definer
-    set search_path = public
-    as $$
-      select coalesce(array_agg(s.id), '{}'::uuid[])
+    set search_path = public, pg_temp
+    as $function$
+      select coalesce(array_agg(distinct s.id order by s.id), '{}'::uuid[])
       from public.salons s
       join public.organization_members m
         on m.organization_id = s.organization_id
       where m.user_id = auth.uid()
-        and m.role   = 'owner'
-        and m.status = 'active'
+        and lower(m.role::text) in ('owner', 'owner_admin')
+        and lower(coalesce(m.status::text, 'active')) = 'active'
         and s.deleted_at is null
-    $$;
+    $function$;
   end if;
-end $$;
+end
+$do$;
 
+-- PostgreSQL grants function execution to PUBLIC by default. Remove that
+-- default and expose this session-derived helper only to authenticated users.
+revoke all on function public.nexora_owner_salon_ids() from public;
+revoke all on function public.nexora_owner_salon_ids() from anon;
 grant execute on function public.nexora_owner_salon_ids() to authenticated;
 
 -- ---------------------------------------------------------------------
--- STEP 2 — Minimum read grant on the EXISTING membership table.
---          (Columns the ownership chain reads: id, organization_id,
---           user_id, role, status. Existing columns only.)
+-- 2. Direct fallback: own membership rows only.
 -- ---------------------------------------------------------------------
 grant select (id, organization_id, user_id, role, status)
   on public.organization_members to authenticated;
 
--- ---------------------------------------------------------------------
--- STEP 3 — Own-rows SELECT policy (create ONLY if missing). A user can
---          only ever read THEIR OWN membership rows; permissive policies
---          OR together, so an existing policy is never replaced.
--- ---------------------------------------------------------------------
-do $$
+do $do$
 begin
   if not exists (
-    select 1 from pg_policies
+    select 1
+    from pg_policies
     where schemaname = 'public'
-      and tablename  = 'organization_members'
+      and tablename = 'organization_members'
       and policyname = 'organization_members_own_select'
   ) then
     create policy organization_members_own_select
@@ -104,18 +89,62 @@ begin
       to authenticated
       using (user_id = auth.uid());
   end if;
-end $$;
+end
+$do$;
 
 -- ---------------------------------------------------------------------
--- STEP 4 — Verify (run while signed in AS the owner):
---
---   select nexora_owner_salon_ids();
---
---   * Exactly one uuid  -> the Owner Dashboard now renders that salon.
---   * More than one     -> resolution stays AMBIGUOUS by design; the
---                          owner must be linked to exactly one salon.
---   * '{}' (empty)      -> the account genuinely has no active owner
---                          membership. Do NOT insert fake rows — fix the
---                          real membership instead, exactly as described
---                          in docs/owner-location-setup.sql STEP 3.
+-- 3. Minimum owner-dashboard salon read. Only columns already consumed by
+--    ownerDashboard.ts are granted. RLS still restricts rows to the helper's
+--    session-derived salon ids.
 -- ---------------------------------------------------------------------
+grant select (
+  id,
+  organization_id,
+  name,
+  slug,
+  address,
+  city,
+  is_active,
+  deleted_at
+) on public.salons to authenticated;
+
+do $do$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'salons'
+      and policyname = 'salons_owner_dashboard_select'
+  ) then
+    create policy salons_owner_dashboard_select
+      on public.salons
+      for select
+      to authenticated
+      using (
+        deleted_at is null
+        and exists (
+          select 1
+          from public.organization_members m
+          where m.organization_id = salons.organization_id
+            and m.user_id = auth.uid()
+            and lower(m.role::text) in ('owner', 'owner_admin')
+            and lower(coalesce(m.status::text, 'active')) = 'active'
+        )
+      );
+  end if;
+end
+$do$;
+
+commit;
+
+-- =====================================================================
+-- Verification — run through the authenticated application session, not as
+-- the SQL-editor administrator:
+--
+--   select public.nexora_owner_salon_ids();
+--
+-- Exactly one UUID is required by the current dashboard. An empty result means
+-- the authenticated account has no active owner membership to a non-deleted
+-- salon. Multiple UUIDs remain ambiguous by design. Do not insert fake rows.
+-- =====================================================================

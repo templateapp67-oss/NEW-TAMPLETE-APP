@@ -18,18 +18,21 @@ const EN = {
   'screen.notFound': 'We could not find this booking for your account.',
 
   /* states */
+  'state.booking_created': 'Booking saved',
   'state.confirmed': 'Confirmed',
   'state.payment_pending': 'Payment pending',
   'state.payment_failed': 'Payment failed',
   'state.cancelled': 'Cancelled',
   'state.completed': 'Completed',
 
+  'state.booking_created.headline': 'Your booking was saved',
   'state.confirmed.headline': 'Your booking is confirmed',
   'state.payment_pending.headline': 'Payment pending',
   'state.payment_failed.headline': 'Payment failed',
   'state.cancelled.headline': 'Booking cancelled',
   'state.completed.headline': 'Booking completed',
 
+  'state.booking_created.body': 'This booking is saved in Supabase. Payment remains a separate TEST / MOCK display and has not been marked paid.',
   'state.confirmed.body': 'Your booking flow reached confirmation. The payment figures below are test/mock values only; no real payment is claimed.',
   'state.payment_pending.body': 'This booking is awaiting its production payment flow. The payment figures below remain test/mock only.',
   'state.payment_failed.body': 'The mock payment attempt did not complete. No real payment is claimed and your booking details remain separate.',
@@ -117,18 +120,21 @@ const HI: Record<keyof typeof EN, string> = {
   'screen.notFound': 'आपके खाते के लिए यह बुकिंग नहीं मिली।',
 
   /* states */
+  'state.booking_created': 'बुकिंग सेव हुई',
   'state.confirmed': 'पक्की',
   'state.payment_pending': 'भुगतान लंबित',
   'state.payment_failed': 'भुगतान विफल',
   'state.cancelled': 'रद्द',
   'state.completed': 'पूर्ण',
 
+  'state.booking_created.headline': 'आपकी बुकिंग सेव हो गई है',
   'state.confirmed.headline': 'आपकी बुकिंग पक्की हो गई है',
   'state.payment_pending.headline': 'भुगतान लंबित है',
   'state.payment_failed.headline': 'भुगतान विफल रहा',
   'state.cancelled.headline': 'बुकिंग रद्द हो गई',
   'state.completed.headline': 'बुकिंग पूरी हो गई',
 
+  'state.booking_created.body': 'यह बुकिंग Supabase में सेव है। भुगतान अलग TEST / MOCK प्रदर्शन है और इसे भुगतान हुआ नहीं माना गया है।',
   'state.confirmed.body': 'आपका बुकिंग प्रवाह पुष्टि तक पहुँच गया है। नीचे की भुगतान राशियाँ केवल टेस्ट/मॉक हैं; किसी वास्तविक भुगतान का दावा नहीं है।',
   'state.payment_pending.body': 'यह बुकिंग उत्पादन भुगतान प्रवाह की प्रतीक्षा में है। नीचे की भुगतान राशियाँ केवल टेस्ट/मॉक हैं।',
   'state.payment_failed.body': 'मॉक भुगतान प्रयास पूरा नहीं हुआ। किसी वास्तविक भुगतान का दावा नहीं है और बुकिंग विवरण अलग रहता है।',

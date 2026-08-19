@@ -52,6 +52,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { readAuthenticatedSession } from './useAuth';
 
 /** Existing ownership helper function in the database. */
 export const OWNER_SALON_IDS_FN = 'nexora_owner_salon_ids';
@@ -63,6 +64,8 @@ export type OwnerSalonResolution =
   | { status: 'resolved'; salonId: string }
   | { status: 'not-configured' }
   | { status: 'not-authenticated' }
+  | { status: 'authentication-error' }
+  | { status: 'network-error' }
   | { status: 'no-membership' }
   | { status: 'unverifiable' }
   | { status: 'ambiguous' }
@@ -70,34 +73,22 @@ export type OwnerSalonResolution =
   | { status: 'error' };
 
 /**
- * Authenticated user id from the real session, or null when signed out.
+ * Authenticated user id from a persisted session that Supabase Auth has
+ * validated with `getUser()`, or null when signed out/unreachable.
  *
- * `getUser()` is the authoritative check but needs a live round trip to the
- * auth server; when that call fails transiently (proxied preview hosts,
- * offline sandbox…) the locally-cached session — the SAME session
- * supabase-js attaches to every REST request — is used instead, so a
- * network blip can never masquerade as "signed out".
+ * A locally cached session is not an authorization proof. Database requests
+ * still apply RLS, and ownership resolution fails closed if the session cannot
+ * be validated rather than turning a stale token into an application identity.
  */
 export async function getAuthenticatedUserId(): Promise<string | null> {
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase.auth.getUser();
-    if (!error && data.user?.id) return data.user.id;
-    if (error) console.warn('Owner salon: getUser() failed, falling back to cached session:', error.message);
-  } catch (err) {
-    console.warn('Owner salon: getUser() failed, falling back to cached session:', err);
+  const result = await readAuthenticatedSession();
+  if (result.status === 'authenticated') return result.user.id;
+  if (result.status === 'network-error') {
+    console.warn('Owner salon: authenticated session validation failed because the network is unavailable.');
+  } else if (result.status === 'auth-error') {
+    console.warn('Owner salon: persisted session could not be authenticated.');
   }
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.warn('Owner salon: getSession() failed:', error.message);
-      return null;
-    }
-    return data.session?.user?.id ?? null;
-  } catch (err) {
-    console.warn('Owner salon: getSession() failed:', err);
-    return null;
-  }
+  return null;
 }
 
 interface LookupFailure {
@@ -332,8 +323,12 @@ function classifyFailure(failure: LookupFailure | undefined): FailureKind {
 export async function resolveOwnerSalonId(): Promise<OwnerSalonResolution> {
   if (!isSupabaseConfigured || !supabase) return { status: 'not-configured' };
 
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return { status: 'not-authenticated' };
+  const auth = await readAuthenticatedSession();
+  if (auth.status === 'anonymous') return { status: 'not-authenticated' };
+  if (auth.status === 'configuration-error') return { status: 'not-configured' };
+  if (auth.status === 'network-error') return { status: 'network-error' };
+  if (auth.status === 'auth-error') return { status: 'authentication-error' };
+  const userId = auth.user.id;
 
   const candidates = new Set<string>();
   let worstFailure: FailureKind = null;
@@ -420,6 +415,10 @@ export function ownerSalonMessage(resolution: OwnerSalonResolution): string {
       return 'Shop location is unavailable right now. Please try again later.';
     case 'not-authenticated':
       return 'Please log in to manage your shop.';
+    case 'authentication-error':
+      return 'Your login session could not be verified. Please log in again.';
+    case 'network-error':
+      return 'Unable to reach the authentication service. Check your connection and try again.';
     case 'permission-denied':
       return 'You do not have permission to edit this shop location.';
     case 'ambiguous':

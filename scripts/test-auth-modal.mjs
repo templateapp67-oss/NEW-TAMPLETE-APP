@@ -130,18 +130,18 @@ async function runAllTests() {
     assert.equal(supabase, null, 'supabase client should be null when env is absent');
 
     const signInRes = await signInWithPassword('owner@example.com', 'mypassword');
-    assert.ok(signInRes.error?.includes('Authentication is not configured'), 'signInWithPassword did not return expected error');
+    assert.ok(signInRes.error?.includes('Supabase is not configured'), 'signInWithPassword did not return expected error');
 
     const signUpRes = await signUpWithPassword('owner@example.com', 'mypassword');
-    assert.ok(signUpRes.error?.includes('Authentication is not configured'), 'signUpWithPassword did not return expected error');
+    assert.ok(signUpRes.error?.includes('Supabase is not configured'), 'signUpWithPassword did not return expected error');
     assert.equal(signUpRes.needsConfirmation, false);
   });
 
   // 5. Check that the draft migrations remain intact and unexecuted
   const migrationsDir = 'supabase/migrations';
   const migrationFiles = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql'));
-  await test('All 24 draft migrations exist and are preserved', () => {
-    assert.equal(migrationFiles.length, 24, `Expected 24 migrations, found ${migrationFiles.length}`);
+  await test('All 27 draft migrations exist and are preserved', () => {
+    assert.equal(migrationFiles.length, 27, `Expected 27 migrations, found ${migrationFiles.length}`);
   });
 
   console.log(`\n========================================`);
