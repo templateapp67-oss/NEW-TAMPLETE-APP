@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * Strict Phase 16.2 live service + booking-item proof.
+ * Strict Phase 16.4 authenticated customer + booking-flow proof.
  *
  * Required operator-only environment (keep in an ignored local environment):
  *   VITE_SUPABASE_URL
  *   VITE_SUPABASE_ANON_KEY       public anon/publishable key only
  *   PROBE_CUSTOMER_EMAIL         existing real customer login
  *   PROBE_CUSTOMER_PASSWORD
+ *   PROBE_CUSTOMER_NAME          expected authenticated profile/display name
  *   PROBE_BOOKING_SALON_ID       salon selected in the public booking UI
  *   PROBE_BOOKING_SERVICE_ID     active service selected in that salon
  *   PROBE_BOOKING_THEME_KEY      active public template key
@@ -23,6 +24,7 @@ const required = [
   'VITE_SUPABASE_ANON_KEY',
   'PROBE_CUSTOMER_EMAIL',
   'PROBE_CUSTOMER_PASSWORD',
+  'PROBE_CUSTOMER_NAME',
   'PROBE_BOOKING_SALON_ID',
   'PROBE_BOOKING_SERVICE_ID',
   'PROBE_BOOKING_THEME_KEY',
@@ -38,6 +40,7 @@ const url = process.env.VITE_SUPABASE_URL.trim();
 const key = process.env.VITE_SUPABASE_ANON_KEY.trim();
 const email = process.env.PROBE_CUSTOMER_EMAIL.trim();
 const password = process.env.PROBE_CUSTOMER_PASSWORD;
+const customerName = process.env.PROBE_CUSTOMER_NAME.trim();
 const salonId = process.env.PROBE_BOOKING_SALON_ID.trim();
 const serviceId = process.env.PROBE_BOOKING_SERVICE_ID.trim();
 const themeKey = process.env.PROBE_BOOKING_THEME_KEY.trim();
@@ -64,6 +67,12 @@ try {
   assert.ifError(signInError);
   assert.ok(signedIn.user?.id, 'customer login returned no authenticated user');
   const userId = signedIn.user.id;
+  const { data: updatedProfile, error: profileError } = await writer.auth.updateUser({
+    data: { ...(signedIn.user.user_metadata || {}), full_name: customerName },
+  });
+  assert.ifError(profileError);
+  assert.equal(updatedProfile.user?.id, userId);
+  assert.equal(updatedProfile.user?.user_metadata?.full_name, customerName);
 
   const { data: catalogRaw, error: catalogError } = await writer.rpc('get_public_salon_service_catalog', {
     p_salon_id: salonId,
@@ -112,6 +121,18 @@ try {
   const bookingId = createdRaw.booking.id;
   const bookingReference = createdRaw.booking.booking_number || bookingId;
 
+  const { data: duplicateRaw, error: duplicateError } = await writer.rpc('create_customer_booking', {
+    p_salon_id: salonId,
+    p_service_ids: [serviceId],
+    p_appointment_start: appointmentStart.toISOString(),
+    p_customer_note: `${marker}:retry`,
+    p_phone: updatedProfile.user.phone || signedIn.user.phone || null,
+  });
+  assert.ifError(duplicateError);
+  assert.equal(duplicateRaw?.duplicate, true);
+  assert.equal(duplicateRaw?.booking?.id, bookingId);
+  assert.equal(duplicateRaw?.items?.[0]?.service_id, serviceId);
+
   // A new client plus a new password session models a full browser reload. The
   // read uses only the authenticated customer JWT and customer-self RLS.
   await writer.auth.signOut();
@@ -119,6 +140,7 @@ try {
   const { data: reloadedSignIn, error: reloadSignInError } = await reader.auth.signInWithPassword({ email, password });
   assert.ifError(reloadSignInError);
   assert.equal(reloadedSignIn.user?.id, userId);
+  assert.equal(reloadedSignIn.user?.user_metadata?.full_name, customerName);
 
   const { data: reloadedRows, error: reloadError } = await reader
     .from('bookings')
@@ -145,18 +167,20 @@ try {
 
   const { data: customerLink, error: customerLinkError } = await reader
     .from('salon_customers')
-    .select('salon_id, customer_user_id')
+    .select('salon_id, customer_user_id, email, phone')
     .eq('salon_id', salonId)
     .eq('customer_user_id', userId)
     .maybeSingle();
   assert.ifError(customerLinkError);
   assert.equal(customerLink?.salon_id, salonId);
   assert.equal(customerLink?.customer_user_id, userId);
+  assert.equal(customerLink?.email, reloadedSignIn.user.email);
 
-  console.log('PASS authenticated customer login');
+  console.log('PASS authenticated customer login and profile prefill identity');
   console.log('PASS real active salon/template service catalog resolved');
   console.log('PASS invalid/wrong-salon service id rejected by the server');
   console.log('PASS active salon/service RPC insert with server-derived amount and duration');
+  console.log('PASS duplicate retry returned the same booking and booking item');
   console.log('PASS fresh-session reload retrieved the same customer/salon/service row through RLS');
   console.log(`BOOKING_ID=${bookingId}`);
   console.log(`BOOKING_REFERENCE=${bookingReference}`);

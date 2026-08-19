@@ -54,6 +54,14 @@ export interface SupabaseBookingCatalog {
   services: Service[];
 }
 
+export interface SupabaseCustomerDetails {
+  userId: string;
+  name: string;
+  mobile: string;
+  email: string;
+  emailReadOnly: boolean;
+}
+
 interface LiveBookingItemRow {
   id: string;
   booking_id: string;
@@ -305,7 +313,9 @@ function userDisplayName(user: User): string {
   for (const value of [metadata.full_name, metadata.name, metadata.display_name]) {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
-  return 'Customer';
+  // No invented customer name: the authenticated customer enters a missing
+  // profile name in the existing validated details step.
+  return '';
 }
 
 function customerFromUser(
@@ -431,6 +441,42 @@ async function authenticatedUser(): Promise<User> {
   return auth.user;
 }
 
+function validateAuthenticatedCustomerInput(customer: BookingCustomerSnapshot): void {
+  const name = customer.name.trim();
+  const phone = customer.mobile.trim();
+  const digits = phone.replace(/\D/g, '');
+  const email = customer.email.trim();
+  if (name.length < 2 || name.length > 100) {
+    throw new SupabaseBookingError('validation', 'Enter a valid customer name.');
+  }
+  if (phone.length > 32 || digits.length < 10 || digits.length > 13) {
+    throw new SupabaseBookingError('validation', 'Enter a valid phone number.');
+  }
+  if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    throw new SupabaseBookingError('validation', 'Enter a valid email address.');
+  }
+  if ((customer.notes || '').trim().length > 1000) {
+    throw new SupabaseBookingError('validation', 'Booking notes must be 1000 characters or fewer.');
+  }
+}
+
+async function syncAuthenticatedCustomerName(
+  client: SupabaseClient,
+  user: User,
+  requestedName: string,
+): Promise<User> {
+  const name = requestedName.trim();
+  if (name === userDisplayName(user)) return user;
+  const { data, error } = await client.auth.updateUser({
+    data: { ...(user.user_metadata || {}), full_name: name },
+  });
+  if (error || !data.user || data.user.id !== user.id) {
+    if (error) console.error('Supabase customer profile update failed:', error);
+    throw new SupabaseBookingError('database', 'Customer details could not be updated. Please try again.');
+  }
+  return data.user;
+}
+
 export async function readSupabaseBookingCatalogWithClient(
   client: SupabaseClient,
   salonId: string,
@@ -485,6 +531,7 @@ export async function createSupabaseBookingWithClient(
   if (!isDatabaseUuid(input.salonId)) {
     throw new SupabaseBookingError('validation', 'This website is not linked to a real salon record.');
   }
+  validateAuthenticatedCustomerInput(input.customer);
   if (!bookingServicesAreDatabaseRows(input.services)) {
     throw new SupabaseBookingError('validation', 'Select a service saved by this salon before booking.');
   }
@@ -492,6 +539,7 @@ export async function createSupabaseBookingWithClient(
   if (uniqueIds.length !== input.services.length || uniqueIds.length > 6) {
     throw new SupabaseBookingError('validation', 'Select between one and six unique services.');
   }
+  const effectiveUser = await syncAuthenticatedCustomerName(client, user, input.customer.name);
 
   const { data, error } = await client.rpc('create_customer_booking', {
     p_salon_id: input.salonId,
@@ -506,7 +554,7 @@ export async function createSupabaseBookingWithClient(
   }
 
   const result = parseCreateResponse(data);
-  if (result.booking.salon_id !== input.salonId || result.booking.customer_user_id !== user.id) {
+  if (result.booking.salon_id !== input.salonId || result.booking.customer_user_id !== effectiveUser.id) {
     throw new SupabaseBookingError('permission', 'The database returned a booking outside this customer or salon.');
   }
   const expectedIds = new Set(uniqueIds);
@@ -518,7 +566,7 @@ export async function createSupabaseBookingWithClient(
     result.booking,
     result.items,
     result.templateKey,
-    user,
+    effectiveUser,
     undefined,
     input.customer,
   );
@@ -551,6 +599,31 @@ async function readContact(
     email: typeof row?.email === 'string' ? row.email : null,
     phone: typeof row?.phone === 'string' ? row.phone : null,
   };
+}
+
+export async function readSupabaseCustomerDetailsWithClient(
+  client: SupabaseClient,
+  user: User,
+  salonId: string,
+): Promise<SupabaseCustomerDetails> {
+  if (!isDatabaseUuid(salonId)) {
+    throw new SupabaseBookingError('validation', 'This website is not linked to a real salon record.');
+  }
+  const contact = await readContact(client, salonId, user.id);
+  return {
+    userId: user.id,
+    name: userDisplayName(user),
+    mobile: contact.phone || user.phone || '',
+    // Auth email is authoritative. A salon relationship email is only the
+    // fallback for auth providers that do not expose an email on the session.
+    email: user.email || contact.email || '',
+    emailReadOnly: Boolean(user.email),
+  };
+}
+
+export async function readSupabaseCustomerDetails(salonId: string): Promise<SupabaseCustomerDetails> {
+  const user = await authenticatedUser();
+  return readSupabaseCustomerDetailsWithClient(requireSupabase(), user, salonId);
 }
 
 export async function readMySupabaseBookingsWithClient(

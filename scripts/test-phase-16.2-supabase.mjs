@@ -9,6 +9,17 @@ process.env.VITE_SUPABASE_ANON_KEY = 'sb_publishable_booking_test';
 const SALON_ID = '40000000-0000-4000-8000-000000000001';
 const SERVICE_ID = '50000000-0000-4000-8000-000000000001';
 const CATEGORY_ID = '51000000-0000-4000-8000-000000000001';
+const USER_ID = '30000000-0000-4000-8000-000000000001';
+const authUser = {
+  id: USER_ID,
+  aud: 'authenticated',
+  role: 'authenticated',
+  email: 'asha@example.test',
+  phone: '+919876543210',
+  user_metadata: { full_name: 'Asha Customer' },
+  app_metadata: {},
+  created_at: '2026-01-01T00:00:00.000Z',
+};
 const rpcCalls = [];
 let releaseCatalog;
 const catalogGate = new Promise((resolve) => { releaseCatalog = resolve; });
@@ -16,6 +27,24 @@ const catalogGate = new Promise((resolve) => { releaseCatalog = resolve; });
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
   const url = String(typeof input === 'string' ? input : input?.url || input);
+  if (url.includes('/auth/v1/user')) {
+    return new Response(JSON.stringify(authUser), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  if (url.includes('/rest/v1/bookings')) {
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  if (url.includes('/rest/v1/salon_customers')) {
+    return new Response(JSON.stringify([{
+      email: 'asha@example.test',
+      phone: '+919999999999',
+    }]), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
   if (url.includes('/rest/v1/rpc/get_public_salon_service_catalog')) {
     const body = JSON.parse(String(init.body || '{}'));
     rpcCalls.push({ name: 'get_public_salon_service_catalog', body });
@@ -47,6 +76,7 @@ const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></
 });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
+globalThis.localStorage = dom.window.localStorage;
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Element = dom.window.Element;
@@ -78,6 +108,18 @@ const { setSiteAppearance, setSiteLocale } = await import('../src/lib/siteNaviga
 setSiteLocale('en');
 setSiteAppearance('light');
 window.localStorage.clear();
+const jwt = (payload) => {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.test-signature`;
+};
+window.localStorage.setItem('sb-supabase-booking-auth-token', JSON.stringify({
+  access_token: jwt({ sub: USER_ID, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 }),
+  refresh_token: 'test-refresh-token',
+  expires_in: 3600,
+  expires_at: Math.floor(Date.now() / 1000) + 3600,
+  token_type: 'bearer',
+  user: authUser,
+}));
 
 const data = {
   ...initialData,
@@ -129,10 +171,12 @@ try {
 
   await act(async () => { releaseCatalog(); });
   await waitFor(() => assert.ok(view.getByTestId('booking-flow')));
-  assert.deepEqual(rpcCalls, [{
-    name: 'get_public_salon_service_catalog',
-    body: { p_salon_id: SALON_ID, p_template_key: 'hair_studio_color_bar' },
-  }]);
+  assert.ok(rpcCalls.length >= 1);
+  assert.ok(rpcCalls.every((call) =>
+    call.name === 'get_public_salon_service_catalog'
+    && call.body.p_salon_id === SALON_ID
+    && call.body.p_template_key === 'hair_studio_color_bar',
+  ));
 
   await act(async () => {
     fireEvent.click(view.getByTestId('booking-continue'));

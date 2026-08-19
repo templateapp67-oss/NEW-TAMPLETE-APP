@@ -24,11 +24,13 @@ const {
   isDatabaseUuid,
   readMySupabaseBookingsWithClient,
   readSupabaseBookingCatalogWithClient,
+  readSupabaseCustomerDetailsWithClient,
   SupabaseBookingError,
 } = await import('../src/lib/supabaseBooking.ts');
 const {
   bookingBrowserId,
 } = await import('../src/lib/siteBookingFlow.ts');
+const { groupCustomerBookings } = await import('../src/lib/siteCustomerAccount.ts');
 const {
   customerCanCancel,
   customerCancelBooking,
@@ -201,6 +203,31 @@ await test('catalog repository rejects cross-salon and cross-template responses'
   );
 });
 
+await test('customer details prefill comes from the authenticated user and own salon relationship', async () => {
+  const filters = [];
+  const client = {
+    from(table) {
+      assert.equal(table, 'salon_customers');
+      return {
+        select() { return this; },
+        eq(column, value) { filters.push([column, value]); return this; },
+        async maybeSingle() {
+          return { data: { email: 'relationship@example.test', phone: '+919999999999' }, error: null };
+        },
+      };
+    },
+  };
+  const details = await readSupabaseCustomerDetailsWithClient(client, user, SALON_ID);
+  assert.deepEqual(details, {
+    userId: USER_ID,
+    name: 'Asha Customer',
+    mobile: '+919999999999',
+    email: 'customer@example.test',
+    emailReadOnly: true,
+  });
+  assert.deepEqual(filters, [['salon_id', SALON_ID], ['customer_user_id', USER_ID]]);
+});
+
 await test('create repository sends no customer id, price, status, reference, or client duration', async () => {
   let call = null;
   const client = {
@@ -249,6 +276,59 @@ await test('create repository sends no customer id, price, status, reference, or
   assert.equal(record.services[0].durationMinutes, 60);
 });
 
+await test('edited customer name updates only the current authenticated auth profile before booking', async () => {
+  let updatePayload = null;
+  const updatedUser = { ...user, user_metadata: { ...user.user_metadata, full_name: 'Asha Sharma' } };
+  const client = {
+    auth: {
+      async updateUser(payload) {
+        updatePayload = payload;
+        return { data: { user: updatedUser }, error: null };
+      },
+    },
+    async rpc() {
+      return {
+        data: {
+          template_key: 'hair_studio_color_bar',
+          booking: bookingRow(),
+          items: [itemRow()],
+        },
+        error: null,
+      };
+    },
+  };
+  const record = await createSupabaseBookingWithClient(client, user, {
+    salonId: SALON_ID,
+    themeId: 'hair_studio_color_bar',
+    services: [{ serviceId: SERVICE_ID, serviceName: 'ignored', price: 1, durationMinutes: 1 }],
+    dateKey: '2031-08-20',
+    startMinutes: 660,
+    customer: {
+      name: ' Asha Sharma ', mobile: '+919876543210', email: 'customer@example.test', notes: '',
+    },
+  });
+  assert.equal(updatePayload.data.full_name, 'Asha Sharma');
+  assert.equal(record.customerId, USER_ID);
+  assert.equal(record.customer.name, 'Asha Sharma');
+});
+
+await test('create repository rejects invalid customer fields before any RPC', async () => {
+  let rpcCalls = 0;
+  const client = { async rpc() { rpcCalls += 1; return { data: null, error: null }; } };
+  await assert.rejects(
+    () => createSupabaseBookingWithClient(client, user, {
+      salonId: SALON_ID,
+      themeId: 'hair_studio_color_bar',
+      services: [{ serviceId: SERVICE_ID, serviceName: 'ignored', price: 1, durationMinutes: 1 }],
+      dateKey: '2031-08-20',
+      startMinutes: 660,
+      customer: { name: ' ', mobile: '123', email: 'bad', notes: '' },
+    }),
+    (error) => error instanceof SupabaseBookingError && error.kind === 'validation',
+  );
+  assert.equal(rpcCalls, 0);
+});
+
 await test('create repository rejects a response outside the authenticated customer', async () => {
   const client = {
     async rpc() {
@@ -269,7 +349,7 @@ await test('create repository rejects a response outside the authenticated custo
       services: [{ serviceId: SERVICE_ID, serviceName: 'x', price: 1, durationMinutes: 1 }],
       dateKey: '2031-08-20',
       startMinutes: 660,
-      customer: { name: 'Asha', mobile: '', email: '', notes: '' },
+      customer: { name: 'Asha Customer', mobile: '+919876543210', email: 'customer@example.test', notes: '' },
     }),
     (error) => error instanceof SupabaseBookingError && error.kind === 'permission',
   );
@@ -354,6 +434,7 @@ await test('Supabase records expose no local cancel, owner transition, or paymen
     persistence: 'supabase',
   };
   assert.equal(customerCanCancel(record), false);
+  assert.equal(groupCustomerBookings([{ ...record, customerId: USER_ID }]).upcoming.length, 1);
   assert.deepEqual(ownerAllowedTransitionsForRecord(record), []);
   assert.throws(
     () => simulateGateway(record, { method: 'upi', upiId: 'asha@upi' }),
@@ -377,6 +458,9 @@ await test('configured UI uses Supabase authority without writing confirmed rows
   assert.match(fullFlow, /if \(!isSupabaseConfigured\)[\s\S]*setPhase\('payment'\)/);
   assert.match(fullFlow, /createSupabaseBooking\(/);
   assert.match(fullFlow, /readSupabaseBookingCatalog\(/);
+  assert.match(fullFlow, /readSupabaseCustomerDetails\(/);
+  assert.match(fullFlow, /authenticatedCustomer=/);
+  assert.match(fullFlow, /supabase-booking-retry/);
   assert.match(fullFlow, /services:\s*catalogServices/);
   assert.match(fullFlow, /offers:\s*\[\]/);
   assert.match(history, /isSupabaseConfigured\s*\?\s*databaseBookings\s*:\s*readMyBookings/);
@@ -422,11 +506,28 @@ await test('Phase 16.2 SQL reuses the booking RPC and derives catalog, price, du
   assert.match(sql, /from anon[\s\S]*to authenticated/i);
 });
 
+await test('Phase 16.4 SQL keeps auth.uid identity and returns one row for sequential duplicate retries', () => {
+  const sql = fs.readFileSync('docs/phase-16.4-customer-booking-flow.sql', 'utf8');
+  assert.doesNotMatch(sql, /create\s+table|alter\s+table.*add\s+column|job_salon_members/i);
+  assert.match(sql, /create or replace function public\.create_customer_booking/i);
+  assert.equal((sql.match(/create or replace function public\.create_customer_booking/gi) || []).length, 1);
+  assert.match(sql, /caller uuid := auth\.uid\(\)/i);
+  assert.doesNotMatch(sql, /p_customer_id|customer_id\s+uuid/i);
+  assert.match(sql, /b\.customer_user_id = caller/i);
+  assert.match(sql, /b\.appointment_start = p_appointment_start/i);
+  assert.match(sql, /'duplicate', true/i);
+  assert.match(sql, /'duplicate', false/i);
+  assert.match(sql, /Booking notes must be 1000 characters or fewer/i);
+  assert.match(sql, /Enter a valid phone number/i);
+  assert.match(sql, /from anon[\s\S]*to authenticated/i);
+});
+
 await test('migrations execute twice and enforce catalog, booking-item, tenant, template and customer isolation', async () => {
   const { PGlite } = await import('@electric-sql/pglite');
   const db = new PGlite();
   const phase161Sql = fs.readFileSync('docs/phase-16.1-booking-foundation.sql', 'utf8');
   const phase162Sql = fs.readFileSync('docs/phase-16.2-service-booking-items.sql', 'utf8');
+  const phase164Sql = fs.readFileSync('docs/phase-16.4-customer-booking-flow.sql', 'utf8');
   try {
     await db.exec(`
       do $$ begin
@@ -519,7 +620,8 @@ await test('migrations execute twice and enforce catalog, booking-item, tenant, 
 
     await db.exec(phase161Sql);
     await db.exec(phase162Sql);
-    await db.exec(phase162Sql); // Phase 16.2 patch is idempotent
+    await db.exec(phase164Sql);
+    await db.exec(phase164Sql); // Phase 16.4 replacement is idempotent
 
     async function asUser(userId, query, params = []) {
       await db.exec('reset role');
@@ -557,6 +659,7 @@ await test('migrations execute twice and enforce catalog, booking-item, tenant, 
     );
     const result = created.rows[0].result;
     assert.equal(result.template_key, 'hair_studio_color_bar');
+    assert.equal(result.duplicate, false);
     assert.equal(result.booking.customer_user_id, USER_ID);
     assert.equal(result.booking.salon_id, SALON_ID);
     assert.equal(Number(result.booking.total_paise), 200000);
@@ -574,6 +677,18 @@ await test('migrations execute twice and enforce catalog, booking-item, tenant, 
     assert.equal(
       new Date(result.booking.appointment_end).getTime() - new Date(result.booking.appointment_start).getTime(),
       90 * 60 * 1000,
+    );
+
+    const duplicateRetry = await asUser(
+      USER_ID,
+      `select public.create_customer_booking($1, $2::uuid[], $3::timestamptz, $4, $5) as result`,
+      [SALON_ID, [SECOND_SERVICE_ID, SERVICE_ID], '2031-08-20T05:30:00.000Z', 'Retry note', '+919999999999'],
+    );
+    assert.equal(duplicateRetry.rows[0].result.duplicate, true);
+    assert.equal(duplicateRetry.rows[0].result.booking.id, result.booking.id);
+    assert.deepEqual(
+      duplicateRetry.rows[0].result.items.map((item) => item.service_id).sort(),
+      [SERVICE_ID, SECOND_SERVICE_ID].sort(),
     );
 
     const ownRows = await asUser(USER_ID, 'select id, customer_user_id from public.bookings');
@@ -596,6 +711,22 @@ await test('migrations execute twice and enforce catalog, booking-item, tenant, 
         [SALON_ID, ['52000000-0000-4000-8000-000000000004'], '2031-08-21T06:30:00.000Z'],
       ),
       /inactive or belong to another salon or template/i,
+    );
+    await assert.rejects(
+      () => asUser(
+        USER_ID,
+        `select public.create_customer_booking($1, $2::uuid[], $3::timestamptz, null, $4)`,
+        [SALON_ID, [SERVICE_ID], '2031-08-21T07:30:00.000Z', '123'],
+      ),
+      /valid phone/i,
+    );
+    await assert.rejects(
+      () => asUser(
+        USER_ID,
+        `select public.create_customer_booking($1, $2::uuid[], $3::timestamptz, $4, null)`,
+        [SALON_ID, [SERVICE_ID], '2031-08-21T08:30:00.000Z', 'x'.repeat(1001)],
+      ),
+      /1000 characters/i,
     );
 
     await db.exec('reset role');
