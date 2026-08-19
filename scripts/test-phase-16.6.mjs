@@ -91,6 +91,8 @@ const {
   bookingServiceIds,
   bookingServiceLines,
   bookingConfirmationReceiptText,
+  mockPaymentForConfirmation,
+  MOCK_PAYMENT_STATUS,
   BOOKING_CONFIRMATION_STATES,
 } = await import('../src/lib/siteBookingConfirmation.ts');
 const { bookingConfirmationText } = await import('../src/lib/siteBookingConfirmationI18n.ts');
@@ -584,10 +586,13 @@ section('Flow UI — confirmation screen after a successful advance payment');
       assert.ok(utils.getByTestId('booking-confirmation-total').textContent.includes('₹2,300'), 'total missing');
       assert.ok(utils.getByTestId('booking-confirmation-advance').textContent.includes('₹575'), 'advance missing');
       assert.ok(utils.getByTestId('booking-confirmation-remaining').textContent.includes('₹1,725'), 'remaining missing');
-      assert.ok(utils.getByTestId('booking-confirmation-payment-status').textContent.includes('Paid'), 'payment status missing');
+      assert.ok(utils.getByTestId('booking-confirmation-payment-status').textContent.includes('TEST / MOCK'), 'mock payment status missing');
+      assert.ok(utils.getByTestId('booking-confirmation-mock-payment').textContent.includes('No Razorpay payment'), 'mock disclaimer missing');
 
-      // Reference comes from the persisted record.
+      // Reference comes from the persisted record; the receipt reference is
+      // visibly namespaced as TEST and is never presented as a provider id.
       const record = readPaymentRecords()[0];
+      assert.ok(utils.getByTestId('booking-confirmation-test-receipt-reference').textContent.includes(`TEST-RECEIPT-${record.bookingId}`), 'safe test receipt reference missing');
       assert.ok(utils.getByTestId('payment-confirm-booking-id').textContent.includes(record.bookingId));
       assert.equal(record.businessId, 'public-site');
       assert.equal(record.themeId, themeId);
@@ -806,14 +811,17 @@ section('Booking history — the summary / receipt can be re-opened');
     cleanup(); seedRecords(null);
   });
 
-  await test('the receipt text builder mirrors the record exactly', () => {
+  await test('the receipt is explicitly mock and never exposes a fake provider reference', () => {
     const view = toBookingConfirmation(paymentRecord({ bookingId: 'NX-TXT', gatewayRef: 'GW-1' }));
     const text = bookingConfirmationReceiptText(view, bookingConfirmationText('en'), 'en', 'My Salon');
     assert.ok(text.includes('NX-TXT'));
+    assert.ok(text.includes('TEST-RECEIPT-NX-TXT'));
+    assert.ok(text.includes('TEST / MOCK'));
+    assert.ok(text.includes('NOT PROOF OF PAYMENT'));
     assert.ok(text.includes('My Salon'));
     assert.ok(text.includes('Signature Treatment'));
     assert.ok(text.includes('2026-08-14'));
-    assert.ok(text.includes('GW-1'));
+    assert.ok(!text.includes('GW-1'), 'mock receipt must not display a simulated gateway id');
     assert.ok(text.includes('Confirmed'));
   });
 
@@ -1039,12 +1047,19 @@ section('Architecture — one booking system, nothing invented');
     }
   });
 
-  await test('amounts are never recomputed by the confirmation layer', () => {
-    // A record with deliberately unusual amounts is echoed verbatim.
+  await test('Phase 16.6 mock breakdown is exactly 25% and remains a read-only projection', () => {
     const view = toBookingConfirmation(paymentRecord({
-      baseAmount: 1234, amountDue: 321, remainingAmount: 913, paymentStatus: 'paid',
+      bookingId: 'NX-MOCK25', baseAmount: 1234, amountDue: 321,
+      remainingAmount: 913, paymentStatus: 'paid',
     }));
-    assert.equal(view.totalAmount, 1234);
+    const mock = mockPaymentForConfirmation(view);
+    assert.equal(mock.mode, 'mock');
+    assert.equal(mock.status, MOCK_PAYMENT_STATUS);
+    assert.equal(mock.totalAmount, 1234);
+    assert.equal(mock.testAdvanceAmount, 309);
+    assert.equal(mock.testRemainingAmount, 925);
+    assert.equal(mock.receiptReference, 'TEST-RECEIPT-NX-MOCK25');
+    // The persisted booking/payment snapshot is untouched by the projection.
     assert.equal(view.advancePaid, 321);
     assert.equal(view.remainingAmount, 913);
   });
@@ -1056,5 +1071,5 @@ if (failed > 0) {
   for (const f of failures) console.error(` - ${f.name}: ${f.error.message}`);
   process.exitCode = 1;
 } else {
-  console.log('Booking confirmation verified: real booking data + existing reference, Confirmed/Payment Pending/Payment Failed/Cancelled states with no confirmation before a successful payment, re-openable summary/receipt from booking history, duplicate-booking protection on refresh/retry/return, salon+customer isolation, loading/error states, EN/HI, light/dark and responsive across all five themes.');
+  console.log('Booking confirmation verified: explicit browser-demo booking provenance plus TEST/MOCK 25% payment presentation, safe TEST-RECEIPT references, no payment writes, re-openable responsive receipt, customer/tenant isolation, EN/HI and light/dark across all five themes.');
 }

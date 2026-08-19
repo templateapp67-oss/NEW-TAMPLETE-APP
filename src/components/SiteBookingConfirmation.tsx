@@ -9,12 +9,10 @@
  *     `SiteMyBookings`), so a customer can re-open the same summary /
  *     receipt at any time.
  *
- * Everything shown here is READ from the EXISTING booking record through
- * `siteBookingConfirmation.ts` — salon, services, date, time, duration,
- * total, advance paid, remaining, payment status and the booking
- * reference produced by the existing engine. Nothing is invented, and the
- * panel NEVER claims "Confirmed" unless the derived state says the
- * required payment actually succeeded.
+ * Booking details are READ from the supplied booking view. The current
+ * browser-only source is explicitly labelled DEMO BOOKING DATA. Payment is a
+ * separate Phase 16.6-only presentation projection, visibly labelled TEST /
+ * MOCK PAYMENT; it never writes payment state and is never proof of payment.
  *
  * Theming: the panel uses the existing per-theme payment surfaces (which
  * extend the 10.6 booking surfaces), so it inherits each theme's identity
@@ -35,9 +33,14 @@ import {
   Download,
   Hash,
   Hourglass,
+  Mail,
+  MapPin,
+  Phone,
   ReceiptText,
   RefreshCw,
   Sparkles,
+  Tag,
+  User,
   Wallet,
 } from 'lucide-react';
 import type { SalonData } from '../types';
@@ -50,6 +53,7 @@ import { formatMinutesLabel } from '../lib/siteBookingPayment';
 import {
   bookingConfirmationReceiptText,
   isConfirmedState,
+  mockPaymentForConfirmation,
 } from '../lib/siteBookingConfirmation';
 import type {
   BookingConfirmationState,
@@ -133,6 +137,14 @@ export default function SiteBookingConfirmation({
   const colors = confirmationStateColors(view.state, s);
   const confirmed = isConfirmedState(view.state);
   const salonName = salonDisplayName(data, themeId);
+  const mockPayment = useMemo(() => mockPaymentForConfirmation(view), [view]);
+  const serviceCategories = useMemo(() => {
+    const categories = view.services
+      .map((line) => data.services?.find((service) => service.id === line.serviceId)?.category)
+      .filter((category): category is string => Boolean(category));
+    return [...new Set(categories)];
+  }, [data.services, view.services]);
+  const salonInfo = [data.address?.fullAddress, data.phone, data.email].filter(Boolean).join(' · ');
 
   const dateLabel = useMemo(
     () => new Date(`${view.dateKey}T12:00:00`).toLocaleDateString(locale === 'hi' ? 'hi-IN' : 'en-IN', {
@@ -186,8 +198,40 @@ export default function SiteBookingConfirmation({
       data-theme={themeId}
       data-appearance={appearance}
       data-locale={locale}
+      data-payment-mode="mock"
       className="flex flex-col gap-3 w-full"
     >
+      {view.bookingSource === 'browser_demo' && (
+        <div
+          data-testid="booking-confirmation-demo-booking"
+          role="note"
+          className="flex flex-col gap-1 p-3 border border-dashed rounded-xl"
+          style={{ backgroundColor: s.well, borderColor: s.chipLine, color: s.textStrong }}
+        >
+          <span className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: s.muted }}>
+            {T['mock.bookingBadge']}
+          </span>
+          <span className="text-[10px] font-semibold" style={{ color: s.muted }}>
+            {T['mock.bookingNotice']}
+          </span>
+        </div>
+      )}
+
+      <div
+        data-testid="booking-confirmation-mock-payment"
+        role="note"
+        className="flex flex-col gap-1.5 p-3 md:p-4 border-2 border-dashed rounded-xl"
+        style={{ backgroundColor: s.warningSoft, borderColor: s.warning, color: s.textStrong }}
+      >
+        <span className="text-[10px] font-black uppercase tracking-[0.18em] inline-flex items-center gap-1.5" style={{ color: s.warning }}>
+          <AlertTriangle className="w-4 h-4" />
+          {T['mock.badge']}
+        </span>
+        <p className="text-[11px] font-semibold leading-relaxed" style={{ color: s.muted }}>
+          {T['mock.notice']}
+        </p>
+      </div>
+
       {showStatusBanner && (
         <div
           data-testid="booking-confirmation-banner"
@@ -266,6 +310,15 @@ export default function SiteBookingConfirmation({
           label={T['field.salon']}
           value={salonName}
         />
+        {salonInfo && (
+          <DetailRow
+            s={s}
+            testid="booking-confirmation-salon-info"
+            icon={<MapPin className="w-3.5 h-3.5" />}
+            label={T['field.salonInfo']}
+            value={salonInfo}
+          />
+        )}
         <DetailRow
           s={s}
           testid="booking-confirmation-services"
@@ -273,6 +326,15 @@ export default function SiteBookingConfirmation({
           label={T['field.services']}
           value={view.serviceNames.join(' + ')}
         />
+        {serviceCategories.length > 0 && (
+          <DetailRow
+            s={s}
+            testid="booking-confirmation-categories"
+            icon={<Tag className="w-3.5 h-3.5" />}
+            label={T['field.category']}
+            value={serviceCategories.join(' + ')}
+          />
+        )}
         <DetailRow
           s={s}
           testid="booking-confirmation-date"
@@ -303,41 +365,64 @@ export default function SiteBookingConfirmation({
         />
         <DetailRow
           s={s}
+          testid="booking-confirmation-customer"
+          icon={<User className="w-3.5 h-3.5" />}
+          label={T['field.customer']}
+          value={view.customer.name}
+        />
+        <DetailRow
+          s={s}
+          testid="booking-confirmation-mobile"
+          icon={<Phone className="w-3.5 h-3.5" />}
+          label={T['field.mobile']}
+          value={view.customer.mobile}
+        />
+        {view.customer.email && (
+          <DetailRow
+            s={s}
+            testid="booking-confirmation-email"
+            icon={<Mail className="w-3.5 h-3.5" />}
+            label={T['field.email']}
+            value={view.customer.email}
+          />
+        )}
+        <DetailRow
+          s={s}
           testid="booking-confirmation-total"
           icon={<ReceiptText className="w-3.5 h-3.5" />}
           label={T['field.total']}
-          value={formatCurrency(view.totalAmount)}
+          value={formatCurrency(mockPayment.totalAmount)}
         />
         <DetailRow
           s={s}
           testid="booking-confirmation-advance"
           icon={<Wallet className="w-3.5 h-3.5" />}
-          label={T['field.advancePaid']}
-          value={formatCurrency(view.advancePaid)}
-          valueColor={view.advancePaid > 0 ? s.success : undefined}
+          label={T['mock.advance']}
+          value={formatCurrency(mockPayment.testAdvanceAmount)}
+          valueColor={s.warning}
         />
         <DetailRow
           s={s}
           testid="booking-confirmation-remaining"
           icon={<Wallet className="w-3.5 h-3.5" />}
-          label={T['field.remaining']}
-          value={formatCurrency(view.remainingAmount)}
+          label={T['mock.remaining']}
+          value={formatCurrency(mockPayment.testRemainingAmount)}
         />
         <DetailRow
           s={s}
           testid="booking-confirmation-payment-status"
           icon={<ReceiptText className="w-3.5 h-3.5" />}
           label={T['field.paymentStatus']}
-          value={T[`payment.${view.paymentStatus}` as keyof typeof T] || view.paymentStatus}
-          valueColor={
-            view.paymentStatus === 'paid'
-              ? s.success
-              : view.paymentStatus === 'pending'
-                ? s.warning
-                : view.paymentStatus === 'failed' || view.paymentStatus === 'cancelled'
-                  ? s.danger
-                  : undefined
-          }
+          value={T['mock.status']}
+          valueColor={s.warning}
+        />
+        <DetailRow
+          s={s}
+          testid="booking-confirmation-test-receipt-reference"
+          icon={<Hash className="w-3.5 h-3.5" />}
+          label={T['mock.receiptReference']}
+          value={mockPayment.receiptReference}
+          valueColor={s.warning}
         />
         <DetailRow
           s={s}
@@ -347,15 +432,6 @@ export default function SiteBookingConfirmation({
           value={T[`state.${view.state}` as keyof typeof T]}
           valueColor={colors.fg}
         />
-        {view.gatewayRef && (
-          <DetailRow
-            s={s}
-            testid="booking-confirmation-gateway-ref"
-            icon={<Hash className="w-3.5 h-3.5" />}
-            label={T['field.gatewayRef']}
-            value={view.gatewayRef}
-          />
-        )}
       </div>
 
       {view.failureReason && !confirmed && (

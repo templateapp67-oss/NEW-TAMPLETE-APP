@@ -754,52 +754,26 @@
     16.2 55, 16.3 36, 16.5 24, 16.6 54, 16.7 38; validate:migrations
     21/21; lint 0; build green; verify-22-screens 25/25.
 
-- **PHASE 16.6 — BOOKING CONFIRMATION: COMPLETE (54 tests).**
-  - A clear Booking Confirmation screen over the EXISTING booking /
-    payment / auth architecture (the 10.7/16.5 record store) — no
-    duplicate booking system, no invented tables/columns/ids/amounts;
-    M08/M09 stay unapplied drafts.
-  - **Real data, existing reference**: salon, service(s), date, time,
-    duration, total, advance paid, remaining, payment status, booking
-    status and the reference produced by the EXISTING
-    `generateBookingId()` (`PaymentRecord.bookingId`, `NX-#####`). Money
-    comes through the shared 16.7 `bookingMoney` rule, so the
-    confirmation and the booking list can never disagree.
-  - **New read-only layer** `src/lib/siteBookingConfirmation.ts`:
-    `bookingConfirmationState`, `toBookingConfirmation`,
-    `readBookingConfirmation` / `readMyBookingConfirmations` (own rows
-    only — identity read INSIDE the helper, tenant+theme keyed),
-    `findActiveBookingForContext` / `bookingContextKey`,
-    `bookingConfirmationReceiptText`. It never writes to the store.
-  - **States**: Confirmed / Payment Pending / Payment Failed / Cancelled
-    (+ the 16.7 `completed`), each with its own colour, headline and
-    chip. **"Confirmed" is never shown until the required advance
-    actually succeeded** — a row claiming `confirmed` while unpaid
-    fail-closes to Payment pending/failed. `pay_at_salon` (no advance
-    required) is a legitimate confirmed path.
-  - **Shared panel** `SiteBookingConfirmation.tsx` renders BOTH the
-    payment flow's confirmation step (as `payment-confirm-card`, 10.7
-    test ids preserved) and the re-openable **summary/receipt in the
-    booking history** (a View-summary toggle per row in
-    `SiteMyBookings`), plus a downloadable text summary.
-  - **Duplicate protection**: before ANY record creation the flow looks
-    for a live booking with the same salon+theme+services+date+slot+
-    mobile (digits, country code stripped) owned by THIS browser; an
-    already-confirmed match re-opens its confirmation, a pending match
-    donates its reference. Failed/cancelled rows stay re-bookable.
-    Refresh / re-entry / retry / double Continue all yield ONE record.
-  - Privacy: foreign customers, salons and themes are structurally
-    unreachable (`not-found`, never data).
-  - Loading / error(+Retry) via the shared 'booking' seam, not-found
-    card, payment-failure reason, retry-payment action for recoverable
-    states; EN/HI complete; light/dark + five distinct theme surfaces;
-    mobile-first fluid layout (desktop/tablet/mobile).
-  - NOT in 16.6: Call/WhatsApp protection, notifications, final
-    acceptance, DB execution; 16.7 was reused, not re-implemented.
-  - Validation: `test:phase-16.6` **54/54**; 16.1 55, 16.2 55, 16.3 36,
-    16.5 24, 16.7 38; 10.6 107; 10.7 66; Phases 10–15 fully green;
-    `validate:migrations` 27/27 ×2 + 21/21; lint 0; build green;
-    verify-22-screens 25/25. Details:
+- **PHASE 16.6 — BOOKING CONFIRMATION + MOCK RECEIPT (54 tests).**
+  - Confirmation/receipt UX only. Razorpay, webhook, signature, payment RPC,
+    and authoritative payment persistence are explicitly deferred.
+  - Runtime audit found that the active public booking source is still the
+    10.7/16.5 browser demo store, not Supabase. Confirmation provenance is
+    therefore explicit (`bookingSource: 'browser_demo'`) and the UI displays
+    **DEMO BOOKING DATA**; it does not claim Supabase persistence.
+  - `mockPaymentForConfirmation()` is a pure Phase 16.6 projection: total from
+    the booking snapshot, Test Advance = rounded 25%, Test Remaining = total
+    minus advance, status **TEST / MOCK — PAYMENT BACKEND DEFERRED**, and safe
+    reference `TEST-RECEIPT-{booking-reference}`. It performs no write.
+  - The shared responsive panel shows salon name/info, service names/categories,
+    slot/duration/staff, customer name/mobile/email, booking status/reference,
+    and the separately labelled mock breakdown. Downloaded receipts state
+    **TEST / MOCK — NOT PROOF OF PAYMENT** and omit simulated gateway ids.
+  - Existing own-customer + tenant/theme reads remain unchanged; foreign rows
+    resolve `not-found`. Refresh/remount reconstructs the display without a
+    payment row or payment-status mutation. No DB/migration/RPC changes.
+  - Validation: `test:phase-16.6` **54/54**; 16.1 **55/55**, 16.2 **55/55**,
+    16.3 **36/36**, 16.5 **24/24**; lint and production build green. Details:
     `docs/phase-16.6-booking-confirmation.md`.
 
 - **PHASE 16.7 — BOOKING MANAGEMENT: COMPLETE (38 tests).**
