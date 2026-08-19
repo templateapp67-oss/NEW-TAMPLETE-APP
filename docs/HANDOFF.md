@@ -790,9 +790,11 @@
     independently from payment. Unconfigured legacy rows remain visibly marked
     **DEMO BOOKING DATA** and are never mistaken for database authority.
   - Refresh/history/details use authenticated, salon-scoped Supabase reads with
-    an explicit `customer_user_id = auth user` defense plus RLS. Foreign or
-    missing references resolve not-found; configured builds never fall back to
-    localStorage.
+    an explicit `customer_user_id = auth user` defense plus RLS. The immutable
+    booking UUID is carried in the `booking` URL query solely to reopen the
+    flow; every detail is reloaded from Supabase after a full refresh. Foreign
+    or missing UUIDs resolve not-found/unauthorized; configured builds never
+    fall back to localStorage.
   - The payment card stays a pure read-only projection: total, Test Advance =
     rounded 25%, Test Remaining, status **TEST / MOCK — PAYMENT BACKEND
     DEFERRED**, and `TEST-RECEIPT-{booking-reference}`. It writes neither the

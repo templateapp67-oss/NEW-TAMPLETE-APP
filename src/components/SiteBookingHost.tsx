@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { SalonData } from '../types';
 import SiteBookingFullFlow from './SiteBookingFullFlow';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
+import { BOOKING_CONFIRMATION_QUERY, isDatabaseUuid } from '../lib/supabaseBooking';
 import {
   BOOKING_TRIGGER_ATTR,
   SITE_BOOKING_CLOSE_EVENT,
@@ -25,8 +26,16 @@ import {
  * this orchestrator; the payment + confirmation + receipt screens are
  * added in Phase 10.7.
  */
+function hasPersistedBookingDeepLink(): boolean {
+  if (typeof window === 'undefined') return false;
+  return isDatabaseUuid(new URLSearchParams(window.location.search).get(BOOKING_CONFIRMATION_QUERY));
+}
+
 export default function SiteBookingHost({ themeId, data }: { themeId: SiteHeaderThemeId; data: SalonData }) {
-  const [open, setOpen] = useState(false);
+  // A real persisted booking UUID in the URL reopens the authorized
+  // confirmation after a full browser refresh. It carries identity only;
+  // SiteBookingFullFlow still reloads every detail from Supabase.
+  const [open, setOpen] = useState(hasPersistedBookingDeepLink);
 
   useEffect(() => {
     const show = () => setOpen(true);

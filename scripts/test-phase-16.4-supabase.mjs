@@ -94,6 +94,11 @@ globalThis.fetch = async (input, init = {}) => {
   }
   if (url.includes('/rest/v1/bookings')) {
     bookingReadUrls.push(url);
+    if (!decodeURIComponent(url).includes(`id=eq.${BOOKING_ID}`)) {
+      return new Response(JSON.stringify([]), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }
     return new Response(JSON.stringify([{
       id: BOOKING_ID,
       salon_id: SALON_ID,
@@ -175,6 +180,7 @@ window.localStorage.setItem('sb-supabase-booking-auth-token', JSON.stringify({
 const React = (await import('react')).default;
 const { act, cleanup, fireEvent, render, waitFor } = await import('@testing-library/react');
 const SiteBookingFullFlow = (await import('../src/components/SiteBookingFullFlow.tsx')).default;
+const SiteBookingHost = (await import('../src/components/SiteBookingHost.tsx')).default;
 const { initialData } = await import('../src/types.ts');
 const { setSalonClockForTests } = await import('../src/lib/salonStatus.ts');
 const { setSiteAppearance, setSiteLocale } = await import('../src/lib/siteNavigation.ts');
@@ -270,7 +276,7 @@ try {
   const confirmationReadUrl = decodeURIComponent(bookingReadUrls.at(-1));
   assert.match(confirmationReadUrl, new RegExp(`salon_id=eq.${SALON_ID}`));
   assert.match(confirmationReadUrl, new RegExp(`customer_user_id=eq.${USER_ID}`));
-  assert.match(confirmationReadUrl, /booking_number=eq\.LIVE-1640/);
+  assert.match(confirmationReadUrl, new RegExp(`id=eq.${BOOKING_ID}`));
   assert.equal(createBodies[1].p_customer_id, undefined);
   assert.deepEqual(createBodies[1].p_service_ids, [SERVICE_ID]);
   assert.equal(createBodies[1].p_phone, '+919999999999');
@@ -285,6 +291,33 @@ try {
   assert.equal(view.getByTestId('booking-confirmation').dataset.confirmed, 'false');
   assert.equal(view.getByTestId('booking-confirmation-payment-status').textContent.includes('TEST / MOCK'), true);
   assert.equal(view.queryByTestId('booking-confirmation-demo-booking'), null);
+  assert.equal(new URLSearchParams(window.location.search).get('booking'), BOOKING_ID);
+  assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
+
+  // Full browser refresh: the host reopens from the persisted UUID in the URL,
+  // then reloads all confirmation details through the authenticated Supabase
+  // query rather than React state or localStorage.
+  cleanup();
+  const refreshed = render(React.createElement(SiteBookingHost, {
+    themeId: 'hair_studio_color_bar', data,
+  }));
+  await waitFor(() => assert.ok(refreshed.getByTestId('supabase-booking-persisted')));
+  assert.match(refreshed.getByTestId('supabase-booking-persisted').textContent, /LIVE-1640/);
+  assert.match(refreshed.getByTestId('supabase-booking-persisted').textContent, /Database Balayage/);
+  assert.equal(refreshed.getByTestId('booking-confirmation').dataset.bookingSource, 'supabase');
+  assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
+
+  // A valid-looking UUID owned by somebody else is hidden by the scoped query
+  // and RLS. It never renders this customer's prior confirmation as fallback.
+  cleanup();
+  const foreignId = '90000000-0000-4000-8000-000000000009';
+  window.history.replaceState(null, '', `/?booking=${foreignId}`);
+  const blocked = render(React.createElement(SiteBookingHost, {
+    themeId: 'hair_studio_color_bar', data,
+  }));
+  await waitFor(() => assert.ok(blocked.getByTestId('supabase-booking-error')));
+  assert.match(blocked.getByTestId('supabase-booking-error').textContent, /not found|not authorized/i);
+  assert.doesNotMatch(blocked.getByTestId('supabase-booking-error').textContent, /LIVE-1640|Database Balayage/);
   assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
 
   console.log('PASS authenticated customer and salon relationship prefill the existing details step');

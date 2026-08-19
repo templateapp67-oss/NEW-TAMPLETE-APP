@@ -30,10 +30,14 @@ independent from the intentionally deferred payment backend.
 ## Refresh, My Bookings, and direct Booking Details
 
 `readMySupabaseBookings()` and `readMySupabaseBookingByReference()` reload
-`bookings` with nested `booking_items`. Every read requires an authenticated
-session and is constrained by salon plus `customer_user_id = user.id`, in
-addition to database RLS. A foreign or missing reference returns not-found and
-never falls back to localStorage in configured builds.
+`bookings` with nested `booking_items`. After creation, the immutable persisted
+booking UUID is placed in the `booking` URL query. `SiteBookingHost` detects it
+on a full refresh and reopens the flow; `SiteBookingFullFlow` then reloads that
+UUID from Supabase. The URL carries identity only, never booking details.
+Every read requires an authenticated session and is constrained by salon plus
+`customer_user_id = user.id`, in addition to database RLS. A foreign or missing
+UUID returns not-found/unauthorized and never falls back to localStorage in
+configured builds.
 
 The reloaded record preserves the booking reference, salon, service snapshots,
 category context, date/time, duration, authenticated customer details, and
