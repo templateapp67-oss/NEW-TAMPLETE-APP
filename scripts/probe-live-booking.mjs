@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Strict Phase 16.1 live proof.
+ * Strict Phase 16.2 live service + booking-item proof.
  *
  * Required operator-only environment (keep in an ignored local environment):
  *   VITE_SUPABASE_URL
@@ -9,6 +9,7 @@
  *   PROBE_CUSTOMER_PASSWORD
  *   PROBE_BOOKING_SALON_ID       salon selected in the public booking UI
  *   PROBE_BOOKING_SERVICE_ID     active service selected in that salon
+ *   PROBE_BOOKING_THEME_KEY      active public template key
  *   PROBE_BOOKING_START          future ISO timestamp selected by availability UI
  *
  * This intentionally creates one real pending booking. It never uses a service
@@ -24,6 +25,7 @@ const required = [
   'PROBE_CUSTOMER_PASSWORD',
   'PROBE_BOOKING_SALON_ID',
   'PROBE_BOOKING_SERVICE_ID',
+  'PROBE_BOOKING_THEME_KEY',
   'PROBE_BOOKING_START',
 ];
 const missing = required.filter((name) => !process.env[name]?.trim());
@@ -38,6 +40,7 @@ const email = process.env.PROBE_CUSTOMER_EMAIL.trim();
 const password = process.env.PROBE_CUSTOMER_PASSWORD;
 const salonId = process.env.PROBE_BOOKING_SALON_ID.trim();
 const serviceId = process.env.PROBE_BOOKING_SERVICE_ID.trim();
+const themeKey = process.env.PROBE_BOOKING_THEME_KEY.trim();
 const appointmentStart = new Date(process.env.PROBE_BOOKING_START);
 
 assert.match(salonId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
@@ -62,7 +65,30 @@ try {
   assert.ok(signedIn.user?.id, 'customer login returned no authenticated user');
   const userId = signedIn.user.id;
 
-  const marker = `phase-16.1-live-proof:${new Date().toISOString()}`;
+  const { data: catalogRaw, error: catalogError } = await writer.rpc('get_public_salon_service_catalog', {
+    p_salon_id: salonId,
+    p_template_key: themeKey,
+  });
+  assert.ifError(catalogError);
+  assert.equal(catalogRaw?.salon_id, salonId);
+  assert.equal(catalogRaw?.template_key, themeKey);
+  const selectedCatalogService = catalogRaw?.services?.find((service) => service.id === serviceId);
+  assert.ok(selectedCatalogService, 'selected service is not in the active real catalog');
+  assert.ok(Number(selectedCatalogService.price_paise) >= 0);
+  assert.ok(Number(selectedCatalogService.duration_minutes) > 0);
+
+  // A fabricated service UUID must be rejected before the valid proof insert.
+  const { error: invalidServiceError } = await writer.rpc('create_customer_booking', {
+    p_salon_id: salonId,
+    p_service_ids: ['ffffffff-ffff-4fff-8fff-ffffffffffff'],
+    p_appointment_start: appointmentStart.toISOString(),
+    p_customer_note: 'phase-16.2-invalid-service-proof',
+    p_phone: null,
+  });
+  assert.ok(invalidServiceError, 'the server accepted an invalid/wrong-salon service id');
+  assert.match(invalidServiceError.message, /inactive|another salon|template/i);
+
+  const marker = `phase-16.2-live-proof:${new Date().toISOString()}`;
   const { data: createdRaw, error: createError } = await writer.rpc('create_customer_booking', {
     p_salon_id: salonId,
     p_service_ids: [serviceId],
@@ -72,12 +98,15 @@ try {
   });
   assert.ifError(createError);
   assert.ok(createdRaw?.booking?.id, 'RPC returned no booking row');
+  assert.equal(createdRaw.template_key, themeKey);
   assert.equal(createdRaw.booking.customer_user_id, userId);
   assert.equal(createdRaw.booking.salon_id, salonId);
   assert.equal(createdRaw.items?.length, 1);
   assert.equal(createdRaw.items[0].service_id, serviceId);
-  assert.ok(Number(createdRaw.items[0].duration_minutes_snapshot) > 0);
-  assert.ok(Number(createdRaw.booking.total_paise) >= 0);
+  assert.equal(createdRaw.items[0].service_name_snapshot, selectedCatalogService.name);
+  assert.equal(Number(createdRaw.items[0].unit_price_paise), Number(selectedCatalogService.price_paise));
+  assert.equal(Number(createdRaw.items[0].duration_minutes_snapshot), Number(selectedCatalogService.duration_minutes));
+  assert.equal(Number(createdRaw.booking.total_paise), Number(selectedCatalogService.price_paise));
   assert.equal(createdRaw.booking.customer_note, marker);
 
   const bookingId = createdRaw.booking.id;
@@ -125,6 +154,8 @@ try {
   assert.equal(customerLink?.customer_user_id, userId);
 
   console.log('PASS authenticated customer login');
+  console.log('PASS real active salon/template service catalog resolved');
+  console.log('PASS invalid/wrong-salon service id rejected by the server');
   console.log('PASS active salon/service RPC insert with server-derived amount and duration');
   console.log('PASS fresh-session reload retrieved the same customer/salon/service row through RLS');
   console.log(`BOOKING_ID=${bookingId}`);

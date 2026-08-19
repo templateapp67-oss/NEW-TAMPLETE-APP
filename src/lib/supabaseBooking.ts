@@ -48,6 +48,12 @@ export interface CreateSupabaseBookingInput {
   customer: BookingCustomerSnapshot;
 }
 
+export interface SupabaseBookingCatalog {
+  salonId: string;
+  themeId: SiteHeaderThemeId;
+  services: Service[];
+}
+
 interface LiveBookingItemRow {
   id: string;
   booking_id: string;
@@ -79,9 +85,36 @@ interface LiveBookingRow {
 }
 
 interface CreateBookingResponse {
+  templateKey: SiteHeaderThemeId;
   booking: LiveBookingRow;
   items: LiveBookingItemRow[];
 }
+
+interface LiveCatalogServiceRow {
+  id: string;
+  salon_id: string;
+  category_id: string;
+  category_name: string;
+  category_slug: string;
+  name: string;
+  description: string;
+  price_paise: number | string;
+  duration_minutes: number | string;
+}
+
+interface LiveCatalogResponse {
+  salonId: string;
+  templateKey: SiteHeaderThemeId;
+  services: LiveCatalogServiceRow[];
+}
+
+const BOOKING_TEMPLATE_KEYS: SiteHeaderThemeId[] = [
+  'barber_mens_grooming',
+  'hair_studio_color_bar',
+  'beauty_skin_spa',
+  'family_full_service',
+  'nail_lash_studio',
+];
 
 const LIVE_BOOKING_COLUMNS = [
   'id',
@@ -127,7 +160,8 @@ export function bookingSalonIdCandidate(
   service: Pick<Service, 'businessId'> | null | undefined,
 ): string | null {
   const payload = data as SalonData & { salonId?: unknown; businessId?: unknown };
-  const candidates = [service?.businessId, payload.salonId, payload.businessId];
+  const serviceSalonIds = (data.services || []).map((item) => item.businessId);
+  const candidates = [service?.businessId, ...serviceSalonIds, payload.salonId, payload.businessId];
   return candidates.find(isDatabaseUuid) ?? null;
 }
 
@@ -157,6 +191,45 @@ function asNumber(value: unknown, label: string): number {
     throw new SupabaseBookingError('database', `The database returned an invalid ${label}.`);
   }
   return number;
+}
+
+function asBookingTemplateKey(value: unknown): SiteHeaderThemeId {
+  const key = asString(value, 'booking template');
+  if (!BOOKING_TEMPLATE_KEYS.includes(key as SiteHeaderThemeId)) {
+    throw new SupabaseBookingError('database', 'The database returned an unsupported booking template.');
+  }
+  return key as SiteHeaderThemeId;
+}
+
+function mapCatalogService(value: unknown): LiveCatalogServiceRow {
+  const row = asRecord(value, 'catalog service');
+  const price = asNumber(row.price_paise, 'catalog service price');
+  const duration = asNumber(row.duration_minutes, 'catalog service duration');
+  if (price < 0 || duration < 1) {
+    throw new SupabaseBookingError('database', 'The database returned an invalid service price or duration.');
+  }
+  return {
+    id: asString(row.id, 'catalog service id'),
+    salon_id: asString(row.salon_id, 'catalog service salon id'),
+    category_id: asString(row.category_id, 'catalog service category id'),
+    category_name: asString(row.category_name, 'catalog service category name'),
+    category_slug: asString(row.category_slug, 'catalog service category slug'),
+    name: asString(row.name, 'catalog service name'),
+    description: typeof row.description === 'string' ? row.description : '',
+    price_paise: price,
+    duration_minutes: duration,
+  };
+}
+
+function parseCatalogResponse(value: unknown): LiveCatalogResponse {
+  const payload = asRecord(value, 'service catalog');
+  const salonId = asString(payload.salon_id, 'service catalog salon id');
+  const templateKey = asBookingTemplateKey(payload.template_key);
+  const services = Array.isArray(payload.services) ? payload.services.map(mapCatalogService) : [];
+  if (services.some((service) => service.salon_id !== salonId)) {
+    throw new SupabaseBookingError('permission', 'The database returned a service from another salon.');
+  }
+  return { salonId, templateKey, services };
 }
 
 function mapItem(value: unknown): LiveBookingItemRow {
@@ -199,12 +272,13 @@ function mapRow(value: unknown): LiveBookingRow {
 
 function parseCreateResponse(value: unknown): CreateBookingResponse {
   const payload = asRecord(value, 'booking response');
+  const templateKey = asBookingTemplateKey(payload.template_key);
   const booking = mapRow(payload.booking);
   const items = Array.isArray(payload.items) ? payload.items.map(mapItem) : [];
   if (items.length === 0 || items.some((item) => item.booking_id !== booking.id)) {
     throw new SupabaseBookingError('database', 'The database did not return the booking service relationship.');
   }
-  return { booking, items };
+  return { templateKey, booking, items };
 }
 
 function mapStatus(status: string): BookingStatus {
@@ -336,7 +410,7 @@ function safeDatabaseError(error: unknown, fallback: string): SupabaseBookingErr
   if (/fetch|network|offline|timeout|connection/i.test(message)) {
     return new SupabaseBookingError('network', 'Unable to reach the booking service. Check your connection and try again.');
   }
-  const safe = /log in|salon is not available|select between|valid future|services are inactive|belong to another salon/i.test(message);
+  const safe = /log in|salon is not available|salon website is not available|select between|valid future|services are inactive|belong to another salon|another active template|valid salon and template/i.test(message);
   return new SupabaseBookingError(safe ? 'validation' : 'database', safe ? message : fallback);
 }
 
@@ -355,6 +429,52 @@ async function authenticatedUser(): Promise<User> {
     );
   }
   return auth.user;
+}
+
+export async function readSupabaseBookingCatalogWithClient(
+  client: SupabaseClient,
+  salonId: string,
+  expectedThemeId: SiteHeaderThemeId,
+): Promise<SupabaseBookingCatalog> {
+  if (!isDatabaseUuid(salonId)) {
+    throw new SupabaseBookingError('validation', 'This website is not linked to a real salon record.');
+  }
+  const { data, error } = await client.rpc('get_public_salon_service_catalog', {
+    p_salon_id: salonId,
+    p_template_key: expectedThemeId,
+  });
+  if (error) {
+    console.error('Supabase booking catalog read failed:', error);
+    throw safeDatabaseError(error, 'The service catalog could not be loaded. Please try again.');
+  }
+  const catalog = parseCatalogResponse(data);
+  if (catalog.salonId !== salonId || catalog.templateKey !== expectedThemeId) {
+    throw new SupabaseBookingError('permission', 'The database returned a catalog outside this salon or template.');
+  }
+  return {
+    salonId: catalog.salonId,
+    themeId: catalog.templateKey,
+    services: catalog.services.map((service): Service => ({
+      id: service.id,
+      name: service.name,
+      category: service.category_name,
+      description: service.description,
+      price: asNumber(service.price_paise, 'catalog service price') / 100,
+      duration: asNumber(service.duration_minutes, 'catalog service duration'),
+      businessId: catalog.salonId,
+      themeId: catalog.templateKey,
+      themeKey: catalog.templateKey,
+      categoryId: service.category_id,
+      status: 'active',
+    })),
+  };
+}
+
+export async function readSupabaseBookingCatalog(
+  salonId: string,
+  expectedThemeId: SiteHeaderThemeId,
+): Promise<SupabaseBookingCatalog> {
+  return readSupabaseBookingCatalogWithClient(requireSupabase(), salonId, expectedThemeId);
 }
 
 export async function createSupabaseBookingWithClient(
@@ -397,7 +517,7 @@ export async function createSupabaseBookingWithClient(
   const record = supabaseBookingToPaymentRecord(
     result.booking,
     result.items,
-    input.themeId,
+    result.templateKey,
     user,
     undefined,
     input.customer,
@@ -441,6 +561,10 @@ export async function readMySupabaseBookingsWithClient(
 ): Promise<PaymentRecord[]> {
   if (!isDatabaseUuid(salonId)) return [];
 
+  // Resolve the active template from the database rather than stamping history
+  // with a caller-provided theme. The catalog RPC validates the expected UI
+  // template against the salon's active public website.
+  const catalog = await readSupabaseBookingCatalogWithClient(client, salonId, themeId);
   const nested = `${LIVE_BOOKING_COLUMNS},booking_items(${LIVE_ITEM_COLUMNS})`;
   const { data, error } = await client
     .from('bookings')
@@ -457,7 +581,7 @@ export async function readMySupabaseBookingsWithClient(
   return (Array.isArray(data) ? data : []).map((raw) => {
     const booking = mapRow(raw);
     const items = booking.booking_items || [];
-    return supabaseBookingToPaymentRecord(booking, items, themeId, user, contact);
+    return supabaseBookingToPaymentRecord(booking, items, catalog.themeId, user, contact);
   });
 }
 

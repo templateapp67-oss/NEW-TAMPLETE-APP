@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import type { SalonData } from '../types';
+import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import type { SalonData, Service } from '../types';
 import SiteBookingFlow from './SiteBookingFlow';
 import SiteBookingPaymentFlow from './SiteBookingPaymentFlow';
 import SiteBookingNotices from './SiteBookingNotices';
@@ -21,6 +21,7 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   bookingSalonIdCandidate,
   createSupabaseBooking,
+  readSupabaseBookingCatalog,
   SupabaseBookingError,
 } from '../lib/supabaseBooking';
 import { toBookingConfirmation } from '../lib/siteBookingConfirmation';
@@ -56,6 +57,52 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   }>(null);
   const [databaseRecord, setDatabaseRecord] = useState<PaymentRecord | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [catalogServices, setCatalogServices] = useState<Service[]>([]);
+  const [catalogState, setCatalogState] = useState<'loading' | 'error' | 'ready'>(
+    isSupabaseConfigured ? 'loading' : 'ready',
+  );
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogRetry, setCatalogRetry] = useState(0);
+  const catalogSalonId = useMemo(() => bookingSalonIdCandidate(data, null), [data]);
+  const bookingData = useMemo<SalonData>(() => {
+    if (!isSupabaseConfigured) return data;
+    return {
+      ...data,
+      // Phase 16.2: configured builds display only server-resolved live rows.
+      // Local offers/variants cannot alter the database-derived base price or
+      // duration shown during this no-payment persistence phase.
+      services: catalogServices,
+      offers: [],
+    };
+  }, [data, catalogServices]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    if (!catalogSalonId) {
+      setCatalogServices([]);
+      setCatalogError('This website is not linked to a real salon record.');
+      setCatalogState('error');
+      return;
+    }
+    let active = true;
+    setCatalogError(null);
+    setCatalogState('loading');
+    void readSupabaseBookingCatalog(catalogSalonId, themeId)
+      .then((catalog) => {
+        if (!active) return;
+        setCatalogServices(catalog.services);
+        setCatalogState('ready');
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setCatalogServices([]);
+        setCatalogError(error instanceof SupabaseBookingError
+          ? error.message
+          : 'The service catalog could not be loaded. Please try again.');
+        setCatalogState('error');
+      });
+    return () => { active = false; };
+  }, [catalogSalonId, themeId, catalogRetry]);
 
   /* ------------------------------------------------------------------ */
   /* PHASE 16.9 — booking notices.                                       */
@@ -115,8 +162,8 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       return;
     }
 
-    const selectedService = (data.services || []).find((service) => service.id === payload.service.id);
-    const salonId = bookingSalonIdCandidate(data, selectedService || payload.service);
+    const selectedService = (bookingData.services || []).find((service) => service.id === payload.service.id);
+    const salonId = bookingSalonIdCandidate(bookingData, selectedService || payload.service);
     if (!salonId) {
       setPersistenceError('This website is not linked to a real salon record.');
       setPhase('persistence-error');
@@ -134,7 +181,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       customer: payload.customer,
     }).then((record) => {
       setDatabaseRecord(record);
-      const draftBusinessId = bookingBusinessId(data);
+      const draftBusinessId = bookingBusinessId(bookingData);
       clearBookingDraft(draftBusinessId, record.themeId);
       if (record.businessId !== draftBusinessId) clearBookingDraft(record.businessId, record.themeId);
       showNotice({ kind: 'success', message: 'Booking saved securely.' });
@@ -147,7 +194,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       showNotice({ kind: 'error', message });
       setPhase('persistence-error');
     });
-  }, [data, themeId, showNotice]);
+  }, [bookingData, themeId, showNotice]);
 
   // PHASE 16.5 — backing out of payment returns to the SUMMARY (selection
   // restored from the 16.1 draft), not to the start of the wizard.
@@ -176,7 +223,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   }, []);
 
   // PHASE 16.1 — single tenant-resolution rule shared with the entry flow.
-  const businessId = bookingBusinessId(data);
+  const businessId = bookingBusinessId(bookingData);
   // Resume a confirmed booking for the same business+theme so a refresh
   // during confirmation does not lose the user's confirmed row. The
   // most-recent confirmed/pay_at_salon record for this business+theme
@@ -235,10 +282,68 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       className="absolute inset-0 z-[70] flex flex-col overflow-hidden"
       style={{ transform: 'translateZ(0)' }}
     >
-      {phase === 'entry' && (
+      {phase === 'entry' && isSupabaseConfigured && catalogState === 'loading' && (
+        <div
+          data-testid="supabase-booking-catalog-loading"
+          className="absolute inset-0 z-[70] flex items-center justify-center p-5"
+          style={{ backgroundColor: surfaces.page, color: surfaces.text }}
+          aria-busy="true"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border p-6 text-center space-y-3"
+            style={{ backgroundColor: surfaces.card, borderColor: surfaces.line }}
+          >
+            <Loader2 className="mx-auto h-7 w-7 animate-spin" style={{ color: surfaces.accent }} />
+            <h2 className="text-sm font-extrabold" style={{ color: surfaces.textStrong }}>
+              {locale === 'hi' ? 'सेवाएँ लोड हो रही हैं…' : 'Loading real salon services…'}
+            </h2>
+          </div>
+        </div>
+      )}
+      {phase === 'entry' && isSupabaseConfigured && catalogState === 'error' && (
+        <div
+          data-testid="supabase-booking-catalog-error"
+          className="absolute inset-0 z-[70] flex items-center justify-center p-5"
+          style={{ backgroundColor: surfaces.page, color: surfaces.text }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border p-6 text-center space-y-4"
+            style={{ backgroundColor: surfaces.card, borderColor: surfaces.danger }}
+          >
+            <AlertCircle className="mx-auto h-7 w-7" style={{ color: surfaces.danger }} />
+            <h2 className="text-sm font-extrabold" style={{ color: surfaces.textStrong }}>
+              {locale === 'hi' ? 'सेवा सूची लोड नहीं हुई' : 'Service catalog unavailable'}
+            </h2>
+            <p className="text-xs font-semibold" style={{ color: surfaces.muted }}>
+              {catalogError || (locale === 'hi' ? 'कृपया फिर से कोशिश करें।' : 'Please try again.')}
+            </p>
+            <div className="flex justify-center gap-2">
+              <button
+                type="button"
+                onClick={closeSiteBooking}
+                className="rounded-xl border px-4 py-2 text-xs font-bold"
+                style={{ borderColor: surfaces.line, color: surfaces.text }}
+              >
+                {locale === 'hi' ? 'वेबसाइट पर वापस' : 'Back to website'}
+              </button>
+              <button
+                type="button"
+                data-testid="supabase-booking-catalog-retry"
+                onClick={() => setCatalogRetry((value) => value + 1)}
+                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold"
+                style={{ backgroundColor: surfaces.accent, color: surfaces.accentText }}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {locale === 'hi' ? 'फिर कोशिश करें' : 'Try again'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {phase === 'entry' && (!isSupabaseConfigured || catalogState === 'ready') && (
         <SiteBookingFlow
           themeId={themeId}
-          data={data}
+          data={bookingData}
           onBackToWebsite={closeSiteBooking}
           onShowToast={showNotice}
           onProceedToPayment={handleConfirmEntry}
@@ -323,7 +428,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
             </div>
             <SiteBookingConfirmation
               themeId={themeId}
-              data={data}
+              data={bookingData}
               view={persistenceView}
               variant="history"
               showActions={false}
@@ -352,7 +457,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       {phase === 'payment' && summary && (
         <SiteBookingPaymentFlowWrapper
           themeId={themeId}
-          data={data}
+          data={bookingData}
           summary={summary}
           initialRecord={initialRecord}
           onBackToSummary={handleBackToSummary}

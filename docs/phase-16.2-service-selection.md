@@ -1,100 +1,108 @@
-# Phase 16.2 — Service Selection (all 5 themes)
+# Phase 16.2 — Real Supabase Service Selection & Booking Items
 
-> Status: **COMPLETE** (2026-08-16, session `arena/01a006f4-new-tamplete-app`).
-> Scope: the booking flow's Service step is connected to the EXISTING
-> theme-specific service system and gains **multi-service selection with
-> automatic price + duration totals**. Phase 16.1 and Phases 10–15 are
-> preserved; still exactly ONE booking architecture. No date/time slot work,
-> no payment, no advance, no confirmation, no notifications, no management.
+> Status: implementation complete; live SQL and running-app proof required.
+> Scope: connect the existing multi-service booking UI to the live active salon
+> catalog and persist its existing `booking_items` relationship. No payment,
+> cancellation, reschedule, race-safe availability transaction, or later phase.
 
-## What landed
+## Existing UI preserved
 
-| File | Role |
-|------|------|
-| `src/lib/siteBookingFlow.ts` | Additive multi-selection engine: `BOOKING_MAX_SERVICES` (6), `toggleBookingService` (ordered toggle + cap), `bookingSelectedServices` (resolve ids against the ACTIVE theme's list only — unknown/foreign/stale ids dropped), `bookingSelectionSummary` (auto totals via the EXISTING `serviceDisplayPrice` offer engine + variant-aware `bookingServiceDuration`), `bookingCombinedSlotService` (the selection as ONE sitting for the existing slot/hold engine; single selection collapses to the plain service so 10.6 hold keys stay identical). |
-| `src/lib/siteBookingDraft.ts` | Additive: `BookingDraftServiceLine[]` (`services`), `totalPrice`, `totalDurationMinutes`; store version bumped to 2 (old v1 payloads fail closed as before); legacy/injected rows normalise to an empty line list on read. The 16.1 single-service fields now mirror line 1 + summed totals. |
-| `src/lib/siteBookingI18n.ts` | Additive EN/HI copy: multi-select hint, Add/Added/Remove, selection totals panel, per-appointment limit note, service loading/error/retry, `summary.services`, `summary.multiPaymentNote`. |
-| `src/components/SiteBookingFlow.tsx` | Service step multi-select UI (ordered `selectedServiceIds`), live totals panel (per-line name/duration/price + Remove, total duration + total price, Clear all, cap note), summary line items + totals, loading/error/retry states through the shared section seam, combined-sitting wiring into `pickSlot`/slots/gating. |
-| `scripts/test-phase-16.2.mjs` | 55-test five-theme acceptance (engine + real React UI in jsdom). |
+The Phase 16 service selection remains the one existing flow:
 
-## Where the services come from (existing relationships only)
+- `bookingServicesForTheme` and `bookingSelectedServices` still enforce the
+  active in-memory theme list used by the selection component.
+- The established service cards still show name, category, price, duration,
+  selection totals, and the six-service cap.
+- The existing combined-duration availability calculation and slot/hold engine
+  are unchanged.
+- Unconfigured/test builds retain their legacy local catalog/payment sandbox.
 
-- The list is `bookingServicesForTheme(data, themeId)` — the SAME 10.6
-  function: active catalog rows only, theme provenance must match the active
-  theme, no foreign/inactive rows. Nothing new was queried, copied or seeded.
-- Each row shows **name, category, price, duration** — price through the
-  EXISTING Phase 9.1 `serviceDisplayPrice` (offer-aware), duration through
-  the existing row (active pricing-variant override wins, as the 10.6
-  summary already did).
-- No new IDs, tables, columns, prices or fake services. The engine can only
-  resolve ids that exist on the active theme's own list at resolve time.
+## Configured Supabase authority
 
-## Multi-service selection
+When Supabase is configured, `SiteBookingFullFlow` does not render browser-local
+service rows. It first calls `get_public_salon_service_catalog` and replaces the
+booking flow's `data.services` with the returned live rows. Local offers are not
+applied because this phase has no live offer/payment integration and the booking
+RPC derives the base total from `services.price_paise`.
 
-- Tap to **add**, tap again (or Remove in the totals panel) to take out;
-  selection order is preserved. `Clear all` empties it; Continue requires
-  ≥ 1 service. Cap: 6 services per appointment (engine-enforced, toast+note).
-- **Auto totals**: offer-aware total price + summed duration, recalculated
-  on every change (`booking-selection-totals` exposes `data-count`,
-  `data-total-price`, `data-total-duration` for tests).
-- **One sitting**: `bookingCombinedSlotService` feeds the EXISTING slot/hold
-  engine one pseudo-service (stable sorted-id key + summed duration), so a
-  multi-service appointment blocks its whole span for other visitors and
-  ONE hold row exists. Any selection change releases the held slot (the
-  sitting length changed) and the time step re-holds with the new span.
-- **Single-service stays byte-identical to 10.6/10.7**: the combined
-  service collapses to the plain service (same hold key), and the summary
-  Confirm hands off to the existing payment flow exactly as before.
-- **Multi-service Confirm** stays on the summary with a clear localized
-  note ("online payment for multi-service bookings unlocks in a later
-  phase") — the existing 10.7 payment engine prices exactly one service
-  record, so wiring multi-service payment belongs to the payment phase.
-  No fake payment, no partial hand-off.
+The catalog RPC:
 
-## Draft (16.1 foundation) extension
+1. Resolves the active template from `salon_public_websites`.
+2. Rejects a caller whose requested UI template does not match that active
+   server template.
+3. Returns only active `services` joined to active `service_categories` for the
+   selected salon.
+4. Exposes only the existing public-safe service fields needed by the booking
+   UI.
 
-- The draft now snapshots **every line** (`serviceId`, `serviceName`,
-  `category`, offer-aware `price`, `durationMinutes`) plus `totalPrice` and
-  `totalDurationMinutes`. The 16.1 fields (`serviceId`, `servicePrice`,
-  `serviceDurationMinutes`) mirror line 1 + totals so earlier consumers
-  keep working.
-- Resume restores the FULL selection (lines that no longer exist on the
-  active theme are dropped at resolve time). Store version bumped to 2.
+The client validates the returned salon/template and every returned row before
+mapping it into the existing `Service` model. Real UUIDs, category identity,
+price, and duration remain database-sourced.
 
-## Theme isolation (verified per theme)
+## Existing booking RPC reused
 
-- Foreign-theme rows, inactive rows and other themes' ids can never render,
-  never resolve into a selection, and never enter the totals.
-- A selection/draft made on one theme never leaks into another theme's flow
-  (16.1 keyed drafts + active-list resolution).
-- Nothing was copied between themes — the five catalogs stay untouched.
+`create_customer_booking(uuid, uuid[], timestamptz, text, text)` remains the one
+booking creation RPC. Its signature is unchanged. Phase 16.2 strengthens its
+existing service resolution by requiring:
 
-## Loading / error / empty states
+- authenticated `auth.uid()`;
+- active, non-deleted selected salon;
+- an active public website/template for that salon;
+- one to six unique service UUIDs;
+- each service active and owned by that salon;
+- each service linked to an active existing service category.
 
-- The service step honours the SAME shared section seam the public website
-  'services' section uses (`injectedSectionStatus('services')`): skeleton
-  loading state, error state with a Retry button (re-reads the seam), and
-  the existing empty state. No second state system.
-- EN/HI for all new copy; light/dark via the existing `bookingSurfaces`;
-  same mobile-first grid — desktop/tablet/mobile unchanged.
+The browser sends service IDs, appointment start, note, and phone only. It does
+not send an authoritative customer ID, price, duration, total, booking status,
+reference, or appointment end.
 
-## Explicitly NOT in 16.2 (later phases)
+The RPC calculates:
 
-- Real/server time-slot management (16.3+).
-- Payment, 25% advance, confirmation, notifications, booking management.
-- Multi-service payment hand-off (needs the payment-phase engine).
-- Any database execution (M01–M27 stay unapplied drafts; no new fields).
+- `bookings.total_paise = sum(services.price_paise)`;
+- `bookings.appointment_end = appointment_start + sum(duration_minutes)`;
+- one existing `booking_items` row per selected live service with real
+  `service_id`, price, name, and duration snapshots.
 
-## Validation
+The returned `template_key`, booking, and items are validated before projection
+into the existing confirmation/history model.
 
+## Refresh behavior
+
+My Bookings still reads authenticated `bookings` with nested `booking_items`.
+The active template is resolved again through the server catalog RPC rather than
+trusted from browser state. Booking Details receives that already RLS-authorized
+record, so service name, service ID, price, and duration come from persisted
+booking-item snapshots after refresh.
+
+Supabase-backed history rows remain read-only. Local payment, cancellation, and
+reschedule engines refuse them.
+
+## Database patch
+
+Apply `docs/phase-16.2-service-booking-items.sql` after the Phase 16.1 SQL. It:
+
+- creates no table or column;
+- adds the narrow public catalog RPC;
+- replaces (does not duplicate) the existing booking RPC body;
+- leaves booking/customer RLS and existing lifecycle defaults intact.
+
+## Temporary browser state
+
+The existing draft, hold, browser, and payment localStorage keys remain only for
+pre-confirmation availability hints or unconfigured legacy tests. They are not
+the configured build's service, booking-item, customer, price, or duration
+authority.
+
+## Verification commands
+
+```bash
+npm run lint
+npm run build
+npm run test:phase-16.1
+npm run test:phase-16.2
+npm run test:phase-16.2-supabase
+npm run test:supabase-booking
 ```
-test:phase-16.2   55/55
-test:phase-16.1   55/55   (unchanged, still green)
-test:phase-10.6  107/107 · test:phase-10.7 66/66
-Phase 10: 10.1 80, 10.2 49, 10.3 86, 10.4 118, 10.5 56, 10.8 36, 10.9 77,
-          10.11 72, 10.12 178, 10.13 339
-Phase 11: 2398 all green · Phase 12: 582 all green · Phase 13: 220 all green
-Phase 14: 180 all green · Phase 15: 244 all green · 9.1 9/9
-validate:migrations 27/27 ×2 + 21/21 · lint 0 errors · build green ·
-verify-22-screens 25/25
-```
+
+For strict live insert/reload and invalid-service proof, run
+`npm run probe:live-booking` with the documented operator-only environment.
