@@ -22,6 +22,7 @@ const {
   bookingServicesAreDatabaseRows,
   createSupabaseBookingWithClient,
   isDatabaseUuid,
+  readMySupabaseBookingByReferenceWithClient,
   readMySupabaseBookingsWithClient,
   readSupabaseBookingCatalogWithClient,
   readSupabaseCustomerDetailsWithClient,
@@ -402,6 +403,64 @@ await test('read repository filters by session user and salon, then maps only RL
     ['bookings', 'customer_user_id', USER_ID],
     ['salon_customers', 'salon_id', SALON_ID],
     ['salon_customers', 'customer_user_id', USER_ID],
+  ]);
+});
+
+await test('direct booking/receipt lookup is authenticated, tenant-scoped and RLS-safe', async () => {
+  const filters = [];
+  const client = {
+    async rpc() {
+      return {
+        data: {
+          salon_id: SALON_ID,
+          template_key: 'hair_studio_color_bar',
+          services: [{
+            id: SERVICE_ID,
+            salon_id: SALON_ID,
+            category_id: CATEGORY_ID,
+            category_name: 'Hair Colour',
+            category_slug: 'hair-colour',
+            name: 'Live Hair Service',
+            description: '',
+            price_paise: 125000,
+            duration_minutes: 60,
+          }],
+        },
+        error: null,
+      };
+    },
+    from(table) {
+      if (table === 'bookings') {
+        return {
+          select() { return this; },
+          eq(column, value) { filters.push([table, column, value]); return this; },
+          async maybeSingle() {
+            return { data: { ...bookingRow(), booking_items: [itemRow()] }, error: null };
+          },
+        };
+      }
+      if (table === 'salon_customers') {
+        return {
+          select() { return this; },
+          eq(column, value) { filters.push([table, column, value]); return this; },
+          async maybeSingle() {
+            return { data: { email: user.email, phone: user.phone }, error: null };
+          },
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    },
+  };
+  const record = await readMySupabaseBookingByReferenceWithClient(
+    client, user, SALON_ID, 'hair_studio_color_bar', 'LIVE-1001',
+  );
+  assert.equal(record.bookingId, 'LIVE-1001');
+  assert.equal(record.customerId, USER_ID);
+  assert.equal(record.services[0].category, 'Hair Colour');
+  assert.deepEqual(filters.slice(0, 3), [
+    ['bookings', 'salon_id', SALON_ID],
+    ['bookings', 'customer_user_id', USER_ID],
+    ['bookings', 'booking_number', 'LIVE-1001'],
   ]);
 });
 

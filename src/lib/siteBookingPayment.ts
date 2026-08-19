@@ -208,6 +208,8 @@ export interface BookingCustomerSnapshot {
 export interface PaymentServiceLine {
   serviceId: string;
   serviceName: string;
+  /** Existing live category context when resolved from the Supabase catalog. */
+  category?: string;
   /** Offer-aware price actually charged for this line (existing pricing). */
   price: number;
   durationMinutes: number;

@@ -243,6 +243,13 @@ try {
   assert.equal(createBodies[1].p_phone, '+919999999999');
   assert.match(view.getByTestId('supabase-booking-persisted').textContent, /LIVE-1640/);
   assert.match(view.getByTestId('supabase-booking-persisted').textContent, /Database Balayage/);
+  assert.match(view.getByTestId('supabase-booking-persisted').textContent, /Hair Colour/);
+  assert.match(view.getByTestId('booking-confirmation-customer').textContent, /Asha Customer/);
+  assert.match(view.getByTestId('booking-confirmation-customer-mobile').textContent, /9999999999/);
+  assert.match(view.getByTestId('booking-confirmation-customer-email').textContent, /asha@example\.test/);
+  assert.equal(view.getByTestId('booking-confirmation').dataset.state, 'payment_pending');
+  assert.equal(view.getByTestId('booking-confirmation').dataset.confirmed, 'false');
+  assert.equal(view.getByTestId('booking-confirmation-payment-status').textContent.includes('Unpaid'), true);
   assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
 
   console.log('PASS authenticated customer and salon relationship prefill the existing details step');

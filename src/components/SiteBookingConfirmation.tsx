@@ -35,9 +35,12 @@ import {
   Download,
   Hash,
   Hourglass,
+  Mail,
+  Phone,
   ReceiptText,
   RefreshCw,
   Sparkles,
+  User,
   Wallet,
 } from 'lucide-react';
 import type { SalonData } from '../types';
@@ -268,10 +271,37 @@ export default function SiteBookingConfirmation({
         />
         <DetailRow
           s={s}
+          testid="booking-confirmation-customer"
+          icon={<User className="w-3.5 h-3.5" />}
+          label={T['field.customer']}
+          value={view.customer.name}
+        />
+        {view.customer.mobile && (
+          <DetailRow
+            s={s}
+            testid="booking-confirmation-customer-mobile"
+            icon={<Phone className="w-3.5 h-3.5" />}
+            label={T['field.mobile']}
+            value={view.customer.mobile}
+          />
+        )}
+        {view.customer.email && (
+          <DetailRow
+            s={s}
+            testid="booking-confirmation-customer-email"
+            icon={<Mail className="w-3.5 h-3.5" />}
+            label={T['field.email']}
+            value={view.customer.email}
+          />
+        )}
+        <DetailRow
+          s={s}
           testid="booking-confirmation-services"
           icon={<Sparkles className="w-3.5 h-3.5" />}
           label={T['field.services']}
-          value={view.serviceNames.join(' + ')}
+          value={view.services.map((service) =>
+            service.category ? `${service.serviceName} · ${service.category}` : service.serviceName
+          ).join(' + ')}
         />
         <DetailRow
           s={s}
@@ -344,7 +374,7 @@ export default function SiteBookingConfirmation({
           testid="booking-confirmation-status"
           icon={<CheckCircle2 className="w-3.5 h-3.5" />}
           label={T['field.status']}
-          value={T[`state.${view.state}` as keyof typeof T]}
+          value={view.bookingStatus.replace(/_/g, ' ')}
           valueColor={colors.fg}
         />
         {view.gatewayRef && (

@@ -398,6 +398,20 @@ export function supabaseBookingToPaymentRecord(
   };
 }
 
+function enrichRecordWithCatalog(
+  record: PaymentRecord,
+  catalog: SupabaseBookingCatalog,
+): PaymentRecord {
+  const categories = new Map(catalog.services.map((service) => [service.id, service.category]));
+  return {
+    ...record,
+    services: record.services?.map((line) => ({
+      ...line,
+      category: categories.get(line.serviceId),
+    })),
+  };
+}
+
 function localAppointmentIso(dateKey: string, minutes: number): string {
   const [year, month, day] = dateKey.split('-').map(Number);
   if (![year, month, day, minutes].every(Number.isFinite)) {
@@ -576,7 +590,10 @@ export async function createSupabaseBookingWithClient(
 
 export async function createSupabaseBooking(input: CreateSupabaseBookingInput): Promise<PaymentRecord> {
   const user = await authenticatedUser();
-  return createSupabaseBookingWithClient(requireSupabase(), user, input);
+  const client = requireSupabase();
+  const catalog = await readSupabaseBookingCatalogWithClient(client, input.salonId, input.themeId);
+  const record = await createSupabaseBookingWithClient(client, user, input);
+  return enrichRecordWithCatalog(record, catalog);
 }
 
 async function readContact(
@@ -626,6 +643,48 @@ export async function readSupabaseCustomerDetails(salonId: string): Promise<Supa
   return readSupabaseCustomerDetailsWithClient(requireSupabase(), user, salonId);
 }
 
+export async function readMySupabaseBookingByReferenceWithClient(
+  client: SupabaseClient,
+  user: User,
+  salonId: string,
+  themeId: SiteHeaderThemeId,
+  reference: string,
+): Promise<PaymentRecord | null> {
+  if (!isDatabaseUuid(salonId) || !reference.trim()) return null;
+  const catalog = await readSupabaseBookingCatalogWithClient(client, salonId, themeId);
+  const nested = `${LIVE_BOOKING_COLUMNS},booking_items(${LIVE_ITEM_COLUMNS})`;
+  let query = client
+    .from('bookings')
+    .select(nested)
+    .eq('salon_id', salonId)
+    .eq('customer_user_id', user.id);
+  const referenceIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reference);
+  query = referenceIsUuid
+    ? query.eq('id', reference)
+    : query.eq('booking_number', reference.trim());
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    console.error('Supabase direct booking read failed:', error);
+    throw safeDatabaseError(error, 'The booking could not be loaded. Please try again.');
+  }
+  if (!data) return null;
+  const contact = await readContact(client, salonId, user.id);
+  const booking = mapRow(data);
+  return enrichRecordWithCatalog(
+    supabaseBookingToPaymentRecord(booking, booking.booking_items || [], catalog.themeId, user, contact),
+    catalog,
+  );
+}
+
+export async function readMySupabaseBookingByReference(
+  salonId: string,
+  themeId: SiteHeaderThemeId,
+  reference: string,
+): Promise<PaymentRecord | null> {
+  const user = await authenticatedUser();
+  return readMySupabaseBookingByReferenceWithClient(requireSupabase(), user, salonId, themeId, reference);
+}
+
 export async function readMySupabaseBookingsWithClient(
   client: SupabaseClient,
   user: User,
@@ -654,7 +713,10 @@ export async function readMySupabaseBookingsWithClient(
   return (Array.isArray(data) ? data : []).map((raw) => {
     const booking = mapRow(raw);
     const items = booking.booking_items || [];
-    return supabaseBookingToPaymentRecord(booking, items, catalog.themeId, user, contact);
+    return enrichRecordWithCatalog(
+      supabaseBookingToPaymentRecord(booking, items, catalog.themeId, user, contact),
+      catalog,
+    );
   });
 }
 
