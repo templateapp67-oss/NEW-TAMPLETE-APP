@@ -55,6 +55,7 @@ const OTHER_USER_ID = '30000000-0000-4000-8000-000000000002';
 const SALON_ID = '40000000-0000-4000-8000-000000000001';
 const OTHER_SALON_ID = '40000000-0000-4000-8000-000000000002';
 const SERVICE_ID = '50000000-0000-4000-8000-000000000001';
+const STAFF_ID = '52000000-0000-4000-8000-000000000001';
 const OTHER_SERVICE_ID = '50000000-0000-4000-8000-000000000002';
 const SECOND_SERVICE_ID = '50000000-0000-4000-8000-000000000003';
 const CATEGORY_ID = '51000000-0000-4000-8000-000000000001';
@@ -73,7 +74,9 @@ function bookingRow(overrides = {}) {
     id: BOOKING_ID,
     salon_id: SALON_ID,
     customer_user_id: USER_ID,
-    staff_id: null,
+    salon_customer_id: '61000000-0000-4000-8000-000000000001',
+    staff_id: STAFF_ID,
+    staff_name_snapshot: 'Live Stylist',
     booking_number: 'LIVE-1001',
     appointment_start: '2031-08-20T05:30:00.000Z',
     appointment_end: '2031-08-20T06:30:00.000Z',
@@ -86,6 +89,31 @@ function bookingRow(overrides = {}) {
     created_at: '2031-08-19T05:30:00.000Z',
     updated_at: '2031-08-19T05:30:00.000Z',
     ...overrides,
+  };
+}
+
+function bookingPayload(overrides = {}) {
+  const booking = bookingRow(overrides);
+  return {
+    template_key: 'hair_studio_color_bar',
+    timezone: 'Asia/Kolkata',
+    customer: { name: 'Asha Customer', phone: '+919999999999', email: user.email },
+    booking,
+    items: [itemRow({ booking_id: booking.id })],
+  };
+}
+
+function catalogPayload() {
+  return {
+    salon_id: SALON_ID,
+    template_key: 'hair_studio_color_bar',
+    timezone: 'Asia/Kolkata',
+    services: [{
+      id: SERVICE_ID, salon_id: SALON_ID, category_id: CATEGORY_ID,
+      category_name: 'Hair Colour', category_slug: 'hair-colour',
+      name: 'Live Hair Service', description: 'Database description',
+      price_paise: 125000, duration_minutes: 60,
+    }],
   };
 }
 
@@ -122,6 +150,7 @@ await test('catalog repository maps only server-returned active salon/template s
         data: {
           salon_id: SALON_ID,
           template_key: 'hair_studio_color_bar',
+          timezone: 'Asia/Kolkata',
           services: [{
             id: SERVICE_ID,
             salon_id: SALON_ID,
@@ -147,6 +176,7 @@ await test('catalog repository maps only server-returned active salon/template s
   assert.deepEqual(call.args, { p_salon_id: SALON_ID, p_template_key: 'hair_studio_color_bar' });
   assert.equal(catalog.salonId, SALON_ID);
   assert.equal(catalog.themeId, 'hair_studio_color_bar');
+  assert.equal(catalog.timezone, 'Asia/Kolkata');
   assert.deepEqual(catalog.services[0], {
     id: SERVICE_ID,
     name: 'Live Hair Service',
@@ -169,6 +199,7 @@ await test('catalog repository rejects cross-salon and cross-template responses'
         data: {
           salon_id: SALON_ID,
           template_key: 'hair_studio_color_bar',
+          timezone: 'Asia/Kolkata',
           services: [{
             id: OTHER_SERVICE_ID,
             salon_id: OTHER_SALON_ID,
@@ -193,7 +224,7 @@ await test('catalog repository rejects cross-salon and cross-template responses'
   const crossThemeClient = {
     async rpc() {
       return {
-        data: { salon_id: SALON_ID, template_key: 'beauty_skin_spa', services: [] },
+        data: { salon_id: SALON_ID, template_key: 'beauty_skin_spa', timezone: 'Asia/Kolkata', services: [] },
         error: null,
       };
     },
@@ -208,14 +239,17 @@ await test('customer details prefill comes from the authenticated user and own s
   const filters = [];
   const client = {
     from(table) {
-      assert.equal(table, 'salon_customers');
-      return {
+      if (table === 'salon_customers') return {
         select() { return this; },
         eq(column, value) { filters.push([column, value]); return this; },
-        async maybeSingle() {
-          return { data: { email: 'relationship@example.test', phone: '+919999999999' }, error: null };
-        },
+        async maybeSingle() { return { data: { email: 'relationship@example.test', phone: '+919999999999' }, error: null }; },
       };
+      if (table === 'profiles') return {
+        select() { return this; },
+        eq(column, value) { filters.push([column, value]); return this; },
+        async single() { return { data: { full_name: 'Asha Customer', phone: user.phone }, error: null }; },
+      };
+      throw new Error(`unexpected table ${table}`);
     },
   };
   const details = await readSupabaseCustomerDetailsWithClient(client, user, SALON_ID);
@@ -226,22 +260,24 @@ await test('customer details prefill comes from the authenticated user and own s
     email: 'customer@example.test',
     emailReadOnly: true,
   });
-  assert.deepEqual(filters, [['salon_id', SALON_ID], ['customer_user_id', USER_ID]]);
+  assert.deepEqual(filters, [['salon_id', SALON_ID], ['customer_user_id', USER_ID], ['id', USER_ID]]);
 });
 
 await test('create repository sends no customer id, price, status, reference, or client duration', async () => {
   let call = null;
   const client = {
     async rpc(name, args) {
-      call = { name, args };
-      return {
-        data: {
-          template_key: 'hair_studio_color_bar',
-          booking: bookingRow(),
-          items: [itemRow()],
-        },
-        error: null,
-      };
+      if (name === 'create_customer_booking') {
+        call = { name, args };
+        return { data: BOOKING_ID, error: null };
+      }
+      if (name === 'get_public_salon_service_catalog') return { data: catalogPayload(), error: null };
+      if (name === 'get_customer_bookings') return { data: [bookingPayload()], error: null };
+      throw new Error(`unexpected RPC ${name}`);
+    },
+    from(table) {
+      assert.equal(table, 'profiles');
+      return { update() { return this; }, eq() { return Promise.resolve({ error: null }); } };
     },
   };
   const record = await createSupabaseBookingWithClient(client, user, {
@@ -253,8 +289,9 @@ await test('create repository sends no customer id, price, status, reference, or
       price: 1,
       durationMinutes: 1,
     }],
-    dateKey: '2031-08-20',
-    startMinutes: 660,
+    staffId: STAFF_ID,
+    appointmentStart: '2031-08-20T05:30:00.000Z',
+    idempotencyKey: 'create-contract-1',
     customer: {
       name: 'Asha Customer', mobile: '+919876543210', email: 'spoof@example.test', notes: '',
     },
@@ -262,13 +299,14 @@ await test('create repository sends no customer id, price, status, reference, or
 
   assert.equal(call.name, 'create_customer_booking');
   assert.deepEqual(Object.keys(call.args).sort(), [
-    'p_appointment_start', 'p_customer_note', 'p_phone', 'p_salon_id', 'p_service_ids',
+    'p_appointment_start', 'p_customer_note', 'p_idempotency_key', 'p_salon_id', 'p_service_ids', 'p_staff_id',
   ]);
   assert.equal(call.args.p_salon_id, SALON_ID);
   assert.deepEqual(call.args.p_service_ids, [SERVICE_ID]);
   assert.equal('p_customer_id' in call.args, false);
   assert.equal('p_total_paise' in call.args, false);
   assert.equal('p_appointment_end' in call.args, false);
+  assert.equal('p_phone' in call.args, false);
   assert.equal(record.persistence, 'supabase');
   assert.equal(record.customerId, USER_ID);
   assert.equal(record.businessId, SALON_ID);
@@ -277,38 +315,37 @@ await test('create repository sends no customer id, price, status, reference, or
   assert.equal(record.services[0].durationMinutes, 60);
 });
 
-await test('edited customer name updates only the current authenticated auth profile before booking', async () => {
+await test('edited customer details update only the current authenticated profile before booking', async () => {
   let updatePayload = null;
-  const updatedUser = { ...user, user_metadata: { ...user.user_metadata, full_name: 'Asha Sharma' } };
   const client = {
-    auth: {
-      async updateUser(payload) {
-        updatePayload = payload;
-        return { data: { user: updatedUser }, error: null };
-      },
-    },
-    async rpc() {
+    from(table) {
+      assert.equal(table, 'profiles');
       return {
-        data: {
-          template_key: 'hair_studio_color_bar',
-          booking: bookingRow(),
-          items: [itemRow()],
-        },
-        error: null,
+        update(payload) { updatePayload = payload; return this; },
+        eq(column, value) { assert.equal(column, 'id'); assert.equal(value, USER_ID); return Promise.resolve({ error: null }); },
       };
+    },
+    async rpc(name) {
+      if (name === 'create_customer_booking') return { data: BOOKING_ID, error: null };
+      if (name === 'get_public_salon_service_catalog') return { data: catalogPayload(), error: null };
+      if (name === 'get_customer_bookings') return {
+        data: [{ ...bookingPayload(), customer: { name: 'Asha Sharma', phone: user.phone, email: user.email } }], error: null,
+      };
+      throw new Error(`unexpected RPC ${name}`);
     },
   };
   const record = await createSupabaseBookingWithClient(client, user, {
     salonId: SALON_ID,
     themeId: 'hair_studio_color_bar',
     services: [{ serviceId: SERVICE_ID, serviceName: 'ignored', price: 1, durationMinutes: 1 }],
-    dateKey: '2031-08-20',
-    startMinutes: 660,
+    staffId: STAFF_ID,
+    appointmentStart: '2031-08-20T05:30:00.000Z',
+    idempotencyKey: 'profile-contract-1',
     customer: {
       name: ' Asha Sharma ', mobile: '+919876543210', email: 'customer@example.test', notes: '',
     },
   });
-  assert.equal(updatePayload.data.full_name, 'Asha Sharma');
+  assert.deepEqual(updatePayload, { full_name: 'Asha Sharma', phone: '+919876543210' });
   assert.equal(record.customerId, USER_ID);
   assert.equal(record.customer.name, 'Asha Sharma');
 });
@@ -321,8 +358,9 @@ await test('create repository rejects invalid customer fields before any RPC', a
       salonId: SALON_ID,
       themeId: 'hair_studio_color_bar',
       services: [{ serviceId: SERVICE_ID, serviceName: 'ignored', price: 1, durationMinutes: 1 }],
-      dateKey: '2031-08-20',
-      startMinutes: 660,
+      staffId: STAFF_ID,
+      appointmentStart: '2031-08-20T05:30:00.000Z',
+      idempotencyKey: 'invalid-contract-1',
       customer: { name: ' ', mobile: '123', email: 'bad', notes: '' },
     }),
     (error) => error instanceof SupabaseBookingError && error.kind === 'validation',
@@ -332,15 +370,12 @@ await test('create repository rejects invalid customer fields before any RPC', a
 
 await test('create repository rejects a response outside the authenticated customer', async () => {
   const client = {
-    async rpc() {
-      return {
-        data: {
-          template_key: 'hair_studio_color_bar',
-          booking: bookingRow({ customer_user_id: OTHER_USER_ID }),
-          items: [itemRow()],
-        },
-        error: null,
-      };
+    from() { return { update() { return this; }, eq() { return Promise.resolve({ error: null }); } }; },
+    async rpc(name) {
+      if (name === 'create_customer_booking') return { data: BOOKING_ID, error: null };
+      if (name === 'get_public_salon_service_catalog') return { data: catalogPayload(), error: null };
+      if (name === 'get_customer_bookings') return { data: [bookingPayload({ customer_user_id: OTHER_USER_ID })], error: null };
+      throw new Error(`unexpected RPC ${name}`);
     },
   };
   await assert.rejects(
@@ -348,44 +383,25 @@ await test('create repository rejects a response outside the authenticated custo
       salonId: SALON_ID,
       themeId: 'hair_studio_color_bar',
       services: [{ serviceId: SERVICE_ID, serviceName: 'x', price: 1, durationMinutes: 1 }],
-      dateKey: '2031-08-20',
-      startMinutes: 660,
+      staffId: STAFF_ID,
+      appointmentStart: '2031-08-20T05:30:00.000Z',
+      idempotencyKey: 'foreign-contract-1',
       customer: { name: 'Asha Customer', mobile: '+919876543210', email: 'customer@example.test', notes: '' },
     }),
     (error) => error instanceof SupabaseBookingError && error.kind === 'permission',
   );
 });
 
-await test('read repository filters by session user and salon, then maps only RLS rows', async () => {
-  const filters = [];
-  const booking = { ...bookingRow(), booking_items: [itemRow()] };
+await test('read repository uses the customer-own RPC and salon scope', async () => {
+  const calls = [];
   const client = {
     async rpc(name, args) {
-      assert.equal(name, 'get_public_salon_service_catalog');
-      assert.deepEqual(args, { p_salon_id: SALON_ID, p_template_key: 'hair_studio_color_bar' });
-      return {
-        data: { salon_id: SALON_ID, template_key: 'hair_studio_color_bar', services: [] },
-        error: null,
+      calls.push({ name, args });
+      if (name === 'get_public_salon_service_catalog') return {
+        data: { salon_id: SALON_ID, template_key: 'hair_studio_color_bar', timezone: 'Asia/Kolkata', services: [] }, error: null,
       };
-    },
-    from(table) {
-      if (table === 'bookings') {
-        return {
-          select() { return this; },
-          eq(column, value) { filters.push([table, column, value]); return this; },
-          async order() { return { data: [booking], error: null }; },
-        };
-      }
-      if (table === 'salon_customers') {
-        return {
-          select() { return this; },
-          eq(column, value) { filters.push([table, column, value]); return this; },
-          async maybeSingle() {
-            return { data: { email: 'customer@example.test', phone: '+919876543210' }, error: null };
-          },
-        };
-      }
-      throw new Error(`unexpected table ${table}`);
+      if (name === 'get_customer_bookings') return { data: [bookingPayload()], error: null };
+      throw new Error(`unexpected RPC ${name}`);
     },
   };
 
@@ -398,22 +414,22 @@ await test('read repository filters by session user and salon, then maps only RL
   assert.equal(records.length, 1);
   assert.equal(records[0].id, BOOKING_ID);
   assert.equal(records[0].persistence, 'supabase');
-  assert.deepEqual(filters, [
-    ['bookings', 'salon_id', SALON_ID],
-    ['bookings', 'customer_user_id', USER_ID],
-    ['salon_customers', 'salon_id', SALON_ID],
-    ['salon_customers', 'customer_user_id', USER_ID],
+  assert.deepEqual(calls, [
+    { name: 'get_public_salon_service_catalog', args: { p_salon_id: SALON_ID, p_template_key: 'hair_studio_color_bar' } },
+    { name: 'get_customer_bookings', args: { p_salon_id: SALON_ID, p_booking_id: undefined } },
   ]);
 });
 
-await test('direct booking/receipt lookup is authenticated, tenant-scoped and RLS-safe', async () => {
-  const filters = [];
+await test('booking/receipt lookup uses the authenticated customer RPC and tenant scope', async () => {
+  const calls = [];
   const client = {
-    async rpc() {
-      return {
+    async rpc(name, args) {
+      calls.push({ name, args });
+      if (name === 'get_public_salon_service_catalog') return {
         data: {
           salon_id: SALON_ID,
           template_key: 'hair_studio_color_bar',
+          timezone: 'Asia/Kolkata',
           services: [{
             id: SERVICE_ID,
             salon_id: SALON_ID,
@@ -428,27 +444,8 @@ await test('direct booking/receipt lookup is authenticated, tenant-scoped and RL
         },
         error: null,
       };
-    },
-    from(table) {
-      if (table === 'bookings') {
-        return {
-          select() { return this; },
-          eq(column, value) { filters.push([table, column, value]); return this; },
-          async maybeSingle() {
-            return { data: { ...bookingRow(), booking_items: [itemRow()] }, error: null };
-          },
-        };
-      }
-      if (table === 'salon_customers') {
-        return {
-          select() { return this; },
-          eq(column, value) { filters.push([table, column, value]); return this; },
-          async maybeSingle() {
-            return { data: { email: user.email, phone: user.phone }, error: null };
-          },
-        };
-      }
-      throw new Error(`unexpected table ${table}`);
+      if (name === 'get_customer_bookings') return { data: [bookingPayload()], error: null };
+      throw new Error(`unexpected RPC ${name}`);
     },
   };
   const record = await readMySupabaseBookingByReferenceWithClient(
@@ -457,10 +454,9 @@ await test('direct booking/receipt lookup is authenticated, tenant-scoped and RL
   assert.equal(record.bookingId, 'LIVE-1001');
   assert.equal(record.customerId, USER_ID);
   assert.equal(record.services[0].category, 'Hair Colour');
-  assert.deepEqual(filters.slice(0, 3), [
-    ['bookings', 'salon_id', SALON_ID],
-    ['bookings', 'customer_user_id', USER_ID],
-    ['bookings', 'booking_number', 'LIVE-1001'],
+  assert.deepEqual(calls, [
+    { name: 'get_public_salon_service_catalog', args: { p_salon_id: SALON_ID, p_template_key: 'hair_studio_color_bar' } },
+    { name: 'get_customer_bookings', args: { p_salon_id: SALON_ID, p_booking_id: undefined } },
   ]);
 });
 

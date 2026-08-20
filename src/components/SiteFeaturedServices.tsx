@@ -307,7 +307,10 @@ function buildLook(themeId: SiteHeaderThemeId, appearance: 'light' | 'dark'): Fe
 export default function SiteFeaturedServices({ themeId, data, mode }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
-  const { status: runtimeStatus, services, retry } = useFeaturedServices(themeId);
+  const configuredSalonServices = data.businessId && data.bookingTemplateKey
+    ? data.services
+    : undefined;
+  const { status: runtimeStatus, services, retry } = useFeaturedServices(themeId, configuredSalonServices);
   const S = { ...siteText(themeId, locale), ...structureText(themeId, locale) };
   const X = structureCopyFrom(S);
   const copy = featuredCardText(locale);

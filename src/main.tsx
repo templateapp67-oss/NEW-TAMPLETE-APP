@@ -1,6 +1,6 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import ConfiguredCustomerApp from './components/ConfiguredCustomerApp.tsx';
 import NearbySalonSearch from './components/NearbySalonSearch.tsx';
 import { AuthModalProvider } from './components/AuthModalProvider.tsx';
 import './index.css';
@@ -21,7 +21,7 @@ createRoot(document.getElementById('root')!).render(
           <NearbySalonSearch />
         </div>
       ) : (
-        <App />
+        <ConfiguredCustomerApp />
       )}
     </AuthModalProvider>
   </StrictMode>,

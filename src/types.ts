@@ -367,6 +367,10 @@ export interface ReviewedContent {
 export type PublishState = 'draft' | 'publishing' | 'published';
 
 export interface SalonData {
+  /** Live tenant id. Present only when this payload was resolved from Supabase. */
+  businessId?: string;
+  /** Database website template key; kept separate from the visual template id. */
+  bookingTemplateKey?: string;
   templateId?:
     | 'hair'
     | 'barber_mens_grooming'

@@ -27,6 +27,14 @@ interface Props {
 
 type Feedback = { kind: 'success' | 'error'; message: string } | null;
 
+const ACTION_COPY: Partial<Record<BookingStatus, string>> = {
+  checked_in: 'status.checkIn',
+  in_progress: 'status.start',
+  completed: 'status.complete',
+  no_show: 'status.noShow',
+  disputed: 'status.dispute',
+};
+
 function failureMessage(reason: BookingUpdateFailure | undefined, t: (key: string) => string): string {
   if (reason === 'advance-payment-required') return t('status.error.paymentRequired');
   if (reason === 'not-authenticated') return t('status.error.login');
@@ -163,6 +171,24 @@ export default function OwnerBookingStatusControls({ actor, row, palette, t, tes
               {busy === 'completed' ? t('status.updating') : t('status.complete')}
             </button>
           )}
+          {(['checked_in', 'in_progress', 'no_show', 'disputed'] as BookingStatus[])
+            .filter((status) => transitions.includes(status))
+            .map((status) => (
+              <button
+                key={status}
+                type="button"
+                data-testid={`${testIdPrefix}-${status.replace('_', '-')}-${row.bookingId}`}
+                disabled={busy !== null}
+                onClick={() => void update(status)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-extrabold disabled:cursor-not-allowed disabled:opacity-50"
+                style={buttonStyle(status === 'checked_in' || status === 'in_progress')}
+              >
+                {busy === status
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Check className="h-3.5 w-3.5" />}
+                {busy === status ? t('status.updating') : t(ACTION_COPY[status] || 'status.manage')}
+              </button>
+            ))}
           {transitions.includes('cancelled') && (
             <button
               type="button"

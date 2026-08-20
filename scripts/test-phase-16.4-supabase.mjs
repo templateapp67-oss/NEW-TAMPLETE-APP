@@ -9,6 +9,7 @@ process.env.VITE_SUPABASE_ANON_KEY = 'sb_publishable_booking_test';
 const USER_ID = '30000000-0000-4000-8000-000000000001';
 const SALON_ID = '40000000-0000-4000-8000-000000000001';
 const SERVICE_ID = '50000000-0000-4000-8000-000000000001';
+const STAFF_ID = '52000000-0000-4000-8000-000000000001';
 const CATEGORY_ID = '51000000-0000-4000-8000-000000000001';
 const BOOKING_ID = '60000000-0000-4000-8000-000000000001';
 const ITEM_ID = '70000000-0000-4000-8000-000000000001';
@@ -24,7 +25,7 @@ const authUser = {
 };
 let createCalls = 0;
 const createBodies = [];
-const bookingReadUrls = [];
+const bookingReadBodies = [];
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
@@ -38,6 +39,7 @@ globalThis.fetch = async (input, init = {}) => {
     return new Response(JSON.stringify({
       salon_id: SALON_ID,
       template_key: 'hair_studio_color_bar',
+      timezone: 'Asia/Kolkata',
       services: [{
         id: SERVICE_ID,
         salon_id: SALON_ID,
@@ -51,6 +53,14 @@ globalThis.fetch = async (input, init = {}) => {
       }],
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
+  if (url.includes('/rest/v1/rpc/marketplace_slots')) {
+    return new Response(JSON.stringify([{
+      slot_start: '2031-08-20T05:30:00.000Z',
+      slot_end: '2031-08-20T07:00:00.000Z',
+      staff_id: STAFF_ID,
+      staff_name: 'Live Stylist',
+    }]), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
   if (url.includes('/rest/v1/rpc/create_customer_booking')) {
     createCalls += 1;
     createBodies.push(JSON.parse(String(init.body || '{}')));
@@ -60,14 +70,23 @@ globalThis.fetch = async (input, init = {}) => {
         code: 'P0001', message: 'internal database detail must not reach the customer',
       }), { status: 400, headers: { 'content-type': 'application/json' } });
     }
-    return new Response(JSON.stringify({
+    return new Response(JSON.stringify(BOOKING_ID), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+  }
+  if (url.includes('/rest/v1/rpc/get_customer_bookings')) {
+    bookingReadBodies.push(JSON.parse(String(init.body || '{}')));
+    return new Response(JSON.stringify([{
       template_key: 'hair_studio_color_bar',
-      duplicate: false,
+      timezone: 'Asia/Kolkata',
+      customer: { name: 'Asha Customer', phone: '+919999999999', email: 'relationship@example.test' },
       booking: {
         id: BOOKING_ID,
         salon_id: SALON_ID,
         customer_user_id: USER_ID,
-        staff_id: null,
+        salon_customer_id: '61000000-0000-4000-8000-000000000001',
+        staff_id: STAFF_ID,
+        staff_name_snapshot: 'Live Stylist',
         booking_number: 'LIVE-1640',
         appointment_start: '2031-08-20T05:30:00.000Z',
         appointment_end: '2031-08-20T07:00:00.000Z',
@@ -90,50 +109,23 @@ globalThis.fetch = async (input, init = {}) => {
         service_name_snapshot: 'Database Balayage',
         duration_minutes_snapshot: 90,
       }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } });
-  }
-  if (url.includes('/rest/v1/bookings')) {
-    bookingReadUrls.push(url);
-    if (!decodeURIComponent(url).includes(`id=eq.${BOOKING_ID}`)) {
-      return new Response(JSON.stringify([]), {
-        status: 200, headers: { 'content-type': 'application/json' },
-      });
-    }
-    return new Response(JSON.stringify([{
-      id: BOOKING_ID,
-      salon_id: SALON_ID,
-      customer_user_id: USER_ID,
-      staff_id: null,
-      booking_number: 'LIVE-1640',
-      appointment_start: '2031-08-20T05:30:00.000Z',
-      appointment_end: '2031-08-20T07:00:00.000Z',
-      status: 'pending',
-      total_paise: 125000,
-      currency: 'INR',
-      customer_note: 'Please be gentle',
-      source: null,
-      created_by: USER_ID,
-      created_at: '2031-08-19T05:30:00.000Z',
-      updated_at: '2031-08-19T05:30:00.000Z',
-      booking_items: [{
-        id: ITEM_ID,
-        booking_id: BOOKING_ID,
-        service_id: SERVICE_ID,
-        quantity: 1,
-        unit_price_paise: 125000,
-        line_total_paise: 125000,
-        service_name_snapshot: 'Database Balayage',
-        duration_minutes_snapshot: 90,
-      }],
     }]), {
       status: 200, headers: { 'content-type': 'application/json' },
     });
   }
+  if (url.includes('/rest/v1/profiles')) {
+    if (String(init.method || 'GET').toUpperCase() === 'PATCH') {
+      return new Response(null, { status: 204 });
+    }
+    return new Response(JSON.stringify({
+      full_name: 'Asha Customer', phone: '+919999999999',
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
   if (url.includes('/rest/v1/salon_customers')) {
-    return new Response(JSON.stringify([{
+    return new Response(JSON.stringify({
       email: 'relationship@example.test',
       phone: '+919999999999',
-    }]), { status: 200, headers: { 'content-type': 'application/json' } });
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   return new Response(JSON.stringify({ message: `Unexpected request: ${url}` }), {
     status: 404, headers: { 'content-type': 'application/json' },
@@ -232,6 +224,7 @@ try {
   const name = view.getByTestId('booking-input-name');
   const mobile = view.getByTestId('booking-input-mobile');
   const email = view.getByTestId('booking-input-email');
+  await waitFor(() => assert.equal(name.value, 'Asha Customer'));
   assert.equal(name.value, 'Asha Customer');
   assert.equal(mobile.value, '+919999999999');
   assert.equal(email.value, 'asha@example.test');
@@ -272,14 +265,15 @@ try {
   await act(async () => { fireEvent.click(view.getByTestId('supabase-booking-retry')); });
   await waitFor(() => assert.ok(view.getByTestId('supabase-booking-persisted')));
   assert.equal(createCalls, 2);
-  assert.ok(bookingReadUrls.length >= 1, 'confirmation must reload the created booking from Supabase');
-  const confirmationReadUrl = decodeURIComponent(bookingReadUrls.at(-1));
-  assert.match(confirmationReadUrl, new RegExp(`salon_id=eq.${SALON_ID}`));
-  assert.match(confirmationReadUrl, new RegExp(`customer_user_id=eq.${USER_ID}`));
-  assert.match(confirmationReadUrl, new RegExp(`id=eq.${BOOKING_ID}`));
+  assert.ok(bookingReadBodies.length >= 1, 'confirmation must reload through the customer-own RPC');
+  assert.equal(bookingReadBodies.at(-1).p_salon_id, SALON_ID);
+  assert.equal(bookingReadBodies.at(-1).p_booking_id, BOOKING_ID);
   assert.equal(createBodies[1].p_customer_id, undefined);
   assert.deepEqual(createBodies[1].p_service_ids, [SERVICE_ID]);
-  assert.equal(createBodies[1].p_phone, '+919999999999');
+  assert.equal(createBodies[1].p_phone, undefined);
+  assert.equal(createBodies[1].p_staff_id, STAFF_ID);
+  assert.equal(createBodies[1].p_appointment_start, '2031-08-20T05:30:00.000Z');
+  assert.equal(typeof createBodies[1].p_idempotency_key, 'string');
   assert.match(view.getByTestId('supabase-booking-persisted').textContent, /LIVE-1640/);
   assert.match(view.getByTestId('supabase-booking-persisted').textContent, /Database Balayage/);
   assert.match(view.getByTestId('supabase-booking-persisted').textContent, /Hair Colour/);

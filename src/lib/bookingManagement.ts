@@ -48,6 +48,8 @@ import { bookingAvailabilityExtras } from './siteBookingAvailability';
 import { salonNow, weekdayKeyOf } from './salonStatus';
 import { PAYMENT_STORE_KEY, PAYMENT_STORE_VERSION } from './siteBookingPayment';
 import type { SalonData } from '../types';
+import { isSupabaseConfigured } from './supabaseClient';
+import { readSupabaseOwnerBookingCache } from './supabaseBookingCache';
 
 /* ------------------------------------------------------------------ */
 /* Actor resolution (mirrors 14.6 gallery / 15.6 video management)     */
@@ -162,7 +164,12 @@ export function readSalonBookings(
   if (!actorAllowsBusiness(actor, businessId)) {
     return { ok: false, reason: 'permission-denied' };
   }
-  return { ok: true, records: readPaymentRecordsForBusiness(businessId, themeId) };
+  return {
+    ok: true,
+    records: isSupabaseConfigured
+      ? readSupabaseOwnerBookingCache(businessId, themeId)
+      : readPaymentRecordsForBusiness(businessId, themeId),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -172,11 +179,15 @@ export function readSalonBookings(
 /** Transitions an OWNER may perform. Terminal states have no exits. */
 const OWNER_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   pending_payment: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled'],
-  pay_at_salon: ['completed', 'cancelled'],
+  confirmed: ['checked_in', 'cancelled', 'no_show'],
+  checked_in: ['in_progress', 'cancelled'],
+  in_progress: ['completed'],
+  pay_at_salon: ['checked_in', 'cancelled', 'no_show'],
   failed: [],
-  cancelled: [],
-  completed: [],
+  cancelled: ['disputed'],
+  no_show: [],
+  completed: ['disputed'],
+  disputed: [],
 };
 
 /** Statuses from which the CUSTOMER may cancel their own booking. */

@@ -40,10 +40,22 @@ globalThis.fetch = async (input, init = {}) => {
     });
   }
   if (url.includes('/rest/v1/salon_customers')) {
-    return new Response(JSON.stringify([{
+    return new Response(JSON.stringify({
       email: 'asha@example.test',
       phone: '+919999999999',
-    }]), { status: 200, headers: { 'content-type': 'application/json' } });
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (url.includes('/rest/v1/profiles')) {
+    return new Response(JSON.stringify({
+      full_name: 'Asha Customer',
+      phone: '+919999999999',
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (url.includes('/rest/v1/rpc/get_customer_bookings')) {
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
   }
   if (url.includes('/rest/v1/rpc/get_public_salon_service_catalog')) {
     const body = JSON.parse(String(init.body || '{}'));
@@ -52,6 +64,7 @@ globalThis.fetch = async (input, init = {}) => {
     return new Response(JSON.stringify({
       salon_id: SALON_ID,
       template_key: 'hair_studio_color_bar',
+      timezone: 'Asia/Kolkata',
       services: [{
         id: SERVICE_ID,
         salon_id: SALON_ID,

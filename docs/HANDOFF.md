@@ -1,9 +1,50 @@
 # HANDOFF — Nexora Salon Website Builder
 
-> Last updated: **2026-08-19** (session `arena/01a015d6-new-tamplete-app`,
-> pre-Phase Supabase connection foundation).
+> Last updated: **2026-08-19** (branch `arena/phase-16-4-backend`,
+> Phase 16.4 live staging reconciliation).
 
 ## Current repository state
+
+- **PHASE 16.4 BACKEND FOUNDATION — DEPLOYED TO STAGING.**
+  - Canonical project: `nexora-staging` (`qwaehqsmodekbgvnaavz`) only.
+    Migration `20260819145619_phase_16_4_backend_reconciliation` is applied
+    live and mirrored in `supabase/migrations/`. Production was not accessed.
+  - Customer identity is `auth.uid() → profiles.id →
+    salon_customers.customer_user_id`; the booking relation trigger rejects
+    mismatched identities and preserves explicit unlinked walk-ins. Owner
+    identity remains `auth.uid() → organization_members → organization_id →
+    salons.organization_id`; `job_salon_members` is not used.
+  - `create_customer_booking` now returns the canonical UUID, takes a required
+    staff id and idempotency key, and validates salon/service/staff/timezone,
+    salon hours, staff windows/overrides, breaks/leave/blocks, duration and
+    conflicts transactionally under advisory locks. `marketplace_slots` and
+    `get_staff_available_slots` reuse the same validator.
+  - Canonical reads are `get_customer_bookings(uuid, uuid)` and
+    `get_owner_bookings(uuid)`. All owner lifecycle mutations use
+    `operate_owner_booking(uuid,text,text,timestamptz)` with the graph
+    pending → confirmed → checked-in → in-progress → completed and guarded
+    cancellation/no-show/dispute actions. Direct booking table mutation grants
+    and owner update policies were removed.
+  - Rollback-only live tests passed against real staging rows/roles: customer
+    own/foreign isolation, owner own/foreign salon isolation, anonymous denial,
+    direct update denial, customer denial of owner mutation, live valid-slot
+    discovery, outside-hours/wrong-salon rejection, create idempotency,
+    conflict rejection and owner lifecycle/invalid-transition rejection. No
+    synthetic proof row remained after these transactions.
+  - Generated live types are in `src/lib/database.types.ts`. Configured-mode
+    customer and owner booking reads use RPCs; confirmed booking/status data is
+    no longer reconstructed from `nexora_site_payment_records`. Browser drafts
+    remain UI-only for the unconfigured/demo path.
+  - Verification: `npm run lint` PASS; production build PASS;
+    Phase 16.2 Supabase 3/3, Phase 16.3 36/36, Phase 16.4 Supabase 3/3,
+    Phase 16.7 Supabase 11/11, Phase 17.4 22/22 and Phase 20.4 26/26 PASS.
+    `npm run validate:migrations` is blocked by the pre-existing stale M18
+    generated seed check; it was not regenerated because that would be an
+    unrelated change.
+  - Remaining verification: no customer/owner passwords or reusable browser
+    session exist in this environment, so the credentialed running-app flows
+    have not been executed. `scripts/probe-live-booking.mjs` is updated to the
+    live RPC contract for a credentialed operator run.
 
 - **PRE-PHASE SUPABASE FOUNDATION — LIVE VERIFIED.**
   - The one browser client validates both Vite settings, rejects example

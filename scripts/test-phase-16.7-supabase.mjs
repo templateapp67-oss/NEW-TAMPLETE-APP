@@ -13,11 +13,12 @@ const CUSTOMER = '20000000-0000-4000-8000-000000000002';
 const BOOKING = '30000000-0000-4000-8000-000000000003';
 const SERVICE = '40000000-0000-4000-8000-000000000004';
 
-function payload(status = 'pending') {
+function payload(status = 'pending', templateKey = 'beauty_skin_spa') {
   return {
-    template_key: 'beauty_skin_spa',
+    template_key: templateKey,
     booking: {
       id: BOOKING, salon_id: SALON, customer_user_id: CUSTOMER, staff_id: null,
+      salon_customer_id: '21000000-0000-4000-8000-000000000002',
       booking_number: 'LIVE-1670', appointment_start: '2031-08-20T05:30:00.000Z',
       appointment_end: '2031-08-20T06:30:00.000Z', status, total_paise: 100000,
       currency: 'INR', customer_note: null, created_at: '2031-08-19T05:30:00.000Z',
@@ -30,6 +31,7 @@ function payload(status = 'pending') {
       duration_minutes_snapshot: 60,
     }],
     customer: { name: 'Real Customer', email: 'customer@example.test', phone: '+919999999999' },
+    timezone: 'Asia/Kolkata',
   };
 }
 
@@ -47,7 +49,7 @@ await test('owner list reads the server-authorized RPC and maps real rows', asyn
     return { data: [payload()], error: null };
   } };
   const rows = await readOwnerSupabaseBookingsWithClient(client);
-  assert.deepEqual(calls, [{ name: 'get_owner_bookings', args: undefined }]);
+  assert.deepEqual(calls, [{ name: 'get_owner_bookings', args: { p_booking_id: undefined } }]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, BOOKING);
   assert.equal(rows[0].bookingId, 'LIVE-1670');
@@ -60,26 +62,39 @@ await test('owner list reads the server-authorized RPC and maps real rows', asyn
   assert.equal(rows[0].persistence, 'supabase');
 });
 
+await test('owner list accepts the live classic template key', async () => {
+  const client = { rpc: async () => ({ data: [payload('confirmed', 'classic')], error: null }) };
+  const rows = await readOwnerSupabaseBookingsWithClient(client);
+  assert.equal(rows[0].themeId, 'hair_studio_color_bar');
+});
+
 await test('canonical owner transitions cover pending, confirmed and terminal states', () => {
   assert.deepEqual(ownerSupabaseAllowedTransitions('pending_payment'), ['confirmed', 'cancelled']);
-  assert.deepEqual(ownerSupabaseAllowedTransitions('confirmed'), ['completed', 'cancelled']);
-  assert.deepEqual(ownerSupabaseAllowedTransitions('completed'), []);
-  assert.deepEqual(ownerSupabaseAllowedTransitions('cancelled'), []);
+  assert.deepEqual(ownerSupabaseAllowedTransitions('confirmed'), ['checked_in', 'cancelled', 'no_show']);
+  assert.deepEqual(ownerSupabaseAllowedTransitions('checked_in'), ['in_progress', 'cancelled']);
+  assert.deepEqual(ownerSupabaseAllowedTransitions('in_progress'), ['completed']);
+  assert.deepEqual(ownerSupabaseAllowedTransitions('completed'), ['disputed']);
+  assert.deepEqual(ownerSupabaseAllowedTransitions('cancelled'), ['disputed']);
 });
 
 await test('status update sends immutable booking id plus optimistic expected status', async () => {
   const calls = [];
   const client = { rpc: async (name, args) => {
     calls.push({ name, args });
-    return { data: payload('confirmed'), error: null };
+    return name === 'operate_owner_booking'
+      ? { data: 'confirmed', error: null }
+      : { data: [payload('confirmed')], error: null };
   } };
   const updated = await updateOwnerSupabaseBookingStatusWithClient(client, {
     id: BOOKING, bookingStatus: 'pending_payment', databaseStatus: 'pending', persistence: 'supabase',
   }, 'confirmed');
-  assert.deepEqual(calls, [{
-    name: 'update_owner_booking_status',
-    args: { p_booking_id: BOOKING, p_expected_status: 'pending', p_next_status: 'confirmed' },
-  }]);
+  assert.deepEqual(calls, [
+    {
+      name: 'operate_owner_booking',
+      args: { p_booking_id: BOOKING, p_action: 'accept', p_reason: undefined, p_new_start: undefined },
+    },
+    { name: 'get_owner_bookings', args: { p_booking_id: BOOKING } },
+  ]);
   assert.equal(updated.bookingStatus, 'confirmed');
   assert.equal(updated.paymentStatus, 'unpaid', 'booking mutation must not change payment status');
 });
@@ -119,32 +134,31 @@ await test('server permission and transition refusals stay safe', async () => {
   );
 });
 
-const sql = readFileSync(new URL('../docs/phase-16.7-booking-status-management.sql', import.meta.url), 'utf8');
+const sql = readFileSync(new URL('../supabase/migrations/20260819145619_phase_16_4_backend_reconciliation.sql', import.meta.url), 'utf8');
 await test('SQL derives owner scope through organization_members and salons only', () => {
-  assert.match(sql, /organization_members[\s\S]*organization_id[\s\S]*auth\.uid\(\)/i);
+  assert.match(sql, /nexora_owner_salon_ids\(\)/i);
   assert.doesNotMatch(sql, /(?:from|join)\s+public\.job_salon_members/i);
-  assert.match(sql, /lower\(m\.role::text\) in \('owner', 'owner_admin'\)/i);
+  assert.doesNotMatch(sql, /owner_admin/i);
 });
 
 await test('SQL keeps RLS enabled with own-salon booking and item policies', () => {
-  assert.match(sql, /alter table public\.bookings enable row level security/i);
-  assert.match(sql, /create policy bookings_owner_select/i);
-  assert.match(sql, /create policy booking_items_owner_select/i);
+  assert.match(sql, /drop policy if exists bookings_owner_update_status/i);
+  assert.match(sql, /revoke insert, update, delete on public\.bookings from anon, authenticated/i);
   assert.doesNotMatch(sql, /disable row level security/i);
-  assert.doesNotMatch(sql, /to anon/i);
+  assert.doesNotMatch(sql, /grant execute on function public\.get_owner_bookings\(uuid\) to anon/i);
+  assert.doesNotMatch(sql, /grant execute on function public\.operate_owner_booking\(uuid, text, text, timestamptz\) to anon/i);
 });
 
 await test('server mutation locks the row and enforces the canonical transition graph', () => {
-  assert.match(sql, /for update of b/i);
-  assert.match(sql, /pending_payment'\) and next_status in \('confirmed', 'cancelled'\)/i);
-  assert.match(sql, /current_status in \('confirmed', 'upcoming'\) and next_status in \('completed', 'cancelled'\)/i);
-  assert.match(sql, /status changed; refresh and try again/i);
-  assert.match(sql, /invalid booking status transition/i);
+  assert.match(sql, /for update/i);
+  assert.match(sql, /p_action = 'accept'[\s\S]*target\.status not in \('payment_pending','pending'\)/i);
+  assert.match(sql, /p_action = 'complete'[\s\S]*target\.status <> 'in_progress'/i);
+  assert.match(sql, /invalid booking state transition/i);
 });
 
 await test('RPC grants are authenticated-only and no payment mutation exists', () => {
-  assert.match(sql, /grant execute on function public\.get_owner_bookings\(\) to authenticated/i);
-  assert.match(sql, /grant execute on function public\.update_owner_booking_status\(uuid, text, text\) to authenticated/i);
+  assert.match(sql, /grant execute on function public\.get_owner_bookings\(uuid\) to authenticated/i);
+  assert.match(sql, /grant execute on function public\.operate_owner_booking\(uuid, text, text, timestamptz\) to authenticated/i);
   assert.doesNotMatch(sql, /update\s+public\.payments/i);
   assert.doesNotMatch(sql, /insert\s+into\s+public\.payments/i);
   assert.doesNotMatch(sql, /payment_status\s*=/i);
@@ -162,7 +176,7 @@ await test('owner panel uses the real repository and disables repeated actions',
 
 await test('customer My Bookings remains Supabase-exclusive in configured builds', () => {
   const customer = readFileSync(new URL('../src/components/SiteMyBookings.tsx', import.meta.url), 'utf8');
-  assert.match(customer, /readMySupabaseBookings\(liveSalonId, themeId\)/);
+  assert.match(customer, /readMySupabaseBookings\(liveSalonId, themeId, bookingTemplateKey\)/);
   assert.match(customer, /isSupabaseConfigured\s*\?\s*databaseBookings\s*:\s*readMyBookings/);
 });
 

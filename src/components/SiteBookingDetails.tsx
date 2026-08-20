@@ -66,6 +66,7 @@ import type { CustomerReview } from '../lib/siteReviews';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   bookingSalonIdCandidate,
+  bookingTemplateKeyCandidate,
   readMySupabaseBookingByReference,
 } from '../lib/supabaseBooking';
 
@@ -146,6 +147,10 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
   const s = bookingSurfaces(themeId, appearance);
+  const bookingTemplateKey = useMemo(
+    () => bookingTemplateKeyCandidate(data, themeId),
+    [data, themeId],
+  );
   const T = bookingConfirmationText(locale);
 
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -181,7 +186,7 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
     }
     let active = true;
     setDirectState('loading');
-    void readMySupabaseBookingByReference(directSalonId, themeId, bookingId)
+    void readMySupabaseBookingByReference(directSalonId, themeId, bookingId, bookingTemplateKey)
       .then((record) => {
         if (!active) return;
         setDirectRecord(record);
@@ -193,7 +198,7 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
         setDirectState('error');
       });
     return () => { active = false; };
-  }, [persistedRecord, directSalonId, themeId, bookingId, directRetry]);
+  }, [persistedRecord, directSalonId, themeId, bookingId, bookingTemplateKey, directRetry]);
 
   // Supabase rows are supplied only after the authenticated RLS read. Legacy
   // unconfigured builds retain the browser-local own-row resolver.

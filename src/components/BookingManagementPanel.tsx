@@ -86,6 +86,7 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
   // PHASE 16.9 — cancellation asks for an inline confirmation first; the
   // booking row is untouched until the explicit confirm button runs.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const canManage = bookingActorCanManage(actor);
 
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
@@ -98,7 +99,7 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !bookingActorCanManage(actor)) return;
+    if (!isSupabaseConfigured || !canManage) return;
     let active = true;
     setDatabaseState('loading');
     void readOwnerSupabaseBookings()
@@ -113,7 +114,7 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
         setDatabaseState('error');
       });
     return () => { active = false; };
-  }, [actor, retry, version]);
+  }, [canManage, retry, version]);
 
   // Shared seam — loading / error forceable for tests + future async sources.
   const state: 'loading' | 'error' | 'ready' = useMemo(() => {
@@ -167,7 +168,7 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
   }, [actor, businessId, themeId, onShowToast, T, updatingId]);
 
   /* ---- denied ---- */
-  if (!bookingActorCanManage(actor)) {
+  if (!canManage) {
     const key = bookingManageDeniedKey(actor.permission);
     return (
       <div
@@ -335,6 +336,21 @@ export default function BookingManagementPanel({ actor, businessId, themeId, onS
                     {T['owner.complete']}
                   </button>
                 )}
+                {(['checked_in', 'in_progress', 'no_show', 'disputed'] as BookingStatus[])
+                  .filter((status) => transitions.includes(status))
+                  .map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      data-testid={`owner-booking-${status.replace('_', '-')}-${record.bookingId}`}
+                      disabled={updatingId !== null}
+                      onClick={() => void changeStatus(record, status)}
+                      className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Check className="w-3 h-3" />
+                      {T[`owner.${status === 'checked_in' ? 'check_in' : status}` as keyof typeof T]}
+                    </button>
+                  ))}
                 {transitions.includes('cancelled') && (
                   <button
                     type="button"

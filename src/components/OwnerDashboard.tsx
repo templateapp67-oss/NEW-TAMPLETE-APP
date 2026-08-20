@@ -89,6 +89,9 @@ import { setSiteAppearance, setSiteLocale } from '../lib/siteNavigation';
 import type { SiteAppearance } from '../lib/siteNavigation';
 import { useSiteAppearance, useSiteLocale } from './SiteHeader';
 import { useAuth } from '../lib/useAuth';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { readOwnerSupabaseBookings } from '../lib/supabaseBookingManagement';
+import { SUPABASE_OWNER_BOOKINGS_EVENT } from '../lib/supabaseBookingCache';
 
 /* ------------------------------------------------------------------ */
 /* Palette — light/dark tokens for the dashboard chrome                */
@@ -507,6 +510,7 @@ export default function OwnerDashboard({ loadContext }: Props) {
   // PHASE 17.9 — one filter state shared by every real-data section. It is a
   // transient UI preference only and never changes the session tenant scope.
   const [filters, setFilters] = useState<OwnerDashboardFilterState>({ ...DEFAULT_OWNER_FILTERS });
+  const [bookingDataVersion, setBookingDataVersion] = useState(0);
 
   const load = useCallback(
     (signal?: { cancelled: boolean }) => {
@@ -581,8 +585,25 @@ export default function OwnerDashboard({ loadContext }: Props) {
       resolution: { status: access === 'authorized' ? 'resolved' : 'no-membership' },
       allowedBusinessIds: tenant?.businessIds,
     }),
-    [access, tenant],
+    [access, tenant, bookingDataVersion],
   );
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || access !== 'authorized' || !context.salon) return;
+    let activeRequest = true;
+    void readOwnerSupabaseBookings()
+      .then(() => { if (activeRequest) setBookingDataVersion((value) => value + 1); })
+      .catch(() => {
+        // Booking surfaces own their visible loading/error state. Avoid a
+        // duplicate dashboard-level error for the same failed repository read.
+      });
+    const refresh = () => setBookingDataVersion((value) => value + 1);
+    window.addEventListener(SUPABASE_OWNER_BOOKINGS_EVENT, refresh);
+    return () => {
+      activeRequest = false;
+      window.removeEventListener(SUPABASE_OWNER_BOOKINGS_EVENT, refresh);
+    };
+  }, [access, context.salon]);
 
   const salonName = ownerSalonDisplayName(context.salon) ?? t('shell.salonFallback');
   const salonLocation = ownerSalonLocationLine(context.salon) ?? t('shell.noLocation');
