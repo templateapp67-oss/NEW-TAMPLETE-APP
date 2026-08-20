@@ -51,6 +51,7 @@
  * localStorage, props) and never "the first row".
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { readAuthenticatedSession } from './useAuth';
 
@@ -173,7 +174,7 @@ export function isActiveStatus(status?: unknown): boolean {
  */
 async function organizationIdsForOwner(userId: string): Promise<string[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as SupabaseClient)
     .from(ORG_MEMBERS_TABLE)
     .select('organization_id')
     .eq('user_id', userId)
@@ -238,7 +239,7 @@ async function salonIdsForOrganizations(organizationIds: string[]): Promise<stri
 async function membershipVisibilityForUser(userId: string): Promise<boolean> {
   if (!supabase) return false;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as SupabaseClient)
       .from(ORG_MEMBERS_TABLE)
       .select('role, status')
       .eq('user_id', userId)
@@ -277,7 +278,7 @@ async function salonIdsFromMembership(userId: string): Promise<string[]> {
 async function salonIdsFromEmbeddedMembership(userId: string): Promise<string[]> {
   if (!supabase) return [];
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as SupabaseClient)
       .from(SALON_TABLE_NAME)
       .select(`id, organization_id, ${ORG_MEMBERS_TABLE}!inner(user_id, role, status)`)
       .eq(`${ORG_MEMBERS_TABLE}.user_id`, userId)
@@ -292,7 +293,7 @@ async function salonIdsFromEmbeddedMembership(userId: string): Promise<string[]>
     // Fall back to flexible filtering
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as SupabaseClient)
     .from(SALON_TABLE_NAME)
     .select(`id, organization_id, ${ORG_MEMBERS_TABLE}!inner(user_id, role, status)`)
     .eq(`${ORG_MEMBERS_TABLE}.user_id`, userId)

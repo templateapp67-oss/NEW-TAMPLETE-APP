@@ -40,6 +40,7 @@ import type { BookingConfirmationView } from '../lib/siteBookingConfirmation';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   bookingSalonIdCandidate,
+  bookingTemplateKeyCandidate,
   readMySupabaseBookings,
   SUPABASE_BOOKING_EVENT,
 } from '../lib/supabaseBooking';
@@ -76,6 +77,10 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
     ),
     [data],
   );
+  const bookingTemplateKey = useMemo(
+    () => bookingTemplateKeyCandidate(data, themeId),
+    [data, themeId],
+  );
   // PHASE 16.6 — which booking's full confirmation/receipt summary is open.
   const [openReference, setOpenReference] = useState<string | null>(null);
   useEffect(() => {
@@ -101,7 +106,7 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
     }
     let active = true;
     setDatabaseState('loading');
-    void readMySupabaseBookings(liveSalonId, themeId)
+    void readMySupabaseBookings(liveSalonId, themeId, bookingTemplateKey)
       .then((records) => {
         if (!active) return;
         setDatabaseBookings(records);
@@ -113,7 +118,7 @@ export default function SiteMyBookings({ themeId, data, businessId, onShowToast 
         setDatabaseState('error');
       });
     return () => { active = false; };
-  }, [authLoading, user?.id, liveSalonId, themeId, retry, version]);
+  }, [authLoading, user?.id, liveSalonId, themeId, bookingTemplateKey, retry, version]);
 
   // Shared seam: loading / error forceable exactly like the other booking states.
   const state: 'loading' | 'error' | 'ready' = useMemo(() => {

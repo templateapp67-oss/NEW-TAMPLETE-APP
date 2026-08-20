@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
 
 /**
  * The application's one browser Supabase client.
@@ -98,8 +99,10 @@ export function inspectSupabaseConfiguration(
 export const supabaseConfiguration = inspectSupabaseConfiguration();
 export const isSupabaseConfigured = supabaseConfiguration.ready;
 
-export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(url, anonKey, {
+export type NexoraSupabaseClient = SupabaseClient<Database>;
+
+export const supabase: NexoraSupabaseClient | null = isSupabaseConfigured
+  ? createClient<Database>(url, anonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -124,7 +127,7 @@ export function supabaseConfigurationMessage(): string | null {
 }
 
 /** Throws a readable error rather than letting `null` propagate. */
-export function requireSupabase(): SupabaseClient {
+export function requireSupabase(): NexoraSupabaseClient {
   if (!supabase) {
     throw new Error(supabaseConfigurationMessage() ?? 'Supabase client could not initialize.');
   }

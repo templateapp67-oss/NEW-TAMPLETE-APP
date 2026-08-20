@@ -405,6 +405,11 @@ export interface BookingSlot {
   startLabel: string;
   endLabel: string;
   state: BookingSlotState;
+  /** Present only for slots returned by the canonical Supabase engine. */
+  staffId?: string;
+  staffName?: string;
+  appointmentStart?: string;
+  appointmentEnd?: string;
 }
 
 export interface BookingHold {

@@ -10,6 +10,7 @@
  *   PROBE_CUSTOMER_NAME          expected authenticated profile/display name
  *   PROBE_BOOKING_SALON_ID       salon selected in the public booking UI
  *   PROBE_BOOKING_SERVICE_ID     active service selected in that salon
+ *   PROBE_BOOKING_STAFF_ID       staff returned by the live availability RPC
  *   PROBE_BOOKING_THEME_KEY      active public template key
  *   PROBE_BOOKING_START          future ISO timestamp selected by availability UI
  *
@@ -27,6 +28,7 @@ const required = [
   'PROBE_CUSTOMER_NAME',
   'PROBE_BOOKING_SALON_ID',
   'PROBE_BOOKING_SERVICE_ID',
+  'PROBE_BOOKING_STAFF_ID',
   'PROBE_BOOKING_THEME_KEY',
   'PROBE_BOOKING_START',
 ];
@@ -43,11 +45,13 @@ const password = process.env.PROBE_CUSTOMER_PASSWORD;
 const customerName = process.env.PROBE_CUSTOMER_NAME.trim();
 const salonId = process.env.PROBE_BOOKING_SALON_ID.trim();
 const serviceId = process.env.PROBE_BOOKING_SERVICE_ID.trim();
+const staffId = process.env.PROBE_BOOKING_STAFF_ID.trim();
 const themeKey = process.env.PROBE_BOOKING_THEME_KEY.trim();
 const appointmentStart = new Date(process.env.PROBE_BOOKING_START);
 
 assert.match(salonId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 assert.match(serviceId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+assert.match(staffId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 assert.ok(Number.isFinite(appointmentStart.getTime()), 'PROBE_BOOKING_START must be a valid ISO timestamp');
 assert.ok(appointmentStart.getTime() > Date.now(), 'PROBE_BOOKING_START must be in the future');
 assert.doesNotMatch(key, /^sb_secret_/i, 'private Supabase keys are forbidden');
@@ -60,19 +64,26 @@ const options = {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 };
 const writer = createClient(url, key, options);
+const anonymous = createClient(url, key, options);
 let reader = null;
 
 try {
+  const { error: anonymousBookingError } = await anonymous.from('bookings').select('id').limit(1);
+  assert.ok(anonymousBookingError, 'anonymous client could read private booking rows');
+
   const { data: signedIn, error: signInError } = await writer.auth.signInWithPassword({ email, password });
   assert.ifError(signInError);
   assert.ok(signedIn.user?.id, 'customer login returned no authenticated user');
   const userId = signedIn.user.id;
-  const { data: updatedProfile, error: profileError } = await writer.auth.updateUser({
-    data: { ...(signedIn.user.user_metadata || {}), full_name: customerName },
-  });
+  const { data: updatedProfile, error: profileError } = await writer
+    .from('profiles')
+    .update({ full_name: customerName })
+    .eq('id', userId)
+    .select('id,full_name,phone')
+    .single();
   assert.ifError(profileError);
-  assert.equal(updatedProfile.user?.id, userId);
-  assert.equal(updatedProfile.user?.user_metadata?.full_name, customerName);
+  assert.equal(updatedProfile?.id, userId);
+  assert.equal(updatedProfile?.full_name, customerName);
 
   const { data: catalogRaw, error: catalogError } = await writer.rpc('get_public_salon_service_catalog', {
     p_salon_id: salonId,
@@ -86,52 +97,53 @@ try {
   assert.ok(Number(selectedCatalogService.price_paise) >= 0);
   assert.ok(Number(selectedCatalogService.duration_minutes) > 0);
 
+  const dateKey = appointmentStart.toISOString().slice(0, 10);
+  const { data: slots, error: slotsError } = await writer.rpc('marketplace_slots', {
+    p_salon_id: salonId,
+    p_service_ids: [serviceId],
+    p_date: dateKey,
+    p_staff_id: staffId,
+  });
+  assert.ifError(slotsError);
+  assert.ok(slots?.some((slot) => slot.staff_id === staffId && slot.slot_start === appointmentStart.toISOString()),
+    'requested appointment is not present in the canonical live availability RPC');
+
   // A fabricated service UUID must be rejected before the valid proof insert.
   const { error: invalidServiceError } = await writer.rpc('create_customer_booking', {
     p_salon_id: salonId,
     p_service_ids: ['ffffffff-ffff-4fff-8fff-ffffffffffff'],
+    p_staff_id: staffId,
     p_appointment_start: appointmentStart.toISOString(),
     p_customer_note: 'phase-16.2-invalid-service-proof',
-    p_phone: null,
+    p_idempotency_key: crypto.randomUUID(),
   });
   assert.ok(invalidServiceError, 'the server accepted an invalid/wrong-salon service id');
   assert.match(invalidServiceError.message, /inactive|another salon|template/i);
 
   const marker = `phase-16.2-live-proof:${new Date().toISOString()}`;
+  const idempotencyKey = crypto.randomUUID();
   const { data: createdRaw, error: createError } = await writer.rpc('create_customer_booking', {
     p_salon_id: salonId,
     p_service_ids: [serviceId],
+    p_staff_id: staffId,
     p_appointment_start: appointmentStart.toISOString(),
     p_customer_note: marker,
-    p_phone: signedIn.user.phone || null,
+    p_idempotency_key: idempotencyKey,
   });
   assert.ifError(createError);
-  assert.ok(createdRaw?.booking?.id, 'RPC returned no booking row');
-  assert.equal(createdRaw.template_key, themeKey);
-  assert.equal(createdRaw.booking.customer_user_id, userId);
-  assert.equal(createdRaw.booking.salon_id, salonId);
-  assert.equal(createdRaw.items?.length, 1);
-  assert.equal(createdRaw.items[0].service_id, serviceId);
-  assert.equal(createdRaw.items[0].service_name_snapshot, selectedCatalogService.name);
-  assert.equal(Number(createdRaw.items[0].unit_price_paise), Number(selectedCatalogService.price_paise));
-  assert.equal(Number(createdRaw.items[0].duration_minutes_snapshot), Number(selectedCatalogService.duration_minutes));
-  assert.equal(Number(createdRaw.booking.total_paise), Number(selectedCatalogService.price_paise));
-  assert.equal(createdRaw.booking.customer_note, marker);
-
-  const bookingId = createdRaw.booking.id;
-  const bookingReference = createdRaw.booking.booking_number || bookingId;
+  assert.match(createdRaw, /^[0-9a-f-]{36}$/i, 'RPC returned no booking UUID');
+  const bookingId = createdRaw;
 
   const { data: duplicateRaw, error: duplicateError } = await writer.rpc('create_customer_booking', {
     p_salon_id: salonId,
     p_service_ids: [serviceId],
+    p_staff_id: staffId,
     p_appointment_start: appointmentStart.toISOString(),
     p_customer_note: `${marker}:retry`,
-    p_phone: updatedProfile.user.phone || signedIn.user.phone || null,
+    p_idempotency_key: idempotencyKey,
   });
   assert.ifError(duplicateError);
-  assert.equal(duplicateRaw?.duplicate, true);
-  assert.equal(duplicateRaw?.booking?.id, bookingId);
-  assert.equal(duplicateRaw?.items?.[0]?.service_id, serviceId);
+  assert.equal(duplicateRaw, bookingId);
 
   // A new client plus a new password session models a full browser reload. The
   // read uses only the authenticated customer JWT and customer-self RLS.
@@ -140,30 +152,38 @@ try {
   const { data: reloadedSignIn, error: reloadSignInError } = await reader.auth.signInWithPassword({ email, password });
   assert.ifError(reloadSignInError);
   assert.equal(reloadedSignIn.user?.id, userId);
-  assert.equal(reloadedSignIn.user?.user_metadata?.full_name, customerName);
-
-  const { data: reloadedRows, error: reloadError } = await reader
-    .from('bookings')
-    .select(`
-      id, salon_id, customer_user_id, booking_number,
-      appointment_start, appointment_end, status, total_paise, currency,
-      customer_note, created_at, updated_at,
-      booking_items(
-        id, booking_id, service_id, quantity, unit_price_paise,
-        line_total_paise, service_name_snapshot, duration_minutes_snapshot
-      )
-    `)
-    .eq('id', bookingId)
-    .eq('salon_id', salonId)
-    .eq('customer_user_id', userId)
+  const { data: reloadedProfile, error: reloadedProfileError } = await reader
+    .from('profiles')
+    .select('id,full_name')
+    .eq('id', userId)
     .single();
+  assert.ifError(reloadedProfileError);
+  assert.equal(reloadedProfile?.full_name, customerName);
+
+  const { data: reloadedPayloads, error: reloadError } = await reader.rpc('get_customer_bookings', {
+    p_salon_id: salonId,
+    p_booking_id: bookingId,
+  });
   assert.ifError(reloadError);
-  assert.equal(reloadedRows.id, bookingId);
-  assert.equal(reloadedRows.customer_user_id, userId);
-  assert.equal(reloadedRows.salon_id, salonId);
-  assert.equal(reloadedRows.customer_note, marker);
-  assert.equal(reloadedRows.booking_items?.length, 1);
-  assert.equal(reloadedRows.booking_items[0].service_id, serviceId);
+  assert.equal(reloadedPayloads?.length, 1);
+  const reloaded = reloadedPayloads[0];
+  assert.equal(reloaded.booking.id, bookingId);
+  assert.equal(reloaded.booking.customer_user_id, userId);
+  assert.equal(reloaded.booking.salon_id, salonId);
+  assert.equal(reloaded.booking.customer_note, marker);
+  assert.equal(reloaded.booking.staff_id, staffId);
+  assert.equal(reloaded.items?.length, 1);
+  assert.equal(reloaded.items[0].service_id, serviceId);
+  assert.equal(reloaded.items[0].service_name_snapshot, selectedCatalogService.name);
+  assert.equal(Number(reloaded.items[0].unit_price_paise), Number(selectedCatalogService.price_paise));
+
+  const { error: directStatusError } = await reader
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('id', bookingId);
+  assert.ok(directStatusError, 'customer bypassed the approved lifecycle with a direct table update');
+
+  const bookingReference = reloaded.booking.booking_number || bookingId;
 
   const { data: customerLink, error: customerLinkError } = await reader
     .from('salon_customers')
@@ -182,9 +202,10 @@ try {
   console.log('PASS active salon/service RPC insert with server-derived amount and duration');
   console.log('PASS duplicate retry returned the same booking and booking item');
   console.log('PASS fresh-session reload retrieved the same customer/salon/service row through RLS');
+  console.log('PASS anonymous private reads and direct customer status updates are rejected');
   console.log(`BOOKING_ID=${bookingId}`);
   console.log(`BOOKING_REFERENCE=${bookingReference}`);
-  console.log(`DATABASE_STATUS=${reloadedRows.status}`);
+  console.log(`DATABASE_STATUS=${reloaded.booking.status}`);
 } finally {
   await writer.auth.signOut().catch(() => {});
   if (reader) await reader.auth.signOut().catch(() => {});

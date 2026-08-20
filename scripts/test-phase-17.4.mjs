@@ -138,9 +138,11 @@ await test('unpaid advance Pending can only be Cancelled', () => {
 await test('paid advance Pending can be Confirmed or Cancelled', () => {
   assert.deepEqual(ownerAllowedTransitionsForRecord({ bookingStatus: 'pending_payment', paymentStatus: 'paid', paymentOption: 'advance' }), ['confirmed', 'cancelled']);
 });
-await test('Confirmed can be Completed or Cancelled and terminal statuses have no exits', () => {
-  assert.deepEqual(ownerAllowedTransitionsForRecord({ bookingStatus: 'confirmed', paymentStatus: 'paid', paymentOption: 'advance' }), ['completed', 'cancelled']);
-  for (const bookingStatus of ['completed', 'cancelled', 'failed']) {
+await test('Canonical owner lifecycle requires check-in and service start before completion', () => {
+  assert.deepEqual(ownerAllowedTransitionsForRecord({ bookingStatus: 'confirmed', paymentStatus: 'paid', paymentOption: 'advance' }), ['checked_in', 'cancelled', 'no_show']);
+  assert.deepEqual(ownerAllowedTransitionsForRecord({ bookingStatus: 'checked_in', paymentStatus: 'paid', paymentOption: 'advance' }), ['in_progress', 'cancelled']);
+  assert.deepEqual(ownerAllowedTransitionsForRecord({ bookingStatus: 'in_progress', paymentStatus: 'paid', paymentOption: 'advance' }), ['completed']);
+  for (const bookingStatus of ['failed', 'no_show', 'disputed']) {
     assert.deepEqual(ownerAllowedTransitionsForRecord({ bookingStatus, paymentStatus: 'paid', paymentOption: 'advance' }), []);
   }
 });
@@ -179,9 +181,13 @@ await test('paid Pending row exposes Confirm and updates the visible status imme
   assert.equal(ui.getByTestId('today-status-confirm-ui').textContent, 'Confirmed');
   assert.equal(readPaymentRecords()[0].bookingStatus, 'confirmed');
 });
-await test('Confirmed row exposes Complete and updates immediately', async () => {
+await test('Confirmed row follows check-in, start, complete lifecycle', async () => {
   reset(); seed([record({ bookingId: 'complete-ui' })]);
   const ui = await renderToday();
+  await act(async () => { fireEvent.click(ui.getByTestId('today-checked-in-complete-ui')); await Promise.resolve(); });
+  assert.equal(ui.getByTestId('today-status-complete-ui').textContent, 'Checked in');
+  await act(async () => { fireEvent.click(ui.getByTestId('today-in-progress-complete-ui')); await Promise.resolve(); });
+  assert.equal(ui.getByTestId('today-status-complete-ui').textContent, 'In progress');
   await act(async () => { fireEvent.click(ui.getByTestId('today-complete-complete-ui')); await Promise.resolve(); });
   assert.equal(ui.getByTestId('today-status-complete-ui').textContent, 'Completed');
 });
@@ -195,8 +201,8 @@ await test('Cancel always requires a separate confirmation action', async () => 
   assert.equal(readPaymentRecords()[0].bookingStatus, 'cancelled');
   assert.equal(ui.getByTestId('today-status-cancel-ui').textContent, 'Cancelled');
 });
-await test('terminal rows render no status controls', async () => {
-  reset(); seed([record({ bookingId: 'terminal-ui', bookingStatus: 'completed' })]);
+await test('terminal disputed rows render no status controls', async () => {
+  reset(); seed([record({ bookingId: 'terminal-ui', bookingStatus: 'disputed' })]);
   const ui = await renderToday();
   assert.equal(ui.queryByTestId('today-status-controls-terminal-ui'), null);
 });

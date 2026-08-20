@@ -222,7 +222,10 @@ export function featuredDiscountLabel(offer: ServiceOffer): string {
 }
 
 /** Async loader hook with theme-isolation + retry (no stale-theme leakage). */
-export function useFeaturedServices(themeId: SiteHeaderThemeId): FeaturedServicesState {
+export function useFeaturedServices(
+  themeId: SiteHeaderThemeId,
+  liveServices?: readonly Service[],
+): FeaturedServicesState {
   const [status, setStatus] = useState<FeaturedStatus>('loading');
   const [services, setServices] = useState<FeaturedService[]>([]);
   const [nonce, setNonce] = useState(0);
@@ -236,6 +239,30 @@ export function useFeaturedServices(themeId: SiteHeaderThemeId): FeaturedService
     // Clear immediately so a theme switch can never paint a previous theme.
     setStatus('loading');
     setServices([]);
+
+    if (liveServices) {
+      const items = liveServices
+        .filter((service) => !service.status || service.status === 'active')
+        .map((service, index): FeaturedService => ({
+          key: service.id,
+          name: service.name,
+          description: service.description,
+          category: service.category,
+          price: service.price,
+          duration: service.duration,
+          isSuggested: service.featured ?? index === 0,
+          suggestedSortOrder: index,
+          media: service.media,
+          pricingVariants: service.pricingVariants,
+          themeId,
+          categoryId: service.categoryId || undefined,
+          predefinedServiceId: service.predefinedServiceId || undefined,
+          translations: service.translations,
+        }));
+      setServices(items);
+      setStatus(items.length > 0 ? 'ready' : 'empty');
+      return () => { cancelled = true; };
+    }
 
     fetchFeaturedServices(themeId)
       .then((items) => {
@@ -252,7 +279,7 @@ export function useFeaturedServices(themeId: SiteHeaderThemeId): FeaturedService
     return () => {
       cancelled = true;
     };
-  }, [themeId, nonce]);
+  }, [themeId, liveServices, nonce]);
 
   const retry = useCallback(() => setNonce((value) => value + 1), []);
 

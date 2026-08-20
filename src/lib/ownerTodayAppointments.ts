@@ -70,11 +70,15 @@ export function todayStatusGroup(status: BookingStatus): TodayStatusGroup {
       return 'pending';
     case 'confirmed':
     case 'pay_at_salon':
+    case 'checked_in':
+    case 'in_progress':
       return 'confirmed';
     case 'completed':
       return 'completed';
     case 'cancelled':
     case 'failed':
+    case 'no_show':
+    case 'disputed':
     default:
       return 'cancelled';
   }
@@ -82,7 +86,7 @@ export function todayStatusGroup(status: BookingStatus): TodayStatusGroup {
 
 /** Cancelled/failed rows are shown but visually and semantically inactive. */
 export function isCancelledAppointment(status: BookingStatus): boolean {
-  return status === 'cancelled' || status === 'failed';
+  return status === 'cancelled' || status === 'failed' || status === 'no_show';
 }
 
 /** A row the salon still expects someone to turn up for. */

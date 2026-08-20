@@ -62,6 +62,10 @@ import { THEME_LABELS } from '../lib/themeServices';
 import type { BookingDayInfo, BookingSlot, BookingStepId } from '../lib/siteBookingFlow';
 import type { BookingNoticeInput } from '../lib/siteBookingNotices';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
+import {
+  readSupabaseAvailableSlots,
+  SupabaseBookingError,
+} from '../lib/supabaseBooking';
 
 interface Props {
   /** One of the five database-backed theme ids (drives visuals + isolation). */
@@ -87,6 +91,10 @@ interface Props {
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
+    staffId?: string;
+    staffName?: string;
+    appointmentStart?: string;
+    appointmentEnd?: string;
     customer: { name: string; mobile: string; email: string; notes: string };
   }) => void;
   /**
@@ -99,6 +107,8 @@ interface Props {
   resumeAtSummary?: boolean;
   /** Phase 16.4 authenticated Supabase profile/contact prefill. */
   authenticatedCustomer?: { name: string; mobile: string; email: string; emailReadOnly?: boolean };
+  /** Configured mode uses only the canonical database availability engine. */
+  databaseAvailability?: { salonId: string; timezone: string };
 }
 
 /* ------------------------------------------------------------------ */
@@ -254,6 +264,7 @@ export default function SiteBookingFlow({
   onProceedToPayment,
   resumeAtSummary,
   authenticatedCustomer,
+  databaseAvailability,
 }: Props) {
   const locale = useSiteLocale();
   const appearance = useThemeAppearance(themeId);
@@ -331,6 +342,7 @@ export default function SiteBookingFlow({
   const [selectedSlotMinutes, setSelectedSlotMinutes] = useState<number | null>(
     () => (resumeSummaryValid ? initialDraft?.startMinutes ?? null : null),
   );
+  const lostSlotNeedsChoiceRef = useRef(false);
   const [holdKey, setHoldKey] = useState<string | null>(null);
   const [holdsVersion, setHoldsVersion] = useState(0);
   const [customer, setCustomer] = useState(() => authenticatedCustomer
@@ -418,33 +430,84 @@ export default function SiteBookingFlow({
   }, []);
 
   const slotExtras = useMemo(
-    () => bookingAvailabilityExtras(
-      data,
-      salonContext.businessId,
-      themeId,
-      selectedServices,
-      selectedDate ? weekdayKeyOf(selectedDate) : null,
-    ),
+    () => databaseAvailability
+      ? { businessId: databaseAvailability.salonId }
+      : bookingAvailabilityExtras(
+          data,
+          salonContext.businessId,
+          themeId,
+          selectedServices,
+          selectedDate ? weekdayKeyOf(selectedDate) : null,
+        ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, salonContext.businessId, themeId, selectedServices, selectedDateKey, recordsVersion],
+    [data, salonContext.businessId, themeId, selectedServices, selectedDateKey, recordsVersion, databaseAvailability],
   );
 
   /* PHASE 16.3 — availability state for the time step, through the SAME
    * shared seam (the 'booking' section key). loading / error are forceable
    * for tests and future async sources; ready renders the computed grid. */
   const [availabilityRetry, setAvailabilityRetry] = useState(0);
+  const [databaseSlots, setDatabaseSlots] = useState<BookingSlot[]>([]);
+  const [databaseAvailabilityState, setDatabaseAvailabilityState] = useState<'loading' | 'error' | 'ready'>(
+    databaseAvailability ? 'loading' : 'ready',
+  );
+
+  useEffect(() => {
+    if (!databaseAvailability || !selectedDateKey || selectedServices.length === 0) {
+      setDatabaseSlots([]);
+      setDatabaseAvailabilityState(databaseAvailability ? 'loading' : 'ready');
+      return;
+    }
+    let active = true;
+    setDatabaseSlots([]);
+    setDatabaseAvailabilityState('loading');
+    void readSupabaseAvailableSlots(
+      databaseAvailability.salonId,
+      selectedServices.map((service) => service.id),
+      selectedDateKey,
+    ).then((liveSlots) => {
+      if (!active) return;
+      const byMinute = new Map<number, BookingSlot>();
+      for (const live of liveSlots) {
+        const startMinutes = minutesInTimezone(live.appointmentStart, databaseAvailability.timezone);
+        const endMinutes = minutesInTimezone(live.appointmentEnd, databaseAvailability.timezone);
+        if (startMinutes == null || endMinutes == null || byMinute.has(startMinutes)) continue;
+        byMinute.set(startMinutes, {
+          minutes: startMinutes,
+          startLabel: clockLabel(startMinutes),
+          endLabel: clockLabel(endMinutes),
+          state: 'available',
+          staffId: live.staffId,
+          staffName: live.staffName,
+          appointmentStart: live.appointmentStart,
+          appointmentEnd: live.appointmentEnd,
+        });
+      }
+      setDatabaseSlots([...byMinute.values()].sort((a, b) => a.minutes - b.minutes));
+      setDatabaseAvailabilityState('ready');
+    }).catch((error: unknown) => {
+      if (!active) return;
+      console.error('Supabase live availability failed:', error instanceof SupabaseBookingError ? error.message : error);
+      setDatabaseSlots([]);
+      setDatabaseAvailabilityState('error');
+    });
+    return () => { active = false; };
+  }, [databaseAvailability, selectedDateKey, selectedServices, availabilityRetry]);
+
   const availabilityState: 'loading' | 'error' | 'ready' = useMemo(() => {
+    if (databaseAvailability) return databaseAvailabilityState;
     const forced = injectedSectionStatus('booking');
     if (forced === 'loading' || forced === 'error') return forced;
     return 'ready';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availabilityRetry, selectedDateKey, slotService?.id]);
+  }, [availabilityRetry, selectedDateKey, slotService?.id, databaseAvailability, databaseAvailabilityState]);
 
   const slots: BookingSlot[] = useMemo(() => {
+    if (databaseAvailability) return databaseSlots;
     if (!slotService || !selectedDate) return [];
     return bookingSlotsForDay(data, themeId, slotService, selectedDate, now, slotExtras);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, themeId, slotService?.id, selectedDateKey, now.getTime(), holdsVersion, slotExtras]);
+  }, [data, themeId, slotService?.id, selectedDateKey, now.getTime(), holdsVersion, slotExtras, databaseAvailability, databaseSlots]);
 
   /* PHASE 16.9 — date-step state through its OWN seam (loading / error
    * forceable for tests + future async sources), independent of the
@@ -514,6 +577,14 @@ export default function SiteBookingFlow({
     (slot: BookingSlot) => {
       if (!slotService || !selectedDateKey) return;
       if (slot.state === 'past' || slot.state === 'taken') return;
+      lostSlotNeedsChoiceRef.current = false;
+      if (databaseAvailability) {
+        if (!slot.staffId || !slot.appointmentStart || !slot.appointmentEnd) return;
+        if (holdKey) releaseBookingSlot(holdKey);
+        setHoldKey(null);
+        setSelectedSlotMinutes(slot.minutes);
+        return;
+      }
       // PHASE 16.2 — the hold covers the COMBINED sitting (summed duration),
       // so a multi-service appointment blocks its entire span for others.
       // PHASE 16.3 — extras: booked spans + staff windows + salon stamp.
@@ -529,13 +600,21 @@ export default function SiteBookingFlow({
       setSelectedSlotMinutes(slot.minutes);
       setHoldsVersion((v) => v + 1);
     },
-    [themeId, slotService, selectedDateKey, holdKey, onShowToast, T, slotExtras],
+    [themeId, slotService, selectedDateKey, holdKey, onShowToast, T, slotExtras, databaseAvailability],
   );
 
   /* Entering the time step always lands on a valid, held slot. */
   useEffect(() => {
     if (step !== 'time' || !slotService || !selectedDate) return;
     if (availabilityState !== 'ready') return; // 16.3 — no auto-hold while loading / error
+    if (databaseAvailability) {
+      const selected = slots.find((slot) => slot.minutes === selectedSlotMinutes);
+      if (selected) return;
+      if (selectedSlotMinutes != null) onShowToast?.({ kind: 'error', message: T.slotLost });
+      setSelectedSlotMinutes(null);
+      if (slots[0]) pickSlot(slots[0]);
+      return;
+    }
     if (
       selectedSlotMinutes != null
       && bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now, slotExtras)
@@ -550,16 +629,18 @@ export default function SiteBookingFlow({
       if (holdKey) releaseBookingSlot(holdKey);
       setHoldKey(null);
       setSelectedSlotMinutes(null);
+      lostSlotNeedsChoiceRef.current = true;
       setHoldsVersion((v) => v + 1);
       return;
     }
     // Initial entry with no selection yet: auto-hold the first open slot.
+    if (lostSlotNeedsChoiceRef.current) return;
     const first = bookingSlotsForDay(data, themeId, slotService, selectedDate, now, slotExtras).find(
       (slot) => slot.state === 'available' || slot.state === 'held',
     );
     if (first) pickSlot(first);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, selectedDateKey, slotService?.id, now.getTime(), recordsVersion, availabilityState]);
+  }, [step, selectedDateKey, slotService?.id, now.getTime(), recordsVersion, availabilityState, databaseAvailability, slots]);
 
   /* PHASE 16.2 — toggle a service in/out of the multi-selection. Any change
    * to the selection invalidates the held slot (the sitting length changed). */
@@ -578,6 +659,7 @@ export default function SiteBookingFlow({
       if (holdKey) releaseBookingSlot(holdKey);
       setSelectedServiceIds(result.ids);
       setSelectedSlotMinutes(null);
+      lostSlotNeedsChoiceRef.current = false;
       setHoldKey(null);
       setHoldsVersion((v) => v + 1);
     },
@@ -588,6 +670,7 @@ export default function SiteBookingFlow({
     if (holdKey) releaseBookingSlot(holdKey);
     setSelectedServiceIds([]);
     setSelectedSlotMinutes(null);
+    lostSlotNeedsChoiceRef.current = false;
     setHoldKey(null);
     setHoldsVersion((v) => v + 1);
   }, [holdKey]);
@@ -598,6 +681,7 @@ export default function SiteBookingFlow({
       if (holdKey) releaseBookingSlot(holdKey);
       setSelectedDateKey(day.dateKey);
       setSelectedSlotMinutes(null);
+      lostSlotNeedsChoiceRef.current = false;
       setHoldKey(null);
       setHoldsVersion((v) => v + 1);
     },
@@ -649,7 +733,36 @@ export default function SiteBookingFlow({
     }
     if (step === 'time') {
       if (!slotService || !selectedDate || selectedSlotMinutes == null) return;
-      if (!bookingSlotIsStillAvailable(data, themeId, slotService, selectedDate, selectedSlotMinutes, now, slotExtras)) {
+      if (databaseAvailability) {
+        if (!slots.some((slot) => slot.minutes === selectedSlotMinutes && slot.appointmentStart && slot.staffId)) {
+          onShowToast?.({ kind: 'error', message: T.slotLost });
+          setSelectedSlotMinutes(null);
+          return;
+        }
+        stepLockRef.current = true;
+        setStep('details');
+        return;
+      }
+      // Re-read browser-backed records at the navigation boundary. The
+      // payment-store event normally refreshes `slotExtras`, but another tab
+      // may commit between that render and this click. Configured builds use
+      // the live RPC branch above and never consult browser state.
+      const currentSlotExtras = bookingAvailabilityExtras(
+        data,
+        salonContext.businessId,
+        themeId,
+        selectedServices,
+        weekdayKeyOf(selectedDate),
+      );
+      if (!bookingSlotIsStillAvailable(
+        data,
+        themeId,
+        slotService,
+        selectedDate,
+        selectedSlotMinutes,
+        now,
+        currentSlotExtras,
+      )) {
         onShowToast?.({ kind: 'error', message: T.slotLost });
         setStep('time');
         return;
@@ -1822,6 +1935,10 @@ export default function SiteBookingFlow({
                   dateKey: selectedDateKey,
                   startMinutes: selectedSlotMinutes,
                   endMinutes: selectedSlotMinutes + totalDuration,
+                  staffId: selectedSlot?.staffId,
+                  staffName: selectedSlot?.staffName,
+                  appointmentStart: selectedSlot?.appointmentStart,
+                  appointmentEnd: selectedSlot?.appointmentEnd,
                   customer,
                 });
                 return;
@@ -1855,4 +1972,26 @@ export default function SiteBookingFlow({
 /** Slot that the visitor may still book (available or their own hold). */
 function disabledSlot(slot: BookingSlot): boolean {
   return slot.state === 'past' || slot.state === 'taken';
+}
+
+function minutesInTimezone(value: string, timezone: string): number | null {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value);
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
+}
+
+function clockLabel(minutes: number): string {
+  const hour24 = Math.floor(minutes / 60) % 24;
+  const minute = minutes % 60;
+  const suffix = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`;
 }

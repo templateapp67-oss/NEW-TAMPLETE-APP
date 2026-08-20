@@ -21,6 +21,7 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   BOOKING_CONFIRMATION_QUERY,
   bookingSalonIdCandidate,
+  bookingTemplateKeyCandidate,
   createSupabaseBooking,
   isDatabaseUuid,
   readMySupabaseBookingByReference,
@@ -69,6 +70,11 @@ type BookingSubmissionSummary = {
   dateKey: string;
   startMinutes: number;
   endMinutes: number;
+  staffId?: string;
+  staffName?: string;
+  appointmentStart?: string;
+  appointmentEnd?: string;
+  idempotencyKey: string;
   customer: { name: string; mobile: string; email: string; notes: string };
 };
 
@@ -78,6 +84,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   const [databaseRecord, setDatabaseRecord] = useState<PaymentRecord | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [catalogServices, setCatalogServices] = useState<Service[]>([]);
+  const [catalogTimezone, setCatalogTimezone] = useState<string | null>(null);
   const [catalogState, setCatalogState] = useState<'loading' | 'error' | 'ready'>(
     isSupabaseConfigured ? 'loading' : 'ready',
   );
@@ -91,6 +98,10 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   const [customerRetry, setCustomerRetry] = useState(0);
   const deepLinkBookingIdRef = useRef<string | null>(bookingDeepLinkId());
   const catalogSalonId = useMemo(() => bookingSalonIdCandidate(data, null), [data]);
+  const bookingTemplateKey = useMemo(
+    () => bookingTemplateKeyCandidate(data, themeId),
+    [data, themeId],
+  );
   const bookingData = useMemo<SalonData>(() => {
     if (!isSupabaseConfigured) return data;
     return {
@@ -114,7 +125,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     let active = true;
     setPersistenceError(null);
     setPhase('persisting');
-    void readMySupabaseBookingByReference(catalogSalonId, themeId, persistedId)
+    void readMySupabaseBookingByReference(catalogSalonId, themeId, persistedId, bookingTemplateKey)
       .then((record) => {
         if (!active) return;
         if (!record || record.id !== persistedId) {
@@ -135,12 +146,13 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
         setPhase('persistence-error');
       });
     return () => { active = false; };
-  }, [catalogSalonId, themeId]);
+  }, [catalogSalonId, themeId, bookingTemplateKey]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     if (!catalogSalonId) {
       setCatalogServices([]);
+      setCatalogTimezone(null);
       setCatalogError('This website is not linked to a real salon record.');
       setCatalogState('error');
       return;
@@ -148,22 +160,24 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     let active = true;
     setCatalogError(null);
     setCatalogState('loading');
-    void readSupabaseBookingCatalog(catalogSalonId, themeId)
+    void readSupabaseBookingCatalog(catalogSalonId, themeId, bookingTemplateKey)
       .then((catalog) => {
         if (!active) return;
         setCatalogServices(catalog.services);
+        setCatalogTimezone(catalog.timezone);
         setCatalogState('ready');
       })
       .catch((error: unknown) => {
         if (!active) return;
         setCatalogServices([]);
+        setCatalogTimezone(null);
         setCatalogError(error instanceof SupabaseBookingError
           ? error.message
           : 'The service catalog could not be loaded. Please try again.');
         setCatalogState('error');
       });
     return () => { active = false; };
-  }, [catalogSalonId, themeId, catalogRetry]);
+  }, [catalogSalonId, themeId, bookingTemplateKey, catalogRetry]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -240,9 +254,11 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     void createSupabaseBooking({
       salonId,
       themeId,
+      templateKey: bookingTemplateKey,
       services: submission.serviceLines || [],
-      dateKey: submission.dateKey,
-      startMinutes: submission.startMinutes,
+      staffId: submission.staffId || '',
+      appointmentStart: submission.appointmentStart || '',
+      idempotencyKey: submission.idempotencyKey,
       customer: submission.customer,
     }).then((record) => {
       // Carry only the immutable persisted UUID into refresh/navigation. The
@@ -264,7 +280,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       showNotice({ kind: 'error', message });
       setPhase('persistence-error');
     });
-  }, [bookingData, themeId, showNotice]);
+  }, [bookingData, themeId, bookingTemplateKey, showNotice]);
 
   const handleConfirmEntry = useCallback((payload: {
     service: { id: string; businessId?: string };
@@ -272,6 +288,10 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
+    staffId?: string;
+    staffName?: string;
+    appointmentStart?: string;
+    appointmentEnd?: string;
     customer: { name: string; mobile: string; email: string; notes: string };
   }) => {
     if (confirmLockRef.current) return;
@@ -283,6 +303,11 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       dateKey: payload.dateKey,
       startMinutes: payload.startMinutes,
       endMinutes: payload.endMinutes,
+      staffId: payload.staffId,
+      staffName: payload.staffName,
+      appointmentStart: payload.appointmentStart,
+      appointmentEnd: payload.appointmentEnd,
+      idempotencyKey: globalThis.crypto?.randomUUID?.() || `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       customer: payload.customer,
     };
     setSummary(nextSummary);
@@ -453,6 +478,9 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
           themeId={themeId}
           data={bookingData}
           authenticatedCustomer={isSupabaseConfigured && customerPrefill ? customerPrefill : undefined}
+          databaseAvailability={isSupabaseConfigured && catalogSalonId && catalogTimezone
+            ? { salonId: catalogSalonId, timezone: catalogTimezone }
+            : undefined}
           onBackToWebsite={closeSiteBooking}
           onShowToast={showNotice}
           onProceedToPayment={handleConfirmEntry}
@@ -606,6 +634,8 @@ function SiteBookingPaymentFlowWrapper({
     dateKey: string;
     startMinutes: number;
     endMinutes: number;
+    staffId?: string;
+    staffName?: string;
     customer: { name: string; mobile: string; email: string; notes: string };
   };
   initialRecord: PaymentRecord | null;
@@ -661,8 +691,8 @@ function SiteBookingPaymentFlowWrapper({
       dateKey={summary.dateKey}
       startMinutes={summary.startMinutes}
       endMinutes={summary.endMinutes}
-      staffId={null}
-      staffName={null}
+      staffId={summary.staffId || null}
+      staffName={summary.staffName || null}
       customer={summary.customer}
       initialRecord={initialRecord}
       onBackToSummary={onBackToSummary}

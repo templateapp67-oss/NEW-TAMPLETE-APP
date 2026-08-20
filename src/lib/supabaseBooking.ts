@@ -1,9 +1,8 @@
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 import type { SalonData, Service } from '../types';
 import type { SiteHeaderThemeId } from './siteNavigation';
-import { requireSupabase } from './supabaseClient';
+import { requireSupabase, type NexoraSupabaseClient } from './supabaseClient';
 import { readAuthenticatedSession } from './useAuth';
-import { localDateKey, minutesSinceMidnight } from './salonStatus';
 import type {
   BookingCustomerSnapshot,
   BookingStatus,
@@ -44,16 +43,27 @@ export interface SupabaseBookingServiceInput {
 export interface CreateSupabaseBookingInput {
   salonId: string;
   themeId: SiteHeaderThemeId;
+  templateKey?: BookingTemplateKey;
   services: SupabaseBookingServiceInput[];
-  dateKey: string;
-  startMinutes: number;
+  staffId: string;
+  appointmentStart: string;
+  idempotencyKey: string;
   customer: BookingCustomerSnapshot;
 }
 
 export interface SupabaseBookingCatalog {
   salonId: string;
   themeId: SiteHeaderThemeId;
+  templateKey: BookingTemplateKey;
+  timezone: string;
   services: Service[];
+}
+
+export interface SupabaseAvailableSlot {
+  appointmentStart: string;
+  appointmentEnd: string;
+  staffId: string;
+  staffName: string;
 }
 
 export interface SupabaseCustomerDetails {
@@ -78,13 +88,18 @@ interface LiveBookingItemRow {
 interface LiveBookingRow {
   id: string;
   salon_id: string;
-  customer_user_id: string;
+  customer_user_id: string | null;
+  salon_customer_id: string;
   staff_id: string | null;
+  staff_name_snapshot?: string | null;
   booking_number: string | null;
   appointment_start: string;
   appointment_end: string;
   status: string;
   total_paise: number | string;
+  advance_due_paise: number | string;
+  final_due_paise: number | string;
+  financial_status: string;
   currency: string;
   customer_note: string | null;
   source?: string | null;
@@ -94,16 +109,18 @@ interface LiveBookingRow {
   booking_items?: LiveBookingItemRow[] | null;
 }
 
-interface CreateBookingResponse {
-  templateKey: SiteHeaderThemeId;
+interface BookingRpcPayload {
+  templateKey: BookingTemplateKey;
+  timezone: string;
   booking: LiveBookingRow;
   items: LiveBookingItemRow[];
+  customer: { name: string; phone: string; email: string };
 }
 
 interface LiveCatalogServiceRow {
   id: string;
   salon_id: string;
-  category_id: string;
+  category_id: string | null;
   category_name: string;
   category_slug: string;
   name: string;
@@ -114,46 +131,21 @@ interface LiveCatalogServiceRow {
 
 interface LiveCatalogResponse {
   salonId: string;
-  templateKey: SiteHeaderThemeId;
+  templateKey: BookingTemplateKey;
+  timezone: string;
   services: LiveCatalogServiceRow[];
 }
 
-const BOOKING_TEMPLATE_KEYS: SiteHeaderThemeId[] = [
+export type BookingTemplateKey = SiteHeaderThemeId | 'classic';
+
+const BOOKING_TEMPLATE_KEYS: BookingTemplateKey[] = [
   'barber_mens_grooming',
   'hair_studio_color_bar',
   'beauty_skin_spa',
   'family_full_service',
   'nail_lash_studio',
+  'classic',
 ];
-
-const LIVE_BOOKING_COLUMNS = [
-  'id',
-  'salon_id',
-  'customer_user_id',
-  'staff_id',
-  'booking_number',
-  'appointment_start',
-  'appointment_end',
-  'status',
-  'total_paise',
-  'currency',
-  'customer_note',
-  'source',
-  'created_by',
-  'created_at',
-  'updated_at',
-].join(',');
-
-const LIVE_ITEM_COLUMNS = [
-  'id',
-  'booking_id',
-  'service_id',
-  'quantity',
-  'unit_price_paise',
-  'line_total_paise',
-  'service_name_snapshot',
-  'duration_minutes_snapshot',
-].join(',');
 
 export function isDatabaseUuid(value: unknown): value is string {
   return typeof value === 'string'
@@ -203,12 +195,25 @@ function asNumber(value: unknown, label: string): number {
   return number;
 }
 
-function asBookingTemplateKey(value: unknown): SiteHeaderThemeId {
+function asBookingTemplateKey(value: unknown): BookingTemplateKey {
   const key = asString(value, 'booking template');
-  if (!BOOKING_TEMPLATE_KEYS.includes(key as SiteHeaderThemeId)) {
+  if (!BOOKING_TEMPLATE_KEYS.includes(key as BookingTemplateKey)) {
     throw new SupabaseBookingError('database', 'The database returned an unsupported booking template.');
   }
-  return key as SiteHeaderThemeId;
+  return key as BookingTemplateKey;
+}
+
+/** Maps a live database template to the existing visual renderer contract. */
+export function bookingTemplateVisualTheme(value: unknown): SiteHeaderThemeId {
+  const key = asBookingTemplateKey(value);
+  return key === 'classic' ? 'hair_studio_color_bar' : key;
+}
+
+export function bookingTemplateKeyCandidate(
+  data: Pick<SalonData, 'bookingTemplateKey'>,
+  fallback: SiteHeaderThemeId,
+): BookingTemplateKey {
+  return data.bookingTemplateKey ? asBookingTemplateKey(data.bookingTemplateKey) : fallback;
 }
 
 function mapCatalogService(value: unknown): LiveCatalogServiceRow {
@@ -221,7 +226,7 @@ function mapCatalogService(value: unknown): LiveCatalogServiceRow {
   return {
     id: asString(row.id, 'catalog service id'),
     salon_id: asString(row.salon_id, 'catalog service salon id'),
-    category_id: asString(row.category_id, 'catalog service category id'),
+    category_id: typeof row.category_id === 'string' ? row.category_id : null,
     category_name: asString(row.category_name, 'catalog service category name'),
     category_slug: asString(row.category_slug, 'catalog service category slug'),
     name: asString(row.name, 'catalog service name'),
@@ -235,11 +240,12 @@ function parseCatalogResponse(value: unknown): LiveCatalogResponse {
   const payload = asRecord(value, 'service catalog');
   const salonId = asString(payload.salon_id, 'service catalog salon id');
   const templateKey = asBookingTemplateKey(payload.template_key);
+  const timezone = asString(payload.timezone, 'salon timezone');
   const services = Array.isArray(payload.services) ? payload.services.map(mapCatalogService) : [];
   if (services.some((service) => service.salon_id !== salonId)) {
     throw new SupabaseBookingError('permission', 'The database returned a service from another salon.');
   }
-  return { salonId, templateKey, services };
+  return { salonId, templateKey, timezone, services };
 }
 
 function mapItem(value: unknown): LiveBookingItemRow {
@@ -258,18 +264,34 @@ function mapItem(value: unknown): LiveBookingItemRow {
 
 function mapRow(value: unknown): LiveBookingRow {
   const row = asRecord(value, 'booking');
+  const totalPaise = asNumber(row.total_paise, 'booking total');
+  // Older test fixtures and cached RPC payloads predate the financial split.
+  // Live rows include both columns; the fallback preserves the canonical 25%
+  // contract while the next authenticated database read replaces the cache.
+  const advanceDuePaise = row.advance_due_paise == null
+    ? Math.round(totalPaise * 0.25)
+    : asNumber(row.advance_due_paise, 'booking advance');
   return {
     id: asString(row.id, 'booking id'),
     salon_id: asString(row.salon_id, 'booking salon id'),
-    customer_user_id: asString(row.customer_user_id, 'booking customer id'),
+    customer_user_id: typeof row.customer_user_id === 'string' ? row.customer_user_id : null,
+    salon_customer_id: asString(row.salon_customer_id, 'salon customer id'),
     staff_id: typeof row.staff_id === 'string' ? row.staff_id : null,
+    staff_name_snapshot: typeof row.staff_name_snapshot === 'string' ? row.staff_name_snapshot : null,
     booking_number: typeof row.booking_number === 'string' && row.booking_number.trim()
       ? row.booking_number
       : null,
     appointment_start: asString(row.appointment_start, 'booking start'),
     appointment_end: asString(row.appointment_end, 'booking end'),
     status: asString(row.status, 'booking status'),
-    total_paise: asNumber(row.total_paise, 'booking total'),
+    total_paise: totalPaise,
+    advance_due_paise: advanceDuePaise,
+    final_due_paise: row.final_due_paise == null
+      ? totalPaise - advanceDuePaise
+      : asNumber(row.final_due_paise, 'booking remaining amount'),
+    financial_status: typeof row.financial_status === 'string' && row.financial_status.trim()
+      ? row.financial_status
+      : 'advance_due',
     currency: asString(row.currency, 'booking currency'),
     customer_note: typeof row.customer_note === 'string' ? row.customer_note : null,
     source: typeof row.source === 'string' ? row.source : null,
@@ -284,47 +306,56 @@ function logCreateBookingDiagnostic(data: unknown, error: unknown): void {
   // Development-only and intentionally metadata-only: never print auth data,
   // customer fields, notes, credentials, or the complete RPC payload.
   if (!import.meta.env?.DEV) return;
-  const payload = data && typeof data === 'object' && !Array.isArray(data)
-    ? data as Record<string, unknown>
-    : null;
-  const booking = payload?.booking && typeof payload.booking === 'object' && !Array.isArray(payload.booking)
-    ? payload.booking as Record<string, unknown>
-    : null;
   const rpcError = error && typeof error === 'object'
     ? error as { code?: unknown }
     : null;
   console.debug('[booking] create_customer_booking response', {
-    hasData: Boolean(payload),
+    hasData: Boolean(data),
     errorCode: typeof rpcError?.code === 'string' ? rpcError.code : null,
-    responseKeys: payload ? Object.keys(payload).sort() : [],
-    bookingId: typeof booking?.id === 'string' ? booking.id : null,
-    bookingNumber: typeof booking?.booking_number === 'string' ? booking.booking_number : null,
-    itemCount: Array.isArray(payload?.items) ? payload.items.length : 0,
+    bookingId: typeof data === 'string' && isDatabaseUuid(data) ? data : null,
   });
 }
 
-function parseCreateResponse(value: unknown): CreateBookingResponse {
+function parseBookingPayload(value: unknown): BookingRpcPayload {
   const payload = asRecord(value, 'booking response');
   const templateKey = asBookingTemplateKey(payload.template_key);
+  const timezone = asString(payload.timezone, 'booking timezone');
   const booking = mapRow(payload.booking);
   const items = Array.isArray(payload.items) ? payload.items.map(mapItem) : [];
+  const customerRow = asRecord(payload.customer, 'booking customer');
   if (items.length === 0 || items.some((item) => item.booking_id !== booking.id)) {
     throw new SupabaseBookingError('database', 'The database did not return the booking service relationship.');
   }
-  return { templateKey, booking, items };
+  return {
+    templateKey,
+    timezone,
+    booking,
+    items,
+    customer: {
+      name: typeof customerRow.name === 'string' ? customerRow.name : '',
+      phone: typeof customerRow.phone === 'string' ? customerRow.phone : '',
+      email: typeof customerRow.email === 'string' ? customerRow.email : '',
+    },
+  };
 }
 
 function mapStatus(status: string): BookingStatus {
   switch (status.toLowerCase()) {
     case 'confirmed':
-    case 'upcoming':
-    case 'in_progress':
       return 'confirmed';
+    case 'checked_in':
+      return 'checked_in';
+    case 'in_progress':
+      return 'in_progress';
     case 'completed':
       return 'completed';
     case 'cancelled':
     case 'canceled':
       return 'cancelled';
+    case 'no_show':
+      return 'no_show';
+    case 'disputed':
+      return 'disputed';
     case 'failed':
     case 'expired':
       return 'failed';
@@ -356,12 +387,23 @@ function customerFromUser(
   };
 }
 
-function timeParts(value: string): { dateKey: string; minutes: number } {
+function timeParts(value: string, timezone: string): { dateKey: string; minutes: number } {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) {
     throw new SupabaseBookingError('database', 'The database returned an invalid appointment time.');
   }
-  return { dateKey: localDateKey(date), minutes: minutesSinceMidnight(date) };
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || '';
+  const hour = Number(part('hour'));
+  const minute = Number(part('minute'));
+  return {
+    dateKey: `${part('year')}-${part('month')}-${part('day')}`,
+    minutes: hour * 60 + minute,
+  };
 }
 
 export function supabaseBookingToPaymentRecord(
@@ -371,15 +413,17 @@ export function supabaseBookingToPaymentRecord(
   user: User,
   contact?: { phone?: string | null; email?: string | null },
   immediateCustomer?: BookingCustomerSnapshot,
+  timezone = 'Asia/Kolkata',
+  enforceCustomerOwnership = true,
 ): PaymentRecord {
-  if (booking.customer_user_id !== user.id) {
+  if (enforceCustomerOwnership && booking.customer_user_id !== user.id) {
     throw new SupabaseBookingError('permission', 'The database returned another customer’s booking.');
   }
   if (items.length === 0 || items.some((item) => item.booking_id !== booking.id)) {
     throw new SupabaseBookingError('database', 'The booking has no valid service relationship.');
   }
-  const start = timeParts(booking.appointment_start);
-  const end = timeParts(booking.appointment_end);
+  const start = timeParts(booking.appointment_start, timezone);
+  const end = timeParts(booking.appointment_end, timezone);
   const serviceLines: PaymentServiceLine[] = items.map((item) => ({
     serviceId: item.service_id,
     serviceName: item.service_name_snapshot,
@@ -387,6 +431,9 @@ export function supabaseBookingToPaymentRecord(
     durationMinutes: asNumber(item.duration_minutes_snapshot, 'line duration'),
   }));
   const total = asNumber(booking.total_paise, 'booking total') / 100;
+  const advance = booking.advance_due_paise == null
+    ? total * 0.25
+    : asNumber(booking.advance_due_paise, 'booking advance') / 100;
   const createdAt = new Date(booking.created_at).getTime();
   const updatedAt = new Date(booking.updated_at).getTime();
   const reference = booking.booking_number || booking.id;
@@ -396,7 +443,7 @@ export function supabaseBookingToPaymentRecord(
     idempotencyKey: `supabase:${booking.id}`,
     businessId: booking.salon_id,
     themeId,
-    customerId: user.id,
+    customerId: booking.customer_user_id || booking.salon_customer_id,
     bookingId: reference,
     serviceId: serviceLines[0].serviceId,
     serviceName: serviceLines[0].serviceName,
@@ -405,7 +452,7 @@ export function supabaseBookingToPaymentRecord(
     startMinutes: start.minutes,
     endMinutes: end.minutes,
     baseAmount: total,
-    amountDue: 0,
+    amountDue: advance,
     remainingAmount: total,
     currency: booking.currency,
     paymentOption: 'advance',
@@ -413,7 +460,7 @@ export function supabaseBookingToPaymentRecord(
     paymentStatus: 'unpaid',
     bookingStatus: mapStatus(booking.status),
     staffId: booking.staff_id,
-    staffName: null,
+    staffName: booking.staff_name_snapshot || null,
     customer: customerFromUser(user, contact, immediateCustomer),
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
     updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
@@ -435,18 +482,6 @@ function enrichRecordWithCatalog(
       category: categories.get(line.serviceId),
     })),
   };
-}
-
-function localAppointmentIso(dateKey: string, minutes: number): string {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  if (![year, month, day, minutes].every(Number.isFinite)) {
-    throw new SupabaseBookingError('validation', 'Choose a valid appointment date and time.');
-  }
-  const date = new Date(year, month - 1, day, Math.floor(minutes / 60), minutes % 60, 0, 0);
-  if (!Number.isFinite(date.getTime())) {
-    throw new SupabaseBookingError('validation', 'Choose a valid appointment date and time.');
-  }
-  return date.toISOString();
 }
 
 function safeDatabaseError(error: unknown, fallback: string): SupabaseBookingError {
@@ -499,46 +534,48 @@ function validateAuthenticatedCustomerInput(customer: BookingCustomerSnapshot): 
   }
 }
 
-async function syncAuthenticatedCustomerName(
-  client: SupabaseClient,
+async function syncAuthenticatedCustomerProfile(
+  client: NexoraSupabaseClient,
   user: User,
-  requestedName: string,
+  customer: BookingCustomerSnapshot,
 ): Promise<User> {
-  const name = requestedName.trim();
-  if (name === userDisplayName(user)) return user;
-  const { data, error } = await client.auth.updateUser({
-    data: { ...(user.user_metadata || {}), full_name: name },
-  });
-  if (error || !data.user || data.user.id !== user.id) {
+  const { error } = await client
+    .from('profiles')
+    .update({ full_name: customer.name.trim(), phone: customer.mobile.trim() })
+    .eq('id', user.id);
+  if (error) {
     if (error) console.error('Supabase customer profile update failed:', error);
     throw new SupabaseBookingError('database', 'Customer details could not be updated. Please try again.');
   }
-  return data.user;
+  return user;
 }
 
 export async function readSupabaseBookingCatalogWithClient(
-  client: SupabaseClient,
+  client: NexoraSupabaseClient,
   salonId: string,
   expectedThemeId: SiteHeaderThemeId,
+  expectedTemplateKey: BookingTemplateKey = expectedThemeId,
 ): Promise<SupabaseBookingCatalog> {
   if (!isDatabaseUuid(salonId)) {
     throw new SupabaseBookingError('validation', 'This website is not linked to a real salon record.');
   }
   const { data, error } = await client.rpc('get_public_salon_service_catalog', {
     p_salon_id: salonId,
-    p_template_key: expectedThemeId,
+    p_template_key: expectedTemplateKey,
   });
   if (error) {
     console.error('Supabase booking catalog read failed:', error);
     throw safeDatabaseError(error, 'The service catalog could not be loaded. Please try again.');
   }
   const catalog = parseCatalogResponse(data);
-  if (catalog.salonId !== salonId || catalog.templateKey !== expectedThemeId) {
+  if (catalog.salonId !== salonId || catalog.templateKey !== expectedTemplateKey) {
     throw new SupabaseBookingError('permission', 'The database returned a catalog outside this salon or template.');
   }
   return {
     salonId: catalog.salonId,
-    themeId: catalog.templateKey,
+    themeId: expectedThemeId,
+    templateKey: catalog.templateKey,
+    timezone: catalog.timezone,
     services: catalog.services.map((service): Service => ({
       id: service.id,
       name: service.name,
@@ -547,9 +584,9 @@ export async function readSupabaseBookingCatalogWithClient(
       price: asNumber(service.price_paise, 'catalog service price') / 100,
       duration: asNumber(service.duration_minutes, 'catalog service duration'),
       businessId: catalog.salonId,
-      themeId: catalog.templateKey,
+      themeId: expectedThemeId,
       themeKey: catalog.templateKey,
-      categoryId: service.category_id,
+      categoryId: service.category_id || undefined,
       status: 'active',
     })),
   };
@@ -558,17 +595,28 @@ export async function readSupabaseBookingCatalogWithClient(
 export async function readSupabaseBookingCatalog(
   salonId: string,
   expectedThemeId: SiteHeaderThemeId,
+  expectedTemplateKey: BookingTemplateKey = expectedThemeId,
 ): Promise<SupabaseBookingCatalog> {
-  return readSupabaseBookingCatalogWithClient(requireSupabase(), salonId, expectedThemeId);
+  return readSupabaseBookingCatalogWithClient(requireSupabase(), salonId, expectedThemeId, expectedTemplateKey);
 }
 
 export async function createSupabaseBookingWithClient(
-  client: SupabaseClient,
+  client: NexoraSupabaseClient,
   user: User,
   input: CreateSupabaseBookingInput,
 ): Promise<PaymentRecord> {
   if (!isDatabaseUuid(input.salonId)) {
     throw new SupabaseBookingError('validation', 'This website is not linked to a real salon record.');
+  }
+  if (!isDatabaseUuid(input.staffId)) {
+    throw new SupabaseBookingError('validation', 'Choose a staff-backed live availability slot.');
+  }
+  if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 128) {
+    throw new SupabaseBookingError('validation', 'The booking request identifier is invalid.');
+  }
+  const appointment = new Date(input.appointmentStart);
+  if (!Number.isFinite(appointment.getTime())) {
+    throw new SupabaseBookingError('validation', 'Choose a valid live appointment slot.');
   }
   validateAuthenticatedCustomerInput(input.customer);
   if (!bookingServicesAreDatabaseRows(input.services)) {
@@ -578,14 +626,15 @@ export async function createSupabaseBookingWithClient(
   if (uniqueIds.length !== input.services.length || uniqueIds.length > 6) {
     throw new SupabaseBookingError('validation', 'Select between one and six unique services.');
   }
-  const effectiveUser = await syncAuthenticatedCustomerName(client, user, input.customer.name);
+  const effectiveUser = await syncAuthenticatedCustomerProfile(client, user, input.customer);
 
   const { data, error } = await client.rpc('create_customer_booking', {
     p_salon_id: input.salonId,
     p_service_ids: uniqueIds,
-    p_appointment_start: localAppointmentIso(input.dateKey, input.startMinutes),
+    p_staff_id: input.staffId,
+    p_appointment_start: input.appointmentStart,
     p_customer_note: input.customer.notes?.trim() || null,
-    p_phone: input.customer.mobile?.trim() || null,
+    p_idempotency_key: input.idempotencyKey,
   });
   logCreateBookingDiagnostic(data, error);
   if (error) {
@@ -593,23 +642,15 @@ export async function createSupabaseBookingWithClient(
     throw safeDatabaseError(error, 'The booking could not be saved. Please try again.');
   }
 
-  const result = parseCreateResponse(data);
-  if (result.booking.salon_id !== input.salonId || result.booking.customer_user_id !== effectiveUser.id) {
-    throw new SupabaseBookingError('permission', 'The database returned a booking outside this customer or salon.');
+  if (!isDatabaseUuid(data)) {
+    throw new SupabaseBookingError('database', 'The database did not return the persisted booking identifier.');
   }
-  const expectedIds = new Set(uniqueIds);
-  if (result.items.length !== expectedIds.size || result.items.some((item) => !expectedIds.has(item.service_id))) {
-    throw new SupabaseBookingError('database', 'The database returned different booking services.');
-  }
-
-  const record = supabaseBookingToPaymentRecord(
-    result.booking,
-    result.items,
-    result.templateKey,
-    effectiveUser,
-    undefined,
-    input.customer,
+  const record = await readMySupabaseBookingByReferenceWithClient(
+    client, effectiveUser, input.salonId, input.themeId, data, input.templateKey ?? input.themeId,
   );
+  if (!record || record.id !== data) {
+    throw new SupabaseBookingError('database', 'The booking was saved but could not be reloaded.');
+  }
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(SUPABASE_BOOKING_EVENT));
   return record;
 }
@@ -617,33 +658,12 @@ export async function createSupabaseBookingWithClient(
 export async function createSupabaseBooking(input: CreateSupabaseBookingInput): Promise<PaymentRecord> {
   const user = await authenticatedUser();
   const client = requireSupabase();
-  const catalog = await readSupabaseBookingCatalogWithClient(client, input.salonId, input.themeId);
-  const created = await createSupabaseBookingWithClient(client, user, input);
-
-  // The RPC response proves creation, but confirmation must not depend only on
-  // that response surviving in React state. Read the booking back through the
-  // same authenticated, customer-scoped repository used by refresh, My
-  // Bookings and Booking Details. The immutable persisted booking UUID is the
-  // lookup key; the returned booking number remains the customer-facing
-  // reference. No confirmation id is generated here.
-  const persisted = await readMySupabaseBookingByReferenceWithClient(
-    client,
-    user,
-    input.salonId,
-    catalog.themeId,
-    created.id,
-  );
-  if (!persisted || persisted.id !== created.id || persisted.bookingId !== created.bookingId) {
-    throw new SupabaseBookingError(
-      'database',
-      'The booking was saved but could not be reloaded. Open My Bookings and try again.',
-    );
-  }
-  return persisted;
+  await readSupabaseBookingCatalogWithClient(client, input.salonId, input.themeId, input.templateKey ?? input.themeId);
+  return createSupabaseBookingWithClient(client, user, input);
 }
 
 async function readContact(
-  client: SupabaseClient,
+  client: NexoraSupabaseClient,
   salonId: string,
   userId: string,
 ): Promise<{ phone?: string | null; email?: string | null }> {
@@ -665,7 +685,7 @@ async function readContact(
 }
 
 export async function readSupabaseCustomerDetailsWithClient(
-  client: SupabaseClient,
+  client: NexoraSupabaseClient,
   user: User,
   salonId: string,
 ): Promise<SupabaseCustomerDetails> {
@@ -673,10 +693,18 @@ export async function readSupabaseCustomerDetailsWithClient(
     throw new SupabaseBookingError('validation', 'This website is not linked to a real salon record.');
   }
   const contact = await readContact(client, salonId, user.id);
+  const { data: profile, error: profileError } = await client
+    .from('profiles')
+    .select('full_name,phone')
+    .eq('id', user.id)
+    .single();
+  if (profileError) {
+    throw safeDatabaseError(profileError, 'Customer profile could not be loaded.');
+  }
   return {
     userId: user.id,
-    name: userDisplayName(user),
-    mobile: contact.phone || user.phone || '',
+    name: profile.full_name,
+    mobile: contact.phone || profile.phone || user.phone || '',
     // Auth email is authoritative. A salon relationship email is only the
     // fallback for auth providers that do not expose an email on the session.
     email: user.email || contact.email || '',
@@ -690,86 +718,118 @@ export async function readSupabaseCustomerDetails(salonId: string): Promise<Supa
 }
 
 export async function readMySupabaseBookingByReferenceWithClient(
-  client: SupabaseClient,
+  client: NexoraSupabaseClient,
   user: User,
   salonId: string,
   themeId: SiteHeaderThemeId,
   reference: string,
+  templateKey: BookingTemplateKey = themeId,
 ): Promise<PaymentRecord | null> {
   if (!isDatabaseUuid(salonId) || !reference.trim()) return null;
-  const catalog = await readSupabaseBookingCatalogWithClient(client, salonId, themeId);
-  const nested = `${LIVE_BOOKING_COLUMNS},booking_items(${LIVE_ITEM_COLUMNS})`;
-  let query = client
-    .from('bookings')
-    .select(nested)
-    .eq('salon_id', salonId)
-    .eq('customer_user_id', user.id);
+  const catalog = await readSupabaseBookingCatalogWithClient(client, salonId, themeId, templateKey);
   const referenceIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reference);
-  query = referenceIsUuid
-    ? query.eq('id', reference)
-    : query.eq('booking_number', reference.trim());
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await client.rpc('get_customer_bookings', {
+    p_salon_id: salonId,
+    p_booking_id: referenceIsUuid ? reference : undefined,
+  });
   if (error) {
-    console.error('Supabase direct booking read failed:', error);
+    console.error('Supabase customer booking RPC failed:', error);
     throw safeDatabaseError(error, 'The booking could not be loaded. Please try again.');
   }
-  if (!data) return null;
-  const contact = await readContact(client, salonId, user.id);
-  const booking = mapRow(data);
-  return enrichRecordWithCatalog(
-    supabaseBookingToPaymentRecord(booking, booking.booking_items || [], catalog.themeId, user, contact),
+  const payloads = (Array.isArray(data) ? data : []).map(parseBookingPayload);
+  const payload = payloads.find((item) => referenceIsUuid
+    ? item.booking.id === reference
+    : item.booking.booking_number === reference.trim());
+  if (!payload) return null;
+  const record = enrichRecordWithCatalog(
+    supabaseBookingToPaymentRecord(
+      payload.booking,
+      payload.items,
+      bookingTemplateVisualTheme(payload.templateKey),
+      user,
+      { phone: payload.customer.phone, email: payload.customer.email },
+      { ...payload.customer, mobile: payload.customer.phone, notes: payload.booking.customer_note || '' },
+      payload.timezone,
+    ),
     catalog,
   );
+  return record;
 }
 
 export async function readMySupabaseBookingByReference(
   salonId: string,
   themeId: SiteHeaderThemeId,
   reference: string,
+  templateKey: BookingTemplateKey = themeId,
 ): Promise<PaymentRecord | null> {
   const user = await authenticatedUser();
-  return readMySupabaseBookingByReferenceWithClient(requireSupabase(), user, salonId, themeId, reference);
+  return readMySupabaseBookingByReferenceWithClient(requireSupabase(), user, salonId, themeId, reference, templateKey);
 }
 
 export async function readMySupabaseBookingsWithClient(
-  client: SupabaseClient,
+  client: NexoraSupabaseClient,
   user: User,
   salonId: string,
   themeId: SiteHeaderThemeId,
+  templateKey: BookingTemplateKey = themeId,
 ): Promise<PaymentRecord[]> {
   if (!isDatabaseUuid(salonId)) return [];
 
-  // Resolve the active template from the database rather than stamping history
-  // with a caller-provided theme. The catalog RPC validates the expected UI
-  // template against the salon's active public website.
-  const catalog = await readSupabaseBookingCatalogWithClient(client, salonId, themeId);
-  const nested = `${LIVE_BOOKING_COLUMNS},booking_items(${LIVE_ITEM_COLUMNS})`;
-  const { data, error } = await client
-    .from('bookings')
-    .select(nested)
-    .eq('salon_id', salonId)
-    .eq('customer_user_id', user.id)
-    .order('created_at', { ascending: false });
+  const catalog = await readSupabaseBookingCatalogWithClient(client, salonId, themeId, templateKey);
+  const { data, error } = await client.rpc('get_customer_bookings', {
+    p_salon_id: salonId,
+    p_booking_id: undefined,
+  });
   if (error) {
     console.error('Supabase customer booking read failed:', error);
     throw safeDatabaseError(error, 'Bookings could not be loaded.');
   }
 
-  const contact = await readContact(client, salonId, user.id);
-  return (Array.isArray(data) ? data : []).map((raw) => {
-    const booking = mapRow(raw);
-    const items = booking.booking_items || [];
+  const records = (Array.isArray(data) ? data : []).map((raw) => {
+    const payload = parseBookingPayload(raw);
     return enrichRecordWithCatalog(
-      supabaseBookingToPaymentRecord(booking, items, catalog.themeId, user, contact),
+      supabaseBookingToPaymentRecord(
+        payload.booking,
+        payload.items,
+        bookingTemplateVisualTheme(payload.templateKey),
+        user,
+        { phone: payload.customer.phone, email: payload.customer.email },
+        { ...payload.customer, mobile: payload.customer.phone, notes: payload.booking.customer_note || '' },
+        payload.timezone,
+      ),
       catalog,
     );
   });
+  return records;
 }
 
 export async function readMySupabaseBookings(
   salonId: string,
   themeId: SiteHeaderThemeId,
+  templateKey: BookingTemplateKey = themeId,
 ): Promise<PaymentRecord[]> {
   const user = await authenticatedUser();
-  return readMySupabaseBookingsWithClient(requireSupabase(), user, salonId, themeId);
+  return readMySupabaseBookingsWithClient(requireSupabase(), user, salonId, themeId, templateKey);
+}
+
+export async function readSupabaseAvailableSlots(
+  salonId: string,
+  serviceIds: string[],
+  dateKey: string,
+): Promise<SupabaseAvailableSlot[]> {
+  if (!isDatabaseUuid(salonId) || serviceIds.length === 0 || serviceIds.some((id) => !isDatabaseUuid(id))) {
+    throw new SupabaseBookingError('validation', 'A live salon and saved services are required for availability.');
+  }
+  const { data, error } = await requireSupabase().rpc('marketplace_slots', {
+    p_salon_id: salonId,
+    p_service_ids: serviceIds,
+    p_date: dateKey,
+  });
+  if (error) throw safeDatabaseError(error, 'Live availability could not be loaded.');
+  return (Array.isArray(data) ? data : []).map((row) => ({
+    appointmentStart: asString(row.slot_start, 'slot start'),
+    appointmentEnd: asString(row.slot_end, 'slot end'),
+    staffId: asString(row.staff_id, 'slot staff'),
+    staffName: asString(row.staff_name, 'slot staff name'),
+  }));
 }

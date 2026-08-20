@@ -64,6 +64,7 @@ import type { CustomerReview } from '../lib/siteReviews';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   bookingSalonIdCandidate,
+  bookingTemplateKeyCandidate,
   readMySupabaseBookings,
   SUPABASE_BOOKING_EVENT,
 } from '../lib/supabaseBooking';
@@ -233,6 +234,10 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
       : null,
     [data],
   );
+  const bookingTemplateKey = useMemo(
+    () => bookingTemplateKeyCandidate(data || {}, themeId),
+    [data, themeId],
+  );
   const [activeGroup, setActiveGroup] = useState<BookingGroup>('upcoming');
   // PHASE 20.3 — the booking whose details/receipt view is open (null = home).
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -351,7 +356,7 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
     }
     let active = true;
     setDatabaseBookingsState('loading');
-    void readMySupabaseBookings(liveSalonId, themeId)
+    void readMySupabaseBookings(liveSalonId, themeId, bookingTemplateKey)
       .then((records) => {
         if (!active) return;
         setDatabaseBookings(records);
@@ -363,7 +368,7 @@ export default function SiteCustomerAccount({ themeId, data }: Props) {
         setDatabaseBookingsState('error');
       });
     return () => { active = false; };
-  }, [open, authLoading, user?.id, liveSalonId, themeId, version]);
+  }, [open, authLoading, user?.id, liveSalonId, themeId, bookingTemplateKey, version]);
 
   // Close on Escape
   useEffect(() => {
