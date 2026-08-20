@@ -4,13 +4,19 @@ import type { SalonData, SalonOpeningHours } from '../types';
 import { bookingTemplateVisualTheme, readSupabaseBookingCatalogWithClient } from '../lib/supabaseBooking';
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/useAuth';
+import {
+  normalizeSalonNameToSubdomain,
+  requestedSalonSubdomain,
+  subdomainLikePattern,
+} from '../lib/salonHostResolution';
 import TemplateRenderer from './TemplateRenderer';
 
 type Resolution =
   | { status: 'loading' }
   | { status: 'app' }
   | { status: 'site'; data: SalonData }
-  | { status: 'error'; message: string };
+  | { status: 'error'; message: string }
+  | { status: 'notfound' };
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
@@ -136,8 +142,69 @@ async function loadPublishedSite(
   };
 }
 
-async function resolveCustomerSite(userId: string | null, routeSlug: string | null): Promise<Resolution> {
+/**
+ * Resolve a `*.nexora.site` hostname to the matching published salon.
+ *
+ * The subdomain identifier is the salon name with every non-alphanumeric
+ * character removed (the same rule `src/lib/salonSubdomain.ts` uses when it
+ * builds the dashboard link). Resolution therefore reuses the existing
+ * `salons` + `salon_public_websites` data model with no new fields:
+ *
+ *   hostname → subdomain → salons.name (normalized) → published website.
+ *
+ * The final gate is an EXACT normalized-name equality check, so one salon can
+ * never render another salon's data, and an unknown subdomain fails closed to
+ * a not-found state. Data access stays behind the existing Supabase RLS
+ * (anonymous catalogue read + published-website read) — the hostname only
+ * selects which tenant to display, exactly like the path slug does today.
+ */
+async function resolveSubdomainSite(subdomain: string): Promise<Resolution> {
   const client = requireSupabase();
+
+  const candidateResult = await client
+    .from('salons')
+    .select('id,name,slug')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .ilike('name', subdomainLikePattern(subdomain))
+    .limit(25);
+
+  if (candidateResult.error) throw candidateResult.error;
+
+  const rows = (candidateResult.data ?? []) as Array<{ id: string; name: string; slug: string }>;
+  const matches = rows.filter((row) => normalizeSalonNameToSubdomain(row.name) === subdomain);
+
+  if (matches.length === 0) return { status: 'notfound' };
+  // Two distinct salons whose names normalize to the same subdomain is a
+  // platform-level collision; fail closed instead of showing the wrong tenant.
+  if (matches.length > 1) {
+    return { status: 'error', message: 'More than one salon matches this address.' };
+  }
+
+  const websiteResult = await client
+    .from('salon_public_websites')
+    .select('salon_id,slug,template_key,config')
+    .eq('salon_id', matches[0].id)
+    .eq('is_published', true)
+    .single();
+
+  // A salon exists but is not published — treat as not found (never fall back
+  // to the builder or to another salon's site).
+  if (websiteResult.error) return { status: 'notfound' };
+
+  return loadPublishedSite(matches[0].id, websiteResult.data);
+}
+
+async function resolveCustomerSite(
+  userId: string | null,
+  routeSlug: string | null,
+  routeSubdomain: string | null,
+): Promise<Resolution> {
+  const client = requireSupabase();
+
+  // A `*.nexora.site` host is explicit salon intent and takes precedence: the
+  // subdomain identifies the tenant, regardless of any path on the URL.
+  if (routeSubdomain) return resolveSubdomainSite(routeSubdomain);
 
   // A published slug is explicit customer intent and is safe for anonymous
   // visitors. The public website projection + salon catalogue RLS remain the
@@ -176,20 +243,22 @@ async function resolveCustomerSite(userId: string | null, routeSlug: string | nu
 }
 
 /**
- * Published slug routes resolve the real public salon for any visitor.
- * On the builder root, authenticated customers resolve their tenant from
- * salon_customers while anonymous visitors and owners retain the existing app.
+ * Published `*.nexora.site` subdomains and legacy path slugs both resolve the
+ * real public salon for any visitor. On the builder root, authenticated
+ * customers resolve their tenant from salon_customers while anonymous
+ * visitors and owners retain the existing app.
  */
 export default function ConfiguredCustomerApp() {
   const { user, loading } = useAuth();
   const [resolution, setResolution] = useState<Resolution>({ status: 'loading' });
   const routeSlug = requestedSalonSlug();
+  const routeSubdomain = requestedSalonSubdomain();
 
   useEffect(() => {
     if (!isSupabaseConfigured || loading) return;
     let active = true;
     setResolution({ status: 'loading' });
-    void resolveCustomerSite(user?.id ?? null, routeSlug)
+    void resolveCustomerSite(user?.id ?? null, routeSlug, routeSubdomain)
       .then((result) => { if (active) setResolution(result); })
       .catch(() => {
         if (active) setResolution({
@@ -198,11 +267,23 @@ export default function ConfiguredCustomerApp() {
         });
       });
     return () => { active = false; };
-  }, [loading, routeSlug, user?.id]);
+  }, [loading, routeSlug, routeSubdomain, user?.id]);
 
   if (!isSupabaseConfigured || resolution.status === 'app') return <App />;
   if (loading || resolution.status === 'loading') {
     return <div data-testid="configured-customer-site-loading" className="min-h-screen grid place-items-center">Loading salon…</div>;
+  }
+  if (resolution.status === 'notfound') {
+    return (
+      <div data-testid="configured-customer-site-notfound" className="min-h-screen grid place-items-center p-6 text-center">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-800">Salon not found</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            There is no salon website at this address. It may be unpublished or the address may be incorrect.
+          </p>
+        </div>
+      </div>
+    );
   }
   if (resolution.status === 'error') {
     return <div data-testid="configured-customer-site-error" className="min-h-screen grid place-items-center p-6 text-center">{resolution.message}</div>;
