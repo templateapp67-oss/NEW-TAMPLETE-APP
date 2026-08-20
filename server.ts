@@ -610,6 +610,7 @@ Do not include conversational filler, meta-comments, introductory greetings, or 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
+      configLoader: 'runner',
       server: {
         middlewareMode: true,
         cors: true,

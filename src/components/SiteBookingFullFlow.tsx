@@ -135,7 +135,19 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
           return;
         }
         setDatabaseRecord(record);
-        setPhase('persisted');
+        setSummary({
+          serviceId: record.serviceId,
+          serviceBusinessId: record.businessId,
+          serviceLines: record.services,
+          dateKey: record.dateKey,
+          startMinutes: record.startMinutes,
+          endMinutes: record.endMinutes,
+          staffId: record.staffId || undefined,
+          staffName: record.staffName || undefined,
+          idempotencyKey: record.idempotencyKey,
+          customer: record.customer,
+        });
+        setPhase('payment');
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -271,7 +283,7 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
       clearBookingDraft(draftBusinessId, record.themeId);
       if (record.businessId !== draftBusinessId) clearBookingDraft(record.businessId, record.themeId);
       showNotice({ kind: 'success', message: 'Booking saved securely.' });
-      setPhase('persisted');
+      setPhase('payment');
     }).catch((error: unknown) => {
       const message = error instanceof SupabaseBookingError
         ? error.message
@@ -363,7 +375,9 @@ export default function SiteBookingFullFlow({ themeId, data }: { themeId: SiteHe
   // Only use the auto-resumed record when the user hasn't already
   // chosen a different path in this session.
   const shouldAutoResume = existingConfirmed && !summary;
-  const initialRecord = shouldAutoResume
+  const initialRecord = isSupabaseConfigured && phase === 'payment'
+    ? databaseRecord
+    : shouldAutoResume
     ? existingConfirmed
     : (phase === 'payment' && summary
         ? readPaymentRecordsForBusiness(businessId, themeId).find(

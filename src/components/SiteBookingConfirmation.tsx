@@ -137,8 +137,13 @@ export default function SiteBookingConfirmation({
 
   const colors = confirmationStateColors(view.state, s);
   const confirmed = isConfirmedState(view.state);
+  const isDemo = view.bookingSource === 'browser_demo';
   const salonName = salonDisplayName(data, themeId);
   const mockPayment = useMemo(() => mockPaymentForConfirmation(view), [view]);
+  const paymentTotal = isDemo ? mockPayment.totalAmount : view.totalAmount;
+  const paymentAdvance = isDemo ? mockPayment.testAdvanceAmount : view.advancePaid;
+  const paymentRemaining = isDemo ? mockPayment.testRemainingAmount : view.remainingAmount;
+  const paymentStatus = isDemo ? T['mock.status'] : view.paymentStatus.replace(/_/g, ' ');
   const serviceCategories = useMemo(() => {
     const categories = view.services
       .map((line) => line.category || data.services?.find((service) => service.id === line.serviceId)?.category)
@@ -200,7 +205,7 @@ export default function SiteBookingConfirmation({
       data-appearance={appearance}
       data-locale={locale}
       data-booking-source={view.bookingSource}
-      data-payment-mode="mock"
+      data-payment-mode={isDemo ? 'mock' : 'database'}
       className="flex flex-col gap-3 w-full"
     >
       {view.bookingSource === 'browser_demo' && (
@@ -219,20 +224,22 @@ export default function SiteBookingConfirmation({
         </div>
       )}
 
-      <div
-        data-testid="booking-confirmation-mock-payment"
-        role="note"
-        className="flex flex-col gap-1.5 p-3 md:p-4 border-2 border-dashed rounded-xl"
-        style={{ backgroundColor: s.warningSoft, borderColor: s.warning, color: s.textStrong }}
-      >
-        <span className="text-[10px] font-black uppercase tracking-[0.18em] inline-flex items-center gap-1.5" style={{ color: s.warning }}>
-          <AlertTriangle className="w-4 h-4" />
-          {T['mock.badge']}
-        </span>
-        <p className="text-[11px] font-semibold leading-relaxed" style={{ color: s.muted }}>
-          {T['mock.notice']}
-        </p>
-      </div>
+      {isDemo && (
+        <div
+          data-testid="booking-confirmation-mock-payment"
+          role="note"
+          className="flex flex-col gap-1.5 p-3 md:p-4 border-2 border-dashed rounded-xl"
+          style={{ backgroundColor: s.warningSoft, borderColor: s.warning, color: s.textStrong }}
+        >
+          <span className="text-[10px] font-black uppercase tracking-[0.18em] inline-flex items-center gap-1.5" style={{ color: s.warning }}>
+            <AlertTriangle className="w-4 h-4" />
+            {T['mock.badge']}
+          </span>
+          <p className="text-[11px] font-semibold leading-relaxed" style={{ color: s.muted }}>
+            {T['mock.notice']}
+          </p>
+        </div>
+      )}
 
       {showStatusBanner && (
         <div
@@ -397,39 +404,41 @@ export default function SiteBookingConfirmation({
           testid="booking-confirmation-total"
           icon={<ReceiptText className="w-3.5 h-3.5" />}
           label={T['field.total']}
-          value={formatCurrency(mockPayment.totalAmount)}
+          value={formatCurrency(paymentTotal)}
         />
         <DetailRow
           s={s}
           testid="booking-confirmation-advance"
           icon={<Wallet className="w-3.5 h-3.5" />}
-          label={T['mock.advance']}
-          value={formatCurrency(mockPayment.testAdvanceAmount)}
-          valueColor={s.warning}
+          label={isDemo ? T['mock.advance'] : (locale === 'hi' ? 'एडवांस भुगतान' : 'Advance paid')}
+          value={formatCurrency(paymentAdvance)}
+          valueColor={isDemo ? s.warning : colors.fg}
         />
         <DetailRow
           s={s}
           testid="booking-confirmation-remaining"
           icon={<Wallet className="w-3.5 h-3.5" />}
-          label={T['mock.remaining']}
-          value={formatCurrency(mockPayment.testRemainingAmount)}
+          label={isDemo ? T['mock.remaining'] : (locale === 'hi' ? 'शेष राशि' : 'Remaining amount')}
+          value={formatCurrency(paymentRemaining)}
         />
         <DetailRow
           s={s}
           testid="booking-confirmation-payment-status"
           icon={<ReceiptText className="w-3.5 h-3.5" />}
           label={T['field.paymentStatus']}
-          value={T['mock.status']}
-          valueColor={s.warning}
+          value={paymentStatus}
+          valueColor={isDemo ? s.warning : colors.fg}
         />
-        <DetailRow
-          s={s}
-          testid="booking-confirmation-test-receipt-reference"
-          icon={<Hash className="w-3.5 h-3.5" />}
-          label={T['mock.receiptReference']}
-          value={mockPayment.receiptReference}
-          valueColor={s.warning}
-        />
+        {(isDemo || view.gatewayRef) && (
+          <DetailRow
+            s={s}
+            testid={isDemo ? 'booking-confirmation-test-receipt-reference' : 'booking-confirmation-payment-reference'}
+            icon={<Hash className="w-3.5 h-3.5" />}
+            label={isDemo ? T['mock.receiptReference'] : (locale === 'hi' ? 'भुगतान संदर्भ' : 'Payment reference')}
+            value={isDemo ? mockPayment.receiptReference : view.gatewayRef as string}
+            valueColor={isDemo ? s.warning : s.textStrong}
+          />
+        )}
         <DetailRow
           s={s}
           testid="booking-confirmation-status"

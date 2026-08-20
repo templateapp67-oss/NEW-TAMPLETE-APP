@@ -24,6 +24,12 @@
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
+// This legacy suite exercises the intentionally retained unconfigured demo
+// path. Runtime VITE_* credentials must not switch these isolated UI tests to
+// the configured Supabase catalogue.
+delete process.env.VITE_SUPABASE_URL;
+delete process.env.VITE_SUPABASE_ANON_KEY;
+
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   url: 'http://localhost/',
 });

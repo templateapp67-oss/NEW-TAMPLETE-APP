@@ -442,15 +442,20 @@ section('6 · Loading / error / empty / unauthorized states');
 
 await test('loading state renders skeletons while the session resolves', async () => {
   resetState();
+  let resolveContext;
+  const loader = () => new Promise((resolve) => { resolveContext = resolve; });
   let utils;
-  await act(async () => {
+  act(() => {
     utils = render(React.createElement(OwnerDashboard, {
-      loadContext: contextLoader({ access: 'authorized', salon: SALON }, { delay: 40 }),
+      loadContext: loader,
     }));
   });
   assert.ok(utils.getByTestId('owner-dashboard-loading'));
   assert.equal(utils.getByTestId('owner-dashboard').getAttribute('data-access'), 'loading');
-  await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
+  await act(async () => {
+    resolveContext({ access: 'authorized', salon: SALON });
+    await Promise.resolve();
+  });
   assert.equal(utils.queryByTestId('owner-dashboard-loading'), null);
   cleanup();
 });

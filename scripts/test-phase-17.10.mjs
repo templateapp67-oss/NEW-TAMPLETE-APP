@@ -96,7 +96,9 @@ check('advance-payment and legal status-transition guards remain data-layer enfo
   assert.match(management, /duplicate-update/);
   assert.match(management, /invalid-transition/);
   assert.match(management, /pending_payment:\s*\['confirmed', 'cancelled'\]/);
-  assert.match(management, /confirmed:\s*\['completed', 'cancelled'\]/);
+  assert.match(management, /confirmed:\s*\['checked_in', 'cancelled', 'no_show'\]/);
+  assert.match(management, /checked_in:\s*\['in_progress', 'cancelled'\]/);
+  assert.match(management, /in_progress:\s*\['completed'\]/);
 });
 
 check('booking and payment status remain separate throughout financial filters', () => {

@@ -470,6 +470,56 @@ export function supabaseBookingToPaymentRecord(
   };
 }
 
+interface LiveAdvancePaymentRow {
+  booking_id: string;
+  provider_order_id: string | null;
+  provider_payment_id: string | null;
+  method: string | null;
+  amount_paise: number | string;
+  status: string;
+  paid_at: string | null;
+  created_at: string;
+}
+
+function withAdvancePayment(record: PaymentRecord, row: LiveAdvancePaymentRow | undefined): PaymentRecord {
+  if (!row) return record;
+  const paid = row.status === 'captured';
+  const paidAmount = paid ? asNumber(row.amount_paise, 'captured payment amount') / 100 : 0;
+  const method = row.method === 'card' || row.method === 'upi' || row.method === 'wallet'
+    ? row.method
+    : row.method ? 'wallet' : null;
+  return {
+    ...record,
+    paymentMethod: method,
+    paymentStatus: paid ? 'paid'
+      : row.status === 'failed' ? 'failed'
+        : row.status === 'created' || row.status === 'pending' || row.status === 'authorized' ? 'pending'
+          : record.paymentStatus,
+    remainingAmount: Math.max(0, record.baseAmount - paidAmount),
+    gatewayRef: paid ? row.provider_payment_id || undefined : row.provider_order_id || undefined,
+    updatedAt: row.paid_at ? new Date(row.paid_at).getTime() : record.updatedAt,
+  };
+}
+
+async function hydrateAdvancePayments(
+  client: NexoraSupabaseClient,
+  records: PaymentRecord[],
+): Promise<PaymentRecord[]> {
+  if (records.length === 0) return records;
+  const { data, error } = await client
+    .from('payments')
+    .select('booking_id,provider_order_id,provider_payment_id,method,amount_paise,status,paid_at,created_at')
+    .in('booking_id', records.map((record) => record.id))
+    .eq('payment_stage', 'advance')
+    .order('created_at', { ascending: false });
+  if (error) throw safeDatabaseError(error, 'Payment status could not be loaded.');
+  const latest = new Map<string, LiveAdvancePaymentRow>();
+  for (const raw of (data || []) as LiveAdvancePaymentRow[]) {
+    if (!latest.has(raw.booking_id)) latest.set(raw.booking_id, raw);
+  }
+  return records.map((record) => withAdvancePayment(record, latest.get(record.id)));
+}
+
 function enrichRecordWithCatalog(
   record: PaymentRecord,
   catalog: SupabaseBookingCatalog,
@@ -652,7 +702,7 @@ export async function createSupabaseBookingWithClient(
     throw new SupabaseBookingError('database', 'The booking was saved but could not be reloaded.');
   }
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(SUPABASE_BOOKING_EVENT));
-  return record;
+  return (await hydrateAdvancePayments(client, [record]))[0] || null;
 }
 
 export async function createSupabaseBooking(input: CreateSupabaseBookingInput): Promise<PaymentRecord> {
@@ -800,7 +850,7 @@ export async function readMySupabaseBookingsWithClient(
       catalog,
     );
   });
-  return records;
+  return hydrateAdvancePayments(client, records);
 }
 
 export async function readMySupabaseBookings(

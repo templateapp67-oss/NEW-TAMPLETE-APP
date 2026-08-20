@@ -84,6 +84,7 @@ import type {
 import type { BookingNoticeInput } from '../lib/siteBookingNotices';
 import { bookingNoticesText, fillNoticeText } from '../lib/siteBookingNoticesI18n';
 import type { SiteHeaderThemeId } from '../lib/siteNavigation';
+import { startRazorpayAdvancePayment } from '../lib/supabasePayment';
 
 interface Props {
   themeId: SiteHeaderThemeId;
@@ -411,7 +412,10 @@ export default function SiteBookingPaymentFlow(props: Props) {
       setRecord(initialRecord);
       setOption(initialRecord.paymentOption);
       if (initialRecord.paymentMethod) setGatewayMethod(initialRecord.paymentMethod);
-      if (initialRecord.bookingStatus === 'confirmed' || initialRecord.bookingStatus === 'pay_at_salon') {
+      if (initialRecord.persistence === 'supabase' && initialRecord.paymentStatus !== 'paid') {
+        setOption('advance');
+        setStep('option');
+      } else if (initialRecord.bookingStatus === 'confirmed' || initialRecord.bookingStatus === 'pay_at_salon') {
         setReceipt(toReceiptView(initialRecord, locale));
         setStep('confirm');
       } else if (initialRecord.bookingStatus === 'pending_payment') {
@@ -520,10 +524,19 @@ export default function SiteBookingPaymentFlow(props: Props) {
     () => (multiLines ? bookingTotal : basePrice),
     [multiLines, bookingTotal, basePrice],
   );
-  const amounts = useMemo(
-    () => calculatePaymentAmounts(option, { price: bookingBaseTotal, finalPrice: bookingTotal }, data.bookingRules),
-    [option, bookingBaseTotal, bookingTotal, data.bookingRules],
-  );
+  const amounts = useMemo(() => {
+    if (record?.persistence === 'supabase') {
+      return {
+        baseAmount: record.baseAmount,
+        amountDue: record.amountDue,
+        remainingAmount: record.remainingAmount,
+        advancePercent: record.baseAmount > 0 ? Math.round((record.amountDue / record.baseAmount) * 100) : 0,
+        source: 'service' as const,
+        requiresGateway: record.paymentStatus !== 'paid',
+      };
+    }
+    return calculatePaymentAmounts(option, { price: bookingBaseTotal, finalPrice: bookingTotal }, data.bookingRules);
+  }, [record, option, bookingBaseTotal, bookingTotal, data.bookingRules]);
 
   // -----------------------------------------------------------------
   // Handlers — move between steps
@@ -689,6 +702,15 @@ export default function SiteBookingPaymentFlow(props: Props) {
     submitLockRef.current = true;
     // PHASE 16.9 — payment-pending feedback the moment an attempt starts.
     onShowToast?.({ kind: 'info', message: NT['notice.paymentPending'] });
+    if (record?.persistence === 'supabase') {
+      setGatewayPhase('processing');
+      setGatewayResult(null);
+      setGatewaySecondsLeft(Math.floor(paymentGatewayTimeoutMs() / 1000));
+      const attempt = startRazorpayAdvancePayment(record);
+      attemptRef.current = attempt;
+      attempt.promise.then(handleAttemptResult);
+      return;
+    }
     // PHASE 16.6 — a live booking already exists for this exact context
     // (refresh / retry / returning to the page): re-use it instead of
     // creating a second booking. An already-confirmed one goes straight
@@ -833,6 +855,12 @@ export default function SiteBookingPaymentFlow(props: Props) {
     // (the result card flips into its busy state), so the visitor never
     // sees a blank screen mid-retry. The new result replaces it on resolve.
     setGatewaySecondsLeft(Math.floor(paymentGatewayTimeoutMs() / 1000));
+    if (record.persistence === 'supabase') {
+      const attempt = startRazorpayAdvancePayment(record);
+      attemptRef.current = attempt;
+      attempt.promise.then(handleAttemptResult);
+      return;
+    }
     setTimeout(() => {
       const attempt = retryPayment(record, { ...gatewayForm, method });
       attemptRef.current = attempt;
@@ -1076,50 +1104,70 @@ export default function SiteBookingPaymentFlow(props: Props) {
                 option={option}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <PaymentOptionCard
-                  D={D}
-                  s={s}
-                  T={T}
-                  locale={locale}
-                  testid="payment-option-pay-at-salon"
-                  icon={<Banknote className="w-4 h-4" />}
-                  title={T['option.payAtSalon.title']}
-                  body={T['option.payAtSalon.body']}
-                  amountLabel={formatCurrency(amounts.remainingAmount || amounts.baseAmount)}
-                  amountCaption={T['option.dueAtSalon']}
-                  selected={option === 'pay_at_salon'}
-                  onSelect={() => setOption('pay_at_salon')}
-                />
-                <PaymentOptionCard
-                  D={D}
-                  s={s}
-                  T={T}
-                  locale={locale}
-                  testid="payment-option-advance"
-                  icon={<ShieldCheck className="w-4 h-4" />}
-                  title={T['option.advance.title']}
-                  body={fillPaymentText(T['option.advance.body'], {})}
-                  amountLabel={formatCurrency(amounts.amountDue)}
-                  amountCaption={fillPaymentText(T['option.advancePct'], { pct: amounts.advancePercent })}
-                  selected={option === 'advance'}
-                  onSelect={() => setOption('advance')}
-                  recommended
-                />
-                <PaymentOptionCard
-                  D={D}
-                  s={s}
-                  T={T}
-                  locale={locale}
-                  testid="payment-option-full"
-                  icon={<Lock className="w-4 h-4" />}
-                  title={T['option.full.title']}
-                  body={T['option.full.body']}
-                  amountLabel={formatCurrency(amounts.amountDue)}
-                  amountCaption={T['option.dueNow']}
-                  selected={option === 'full'}
-                  onSelect={() => setOption('full')}
-                />
+              <div className={`grid grid-cols-1 ${record?.persistence === 'supabase' ? '' : 'md:grid-cols-3'} gap-3`}>
+                {record?.persistence === 'supabase' ? (
+                  <PaymentOptionCard
+                    D={D}
+                    s={s}
+                    T={T}
+                    locale={locale}
+                    testid="payment-option-advance"
+                    icon={<ShieldCheck className="w-4 h-4" />}
+                    title={T['option.advance.title']}
+                    body="Razorpay Test Mode — verified by the server before payment is recorded."
+                    amountLabel={formatCurrency(amounts.amountDue)}
+                    amountCaption={fillPaymentText(T['option.advancePct'], { pct: 25 })}
+                    selected
+                    onSelect={() => setOption('advance')}
+                    recommended
+                  />
+                ) : (
+                  <>
+                    <PaymentOptionCard
+                      D={D}
+                      s={s}
+                      T={T}
+                      locale={locale}
+                      testid="payment-option-pay-at-salon"
+                      icon={<Banknote className="w-4 h-4" />}
+                      title={T['option.payAtSalon.title']}
+                      body={T['option.payAtSalon.body']}
+                      amountLabel={formatCurrency(amounts.remainingAmount || amounts.baseAmount)}
+                      amountCaption={T['option.dueAtSalon']}
+                      selected={option === 'pay_at_salon'}
+                      onSelect={() => setOption('pay_at_salon')}
+                    />
+                    <PaymentOptionCard
+                      D={D}
+                      s={s}
+                      T={T}
+                      locale={locale}
+                      testid="payment-option-advance"
+                      icon={<ShieldCheck className="w-4 h-4" />}
+                      title={T['option.advance.title']}
+                      body={fillPaymentText(T['option.advance.body'], {})}
+                      amountLabel={formatCurrency(amounts.amountDue)}
+                      amountCaption={fillPaymentText(T['option.advancePct'], { pct: amounts.advancePercent })}
+                      selected={option === 'advance'}
+                      onSelect={() => setOption('advance')}
+                      recommended
+                    />
+                    <PaymentOptionCard
+                      D={D}
+                      s={s}
+                      T={T}
+                      locale={locale}
+                      testid="payment-option-full"
+                      icon={<Lock className="w-4 h-4" />}
+                      title={T['option.full.title']}
+                      body={T['option.full.body']}
+                      amountLabel={formatCurrency(amounts.amountDue)}
+                      amountCaption={T['option.dueNow']}
+                      selected={option === 'full'}
+                      onSelect={() => setOption('full')}
+                    />
+                  </>
+                )}
               </div>
 
               <p
@@ -1133,7 +1181,9 @@ export default function SiteBookingPaymentFlow(props: Props) {
                 data-testid="payment-option-secure-note"
               >
                 <Lock className="inline w-3 h-3 mr-1" style={{ color: s.accent }} />
-                {T['option.secureNote']}
+                {record?.persistence === 'supabase'
+                  ? 'Razorpay Test Mode — the 25% advance is calculated by the server from this saved booking.'
+                  : T['option.secureNote']}
               </p>
             </motion.div>
           )}
@@ -1174,7 +1224,15 @@ export default function SiteBookingPaymentFlow(props: Props) {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {record?.persistence === 'supabase' ? (
+                  <div
+                    data-testid="razorpay-test-mode"
+                    className="rounded-xl border p-3 text-[11px] font-semibold"
+                    style={{ backgroundColor: s.well, borderColor: s.chipLine, color: s.text }}
+                  >
+                    Razorpay Test Mode Checkout will open securely. Card, UPI, or wallet details are entered only inside Razorpay Checkout.
+                  </div>
+                ) : <><div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {GATEWAY_METHODS.map((method) => {
                     const selected = method === gatewayMethod;
                     const processing = gatewayPhase === 'processing';
@@ -1194,9 +1252,9 @@ export default function SiteBookingPaymentFlow(props: Props) {
                       </button>
                     );
                   })}
-                </div>
+                </div></>}
 
-                <div className="flex flex-col gap-3 mt-1">
+                {record?.persistence !== 'supabase' && <div className="flex flex-col gap-3 mt-1">
                   {gatewayMethod === 'card' && (
                     <>
                       <FormField D={D} s={s} label={T['gateway.cardLabel']} testid="payment-card-number">
@@ -1292,7 +1350,7 @@ export default function SiteBookingPaymentFlow(props: Props) {
                       />
                     </FormField>
                   )}
-                </div>
+                </div>}
 
                 <div
                   className="flex items-center justify-between text-xs font-bold"

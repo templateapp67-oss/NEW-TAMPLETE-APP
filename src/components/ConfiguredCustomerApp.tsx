@@ -14,6 +14,18 @@ type Resolution =
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
+function requestedSalonSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (!path || path === 'nearby') return null;
+  try {
+    const slug = decodeURIComponent(path).trim().toLowerCase();
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ? slug : null;
+  } catch {
+    return null;
+  }
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -48,28 +60,12 @@ function mapHours(rows: Array<{
   return result;
 }
 
-async function resolveCustomerSite(userId: string): Promise<Resolution> {
+async function loadPublishedSite(
+  salonId: string,
+  knownWebsite?: { slug: string; template_key: string; config: unknown },
+): Promise<Resolution> {
   const client = requireSupabase();
 
-  // An owner keeps the existing owner/onboarding application. This resolver
-  // deliberately uses the canonical organization-membership helper.
-  const ownerResult = await client.rpc('nexora_owner_salon_ids');
-  if (ownerResult.error) throw ownerResult.error;
-  if (Array.isArray(ownerResult.data) && ownerResult.data.length > 0) return { status: 'app' };
-
-  const customerResult = await client
-    .from('salon_customers')
-    .select('salon_id')
-    .eq('customer_user_id', userId)
-    .is('deleted_at', null);
-  if (customerResult.error) throw customerResult.error;
-  const salonIds = Array.from(new Set((customerResult.data || []).map((row) => row.salon_id)));
-  if (salonIds.length === 0) return { status: 'app' };
-  if (salonIds.length > 1) {
-    return { status: 'error', message: 'Choose a salon from the salon discovery page to open your account.' };
-  }
-
-  const salonId = salonIds[0];
   const [salonResult, websiteResult, hoursResult] = await Promise.all([
     client.from('salons')
       .select('id,name,description,phone,email,address,area,city,state,pincode,landmark,slug,timezone')
@@ -77,7 +73,7 @@ async function resolveCustomerSite(userId: string): Promise<Resolution> {
       .eq('is_active', true)
       .is('deleted_at', null)
       .single(),
-    client.from('salon_public_websites')
+    knownWebsite ? Promise.resolve({ data: knownWebsite, error: null }) : client.from('salon_public_websites')
       .select('slug,template_key,config')
       .eq('salon_id', salonId)
       .eq('is_published', true)
@@ -135,23 +131,60 @@ async function resolveCustomerSite(userId: string): Promise<Resolution> {
   };
 }
 
+async function resolveCustomerSite(userId: string | null, routeSlug: string | null): Promise<Resolution> {
+  const client = requireSupabase();
+
+  // A published slug is explicit customer intent and is safe for anonymous
+  // visitors. The public website projection + salon catalogue RLS remain the
+  // database authorization boundary.
+  if (routeSlug) {
+    const websiteResult = await client
+      .from('salon_public_websites')
+      .select('salon_id,slug,template_key,config')
+      .eq('slug', routeSlug)
+      .eq('is_published', true)
+      .single();
+    if (websiteResult.error) throw websiteResult.error;
+    return loadPublishedSite(websiteResult.data.salon_id, websiteResult.data);
+  }
+
+  if (!userId) return { status: 'app' };
+
+  // On the builder root an owner keeps the existing owner/onboarding app.
+  // Ownership remains the canonical organization-membership helper.
+  const ownerResult = await client.rpc('nexora_owner_salon_ids');
+  if (ownerResult.error) throw ownerResult.error;
+  if (Array.isArray(ownerResult.data) && ownerResult.data.length > 0) return { status: 'app' };
+
+  const customerResult = await client
+    .from('salon_customers')
+    .select('salon_id')
+    .eq('customer_user_id', userId)
+    .is('deleted_at', null);
+  if (customerResult.error) throw customerResult.error;
+  const salonIds = Array.from(new Set((customerResult.data || []).map((row) => row.salon_id)));
+  if (salonIds.length === 0) return { status: 'app' };
+  if (salonIds.length > 1) {
+    return { status: 'error', message: 'Choose a salon from the salon discovery page to open your account.' };
+  }
+  return loadPublishedSite(salonIds[0]);
+}
+
 /**
- * Configured authenticated customers resolve their real tenant from
- * salon_customers. Anonymous/demo users and owners retain the existing app.
+ * Published slug routes resolve the real public salon for any visitor.
+ * On the builder root, authenticated customers resolve their tenant from
+ * salon_customers while anonymous visitors and owners retain the existing app.
  */
 export default function ConfiguredCustomerApp() {
   const { user, loading } = useAuth();
   const [resolution, setResolution] = useState<Resolution>({ status: 'loading' });
+  const routeSlug = requestedSalonSlug();
 
   useEffect(() => {
     if (!isSupabaseConfigured || loading) return;
-    if (!user) {
-      setResolution({ status: 'app' });
-      return;
-    }
     let active = true;
     setResolution({ status: 'loading' });
-    void resolveCustomerSite(user.id)
+    void resolveCustomerSite(user?.id ?? null, routeSlug)
       .then((result) => { if (active) setResolution(result); })
       .catch(() => {
         if (active) setResolution({
@@ -160,7 +193,7 @@ export default function ConfiguredCustomerApp() {
         });
       });
     return () => { active = false; };
-  }, [loading, user?.id]);
+  }, [loading, routeSlug, user?.id]);
 
   if (!isSupabaseConfigured || resolution.status === 'app') return <App />;
   if (loading || resolution.status === 'loading') {

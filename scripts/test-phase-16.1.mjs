@@ -23,6 +23,10 @@
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
+// This suite validates the intentionally retained unconfigured/demo flow.
+delete process.env.VITE_SUPABASE_URL;
+delete process.env.VITE_SUPABASE_ANON_KEY;
+
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   url: 'http://localhost/',
 });
