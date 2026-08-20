@@ -10,6 +10,7 @@ import FamilyFullServiceTemplateRenderer from './FamilyFullServiceTemplateRender
 import NailLashStudioTemplateRenderer from './NailLashStudioTemplateRenderer';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { Sparkles, Phone, MessageCircle, CalendarCheck, MapPin, Clock, Navigation, Instagram, Facebook, Youtube, Video, Heart, ExternalLink, CreditCard } from 'lucide-react';
+import SalonLiveLink from './SalonLiveLink';
 
 interface Props {
   data: SalonData;
@@ -82,9 +83,10 @@ export default function TemplateRenderer({ data, mode }: Props) {
             <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
             <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
           </div>
-          <div className={`mx-auto px-4 py-1 rounded text-[10px] border font-mono tracking-wide ${isDark ? 'bg-zinc-950 text-zinc-400 border-zinc-700' : 'bg-white text-gray-500 border-gray-200'}`}>
-            {data.salonName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yoursalon'}.nexora.site
-          </div>
+          <SalonLiveLink
+            data={data}
+            className={`mx-auto max-w-[70%] px-4 py-1 rounded text-[10px] border font-mono tracking-wide ${isDark ? 'bg-zinc-950 text-zinc-400 border-zinc-700 hover:text-zinc-200' : 'bg-white text-gray-500 border-gray-200 hover:text-gray-800'}`}
+          />
         </div>
       ) : (
         <div className="h-6 w-full flex justify-center items-start bg-gray-900 shrink-0">

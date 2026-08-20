@@ -20,6 +20,8 @@ import {
   Undo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import SalonLiveLink from '../components/SalonLiveLink';
+import { salonLiveUrl } from '../lib/salonSubdomain';
 
 interface Props {
   data: SalonData;
@@ -41,7 +43,7 @@ export default function StepPublishSuccess({ data, setData, onNext, onSave }: Pr
   const [isTuning, setIsTuning] = useState(false);
   const [tuneFlash, setTuneFlash] = useState(false);
 
-  const url = data.publishedUrl || `https://nexora.site/${data.websiteSlug || 'royal-hair-studio'}`;
+  const url = salonLiveUrl(data);
   const displayUrl = url.replace(/^https?:\/\//, '');
 
   // Initialize interactive confetti
@@ -111,10 +113,6 @@ export default function StepPublishSuccess({ data, setData, onNext, onSave }: Pr
   const handleFacebookShare = () => {
     const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
     window.open(fbUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleViewWebsite = () => {
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Real-time AI tuner endpoint trigger
@@ -400,13 +398,15 @@ export default function StepPublishSuccess({ data, setData, onNext, onSave }: Pr
                   Go to Dashboard
                   <LayoutDashboard className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </button>
-                <button 
-                  onClick={handleViewWebsite}
-                  className="flex-1 bg-white border-2 border-gray-200 text-gray-800 font-bold text-sm px-5 py-3.5 rounded-xl hover:border-[#ac0053] hover:text-[#ac0053] transition-colors active:scale-95 flex justify-center items-center gap-2 cursor-pointer"
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 bg-white border-2 border-gray-200 text-gray-800 font-bold text-sm px-5 py-3.5 rounded-xl hover:border-[#ac0053] hover:text-[#ac0053] hover:underline transition-colors active:scale-95 flex justify-center items-center gap-2 cursor-pointer"
                 >
                   View Website
-                  <ExternalLink className="w-4 h-4" />
-                </button>
+                  <ExternalLink className="w-4 h-4" aria-hidden="true" />
+                </a>
               </div>
 
               {/* Sharing Section */}
@@ -453,9 +453,11 @@ export default function StepPublishSuccess({ data, setData, onNext, onSave }: Pr
                   <div className="w-2 h-2 rounded-full bg-amber-400"></div>
                   <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
                 </div>
-                <div className="mx-auto bg-white px-3 py-1 rounded-full text-[8px] text-gray-500 border border-gray-100 truncate max-w-[140px] font-mono text-center">
-                  {data.websiteSlug || 'royal-hair-studio'}.nexora.site
-                </div>
+                <SalonLiveLink
+                  data={data}
+                  className="mx-auto bg-white px-3 py-1 rounded-full text-[8px] text-gray-500 hover:text-gray-800 border border-gray-100 max-w-[160px] font-mono text-center"
+                  iconClassName="h-2.5 w-2.5"
+                />
               </div>
 
               {/* Live Preview Container */}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import SalonLiveLink from './SalonLiveLink';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice, ServicePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
@@ -124,9 +125,11 @@ export default function BeautySpaTemplateRenderer({ data, mode }: Props) {
             <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
             <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
           </div>
-          <div className="mx-auto px-4 py-1 rounded-full text-[10px] border font-mono tracking-wide" style={{ backgroundColor: card, borderColor: line, color: muted }}>
-            {data.salonName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yoursalon'}.nexora.site
-          </div>
+          <SalonLiveLink
+            data={data}
+            className="mx-auto max-w-[70%] px-4 py-1 rounded-full text-[10px] border font-mono tracking-wide"
+            style={{ backgroundColor: card, borderColor: line, color: muted }}
+          />
         </div>
       ) : (
         <div className="h-6 w-full flex justify-center items-start shrink-0" style={{ backgroundColor: card }}>

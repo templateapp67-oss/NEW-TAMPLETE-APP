@@ -1,6 +1,7 @@
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import { SalonData, getPublicStaffData } from '../types';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import SalonLiveLink from './SalonLiveLink';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
@@ -104,9 +105,11 @@ export default function BarberTemplateRenderer({ data, mode }: Props) {
             <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
             <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
           </div>
-          <div className="mx-auto px-4 py-1 rounded text-[10px] border font-mono tracking-wide text-neutral-500 bg-[#141414]" style={{ borderColor: '#262626' }}>
-            {data.salonName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yoursalon'}.nexora.site
-          </div>
+          <SalonLiveLink
+            data={data}
+            className="mx-auto max-w-[70%] px-4 py-1 rounded text-[10px] border font-mono tracking-wide text-neutral-500 bg-[#141414] hover:text-neutral-300"
+            style={{ borderColor: '#262626' }}
+          />
         </div>
       ) : (
         <div className="h-6 w-full flex justify-center items-start bg-black shrink-0">
