@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "vite build --configLoader runner && esbuild --loader=ts --bundle --platform=node --format=cjs --external:* --sourcemap --sourcefile=server.ts --outfile=dist/server.cjs < server.ts",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -53,7 +53,7 @@
     "test:phase-16.2-supabase": "tsx scripts/test-phase-16.2-supabase.mjs",
     "test:phase-16.3": "tsx scripts/test-phase-16.3.mjs",
     "test:phase-16.4-supabase": "tsx scripts/test-phase-16.4-supabase.mjs",
-    "test:phase-16.5": "tsx scripts/test-phase-16.5.mjs",
+    "test:phase-16.5": "tsx scripts/test-phase-16.5.mjs && tsx scripts/test-phase-16.5-razorpay.mjs",
     "test:phase-16.6": "tsx scripts/test-phase-16.6.mjs",
     "test:phase-16.8": "tsx scripts/test-phase-16.8.mjs",
     "test:phase-16.7": "tsx scripts/test-phase-16.7.mjs",

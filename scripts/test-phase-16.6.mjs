@@ -380,7 +380,7 @@ section('View — every required field read from the existing record');
     assert.equal(again.reference, view.reference, 'projection must be stable');
   });
 
-  await test('a Supabase booking is confirmed as saved independently from mock payment', () => {
+  await test('a Supabase booking shows only database-backed payment state', () => {
     resetState();
     const record = paymentRecord({
       id: '11111111-1111-4111-8111-111111111111',
@@ -399,11 +399,13 @@ section('View — every required field read from the existing record');
     const utils = renderConfirmationPanel('beauty_skin_spa', view);
     const root = utils.getByTestId('booking-confirmation');
     assert.equal(root.dataset.bookingSource, 'supabase');
+    assert.equal(root.dataset.paymentMode, 'database');
     assert.equal(utils.queryByTestId('booking-confirmation-demo-booking'), null);
+    assert.equal(utils.queryByTestId('booking-confirmation-mock-payment'), null);
     assert.ok(utils.getByTestId('booking-confirmation-reference').textContent.includes('LIVE-1660'));
-    assert.ok(utils.getByTestId('booking-confirmation-payment-status').textContent.includes('TEST / MOCK'));
-    assert.ok(utils.getByTestId('booking-confirmation-advance').textContent.includes('₹250'));
-    assert.ok(utils.getByTestId('booking-confirmation-remaining').textContent.includes('₹750'));
+    assert.ok(utils.getByTestId('booking-confirmation-payment-status').textContent.includes('unpaid'));
+    assert.ok(utils.getByTestId('booking-confirmation-advance').textContent.includes('₹0'));
+    assert.ok(utils.getByTestId('booking-confirmation-remaining').textContent.includes('₹1,000'));
     cleanup();
   });
 }

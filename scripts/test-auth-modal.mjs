@@ -140,8 +140,12 @@ async function runAllTests() {
   // 5. Check that the draft migrations remain intact and unexecuted
   const migrationsDir = 'supabase/migrations';
   const migrationFiles = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql'));
-  await test('All 27 draft migrations exist and are preserved', () => {
-    assert.equal(migrationFiles.length, 27, `Expected 27 migrations, found ${migrationFiles.length}`);
+  await test('All 27 draft migrations plus the applied Phase 16.4 migration are preserved', () => {
+    assert.equal(migrationFiles.length, 28, `Expected 28 migrations, found ${migrationFiles.length}`);
+    assert.ok(
+      migrationFiles.includes('20260819145619_phase_16_4_backend_reconciliation.sql'),
+      'Applied Phase 16.4 migration is missing',
+    );
   });
 
   console.log(`\n========================================`);

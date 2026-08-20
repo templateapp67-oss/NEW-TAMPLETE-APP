@@ -69,6 +69,7 @@ import {
   bookingTemplateKeyCandidate,
   readMySupabaseBookingByReference,
 } from '../lib/supabaseBooking';
+import { startRazorpayAdvancePayment } from '../lib/supabasePayment';
 
 interface Props {
   /** The CURRENT site theme — the panel stays consistent with it. */
@@ -166,6 +167,9 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
+  const [paymentOverride, setPaymentOverride] = useState<PaymentRecord | null>(null);
+  const [paymentPending, setPaymentPending] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
@@ -203,10 +207,10 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
   // Supabase rows are supplied only after the authenticated RLS read. Legacy
   // unconfigured builds retain the browser-local own-row resolver.
   const record = useMemo(
-    () => isSupabaseConfigured
+    () => paymentOverride || (isSupabaseConfigured
       ? (persistedRecord !== undefined ? persistedRecord : directRecord)
-      : readCustomerBooking(bookingId),
-    [bookingId, version, persistedRecord, directRecord],
+      : readCustomerBooking(bookingId)),
+    [bookingId, version, persistedRecord, directRecord, paymentOverride],
   );
   const view: BookingConfirmationView | null = useMemo(
     () => (record ? toBookingConfirmation(record) : null),
@@ -327,6 +331,24 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
     }
   };
 
+  const payAdvance = async () => {
+    if (paymentPending || record.persistence !== 'supabase' || record.paymentStatus === 'paid') return;
+    setPaymentPending(true);
+    setPaymentError(null);
+    const result = await startRazorpayAdvancePayment(record).promise;
+    setPaymentPending(false);
+    setPaymentOverride(result.record);
+    if (result.outcome === 'success' && result.record.paymentStatus === 'paid') {
+      setSuccessNote(L('Razorpay Test Mode advance verified and saved.', 'Razorpay टेस्ट मोड एडवांस सत्यापित और सेव हुआ।'));
+      window.dispatchEvent(new Event(PAYMENT_EVENT));
+      setVersion((value) => value + 1);
+    } else if (result.outcome === 'cancellation') {
+      setPaymentError(L('Payment cancelled. No payment was marked successful.', 'भुगतान रद्द हुआ। कोई भुगतान सफल नहीं माना गया।'));
+    } else {
+      setPaymentError(result.reason || L('Payment failed. No payment was marked successful.', 'भुगतान विफल हुआ। कोई भुगतान सफल नहीं माना गया।'));
+    }
+  };
+
   /* ================================================================ */
   /* RESCHEDULE MODE — dedicated component                             */
   /* ================================================================ */
@@ -421,6 +443,7 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
 
       {successNote && <Banner s={s} kind="success" testId="booking-details-success">{successNote}</Banner>}
       {actionError && <Banner s={s} kind="error" testId="booking-details-error">{actionError}</Banner>}
+      {paymentError && <Banner s={s} kind="error" testId="booking-payment-error">{paymentError}</Banner>}
 
       {/* ---- existing confirmation panel (banner + reference + details) ---- */}
       <SiteBookingConfirmation
@@ -466,19 +489,34 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
         <InfoRow
           s={s}
           icon={<Wallet className="w-3 h-3" />}
-          label={L('Test advance (25%)', 'टेस्ट एडवांस (25%)')}
-          value={formatCurrency(mockPayment.testAdvanceAmount)}
+          label={L('25% advance', '25% एडवांस')}
+          value={formatCurrency(record.amountDue)}
           valueColor={s.accent}
         />
-        <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Test remaining', 'टेस्ट शेष राशि')} value={formatCurrency(mockPayment.testRemainingAmount)} />
+        <InfoRow s={s} icon={<Wallet className="w-3 h-3" />} label={L('Remaining amount', 'शेष राशि')} value={formatCurrency(record.remainingAmount)} />
         <InfoRow
           s={s}
           icon={<Wallet className="w-3 h-3" />}
           label={L('Payment status', 'भुगतान स्थिति')}
-          value={mockPayment.status}
+          value={record.paymentStatus === 'paid' ? L('Paid (Test Mode)', 'भुगतान हुआ (टेस्ट मोड)') : record.paymentStatus}
           valueColor={s.accent}
         />
       </div>
+
+      {record.persistence === 'supabase' && record.paymentStatus !== 'paid' && (
+        <button
+          type="button"
+          data-testid="booking-details-pay-advance"
+          disabled={paymentPending}
+          onClick={() => { void payAdvance(); }}
+          className="w-full rounded-xl px-4 py-3 text-xs font-extrabold disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ backgroundColor: s.accent, color: s.accentText }}
+        >
+          {paymentPending
+            ? L('Opening secure Test Checkout…', 'सुरक्षित टेस्ट चेकआउट खुल रहा है…')
+            : `${L('Pay 25% with Razorpay Test Mode', 'Razorpay टेस्ट मोड से 25% भुगतान करें')} · ${formatCurrency(record.amountDue)}`}
+        </button>
+      )}
 
       {/* ---- customer info (the customer's OWN record) ---- */}
       <div className="p-3.5 border rounded-xl" style={{ backgroundColor: s.card, borderColor: s.line }}>
@@ -535,10 +573,16 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
               <div className="text-center pb-2 border-b" style={{ borderColor: s.chipLine }}>
                 <p className="text-sm font-extrabold" style={{ color: s.textStrong }}>{salonName}</p>
                 <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: s.accent }}>
-                  {L('TEST / MOCK BOOKING RECEIPT — NOT PROOF OF PAYMENT', 'टेस्ट / मॉक बुकिंग रसीद — भुगतान का प्रमाण नहीं')}
+                  {record.persistence === 'supabase'
+                    ? L('RAZORPAY TEST MODE PAYMENT RECEIPT', 'RAZORPAY टेस्ट मोड भुगतान रसीद')
+                    : L('TEST / MOCK BOOKING RECEIPT — NOT PROOF OF PAYMENT', 'टेस्ट / मॉक बुकिंग रसीद — भुगतान का प्रमाण नहीं')}
                 </p>
               </div>
-              <ReceiptRow s={s} label={L('Test receipt reference', 'टेस्ट रसीद संदर्भ')} value={mockPayment.receiptReference} />
+              <ReceiptRow
+                s={s}
+                label={record.persistence === 'supabase' ? L('Provider reference', 'प्रदाता संदर्भ') : L('Test receipt reference', 'टेस्ट रसीद संदर्भ')}
+                value={record.persistence === 'supabase' ? record.gatewayRef || L('Pending', 'लंबित') : mockPayment.receiptReference}
+              />
               <ReceiptRow s={s} label={L('Booking reference', 'बुकिंग संदर्भ')} value={view.reference} />
               <ReceiptRow s={s} label={L('Date', 'तारीख़')} value={dateLabel} />
               <ReceiptRow s={s} label={L('Time', 'समय')} value={timeLabel} />
@@ -546,12 +590,12 @@ export default function SiteBookingDetails({ themeId, data, bookingId, persisted
               <ReceiptRow s={s} label={L('Duration', 'अवधि')} value={`${view.durationMinutes} ${L('min', 'मिनट')}`} />
               <div className="border-t my-1.5" style={{ borderColor: s.chipLine }} />
               <ReceiptRow s={s} label={L('Total amount', 'कुल राशि')} value={formatCurrency(mockPayment.totalAmount)} strong />
-              <ReceiptRow s={s} label={L('Test advance (25%)', 'टेस्ट एडवांस (25%)')} value={formatCurrency(mockPayment.testAdvanceAmount)} />
-              <ReceiptRow s={s} label={L('Test remaining', 'टेस्ट शेष राशि')} value={formatCurrency(mockPayment.testRemainingAmount)} />
+              <ReceiptRow s={s} label={L('25% advance', '25% एडवांस')} value={formatCurrency(record.amountDue)} />
+              <ReceiptRow s={s} label={L('Remaining', 'शेष राशि')} value={formatCurrency(record.remainingAmount)} />
               <ReceiptRow
                 s={s}
                 label={L('Payment status', 'भुगतान स्थिति')}
-                value={mockPayment.status}
+                value={record.paymentStatus}
               />
               <ReceiptRow
                 s={s}

@@ -86,9 +86,9 @@ export function bookingConfirmationState(
   if (bookingStatus === 'cancelled' || paymentStatus === 'cancelled') return 'cancelled';
   if (bookingStatus === 'failed' || paymentStatus === 'failed') return 'payment_failed';
   if (bookingStatus === 'completed') return 'completed';
-  // A customer-authorized Supabase row proves that the booking was created,
-  // independently of the intentionally deferred payment backend.
-  if (record.persistence === 'supabase') return 'booking_created';
+  // A database booking is created independently from payment. Only a captured,
+  // server-verified payment row may turn the payment result into confirmed.
+  if (record.persistence === 'supabase') return paymentStatus === 'paid' ? 'confirmed' : 'booking_created';
   if (bookingStatus === 'pay_at_salon') return 'confirmed';
   if (bookingStatus === 'confirmed') {
     // Never claim a confirmation the payment did not earn.
@@ -349,12 +349,16 @@ export function bookingConfirmationReceiptText(
   salonName: string,
 ): string {
   const money = (value: number) => `${view.currency === 'INR' ? '₹' : ''}${value.toLocaleString(locale === 'hi' ? 'hi-IN' : 'en-IN')}`;
-  const mock = mockPaymentForConfirmation(view);
+  const isDemo = view.bookingSource === 'browser_demo';
+  const mock = isDemo ? mockPaymentForConfirmation(view) : null;
   const lines: string[] = [];
   lines.push(T['receipt.title']);
-  lines.push(T['mock.receiptWarning']);
+  if (isDemo) lines.push(T['mock.receiptWarning']);
   lines.push('================================');
-  lines.push(`${T['mock.receiptReference']}: ${mock.receiptReference}`);
+  if (mock) lines.push(`${T['mock.receiptReference']}: ${mock.receiptReference}`);
+  if (!isDemo && view.gatewayRef) {
+    lines.push(`${locale === 'hi' ? 'भुगतान संदर्भ' : 'Payment reference'}: ${view.gatewayRef}`);
+  }
   lines.push(`${T['field.reference']}: ${view.reference}`);
   lines.push(`${T['field.status']}: ${T[`state.${view.state}`] || view.state}`);
   lines.push('');
@@ -368,10 +372,10 @@ export function bookingConfirmationReceiptText(
   );
   lines.push(`${T['field.duration']}: ${view.durationMinutes} ${T['common.minutes']}`);
   lines.push('');
-  lines.push(`${T['field.total']}: ${money(mock.totalAmount)}`);
-  lines.push(`${T['mock.advance']}: ${money(mock.testAdvanceAmount)}`);
-  lines.push(`${T['mock.remaining']}: ${money(mock.testRemainingAmount)}`);
-  lines.push(`${T['field.paymentStatus']}: ${mock.status}`);
+  lines.push(`${T['field.total']}: ${money(isDemo ? mock!.totalAmount : view.totalAmount)}`);
+  lines.push(`${isDemo ? T['mock.advance'] : (locale === 'hi' ? 'एडवांस भुगतान' : 'Advance paid')}: ${money(isDemo ? mock!.testAdvanceAmount : view.advancePaid)}`);
+  lines.push(`${isDemo ? T['mock.remaining'] : (locale === 'hi' ? 'शेष राशि' : 'Remaining amount')}: ${money(isDemo ? mock!.testRemainingAmount : view.remainingAmount)}`);
+  lines.push(`${T['field.paymentStatus']}: ${isDemo ? mock!.status : view.paymentStatus.replace(/_/g, ' ')}`);
   lines.push('');
   lines.push(`${T['field.customer']}: ${view.customer.name}`);
   lines.push(`${T['field.mobile']}: ${view.customer.mobile}`);

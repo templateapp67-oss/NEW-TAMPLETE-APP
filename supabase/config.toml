@@ -1,0 +1,10 @@
+project_id = "qwaehqsmodekbgvnaavz"
+
+[functions.razorpay-create-order]
+verify_jwt = true
+
+[functions.razorpay-confirm-payment]
+verify_jwt = true
+
+[functions.razorpay-webhook]
+verify_jwt = false

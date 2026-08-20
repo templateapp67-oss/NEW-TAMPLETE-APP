@@ -1110,12 +1110,15 @@ section('H. Access boundaries — actor matrix, tenant reads, status machine');
     seedRecords(null);
   });
 
-  await test('owner status machine: terminal states have no exits; foreign tenants are invisible', () => {
+  await test('owner status machine follows the live lifecycle and foreign tenants are invisible', () => {
     resetState();
-    assert.deepEqual(ownerAllowedTransitions('completed'), []);
-    assert.deepEqual(ownerAllowedTransitions('cancelled'), []);
+    assert.deepEqual(ownerAllowedTransitions('completed'), ['disputed']);
+    assert.deepEqual(ownerAllowedTransitions('cancelled'), ['disputed']);
     assert.deepEqual(ownerAllowedTransitions('failed'), []);
-    assert.deepEqual(ownerAllowedTransitions('confirmed'), ['completed', 'cancelled']);
+    assert.deepEqual(ownerAllowedTransitions('confirmed'), ['checked_in', 'cancelled', 'no_show']);
+    assert.deepEqual(ownerAllowedTransitions('checked_in'), ['in_progress', 'cancelled']);
+    assert.deepEqual(ownerAllowedTransitions('in_progress'), ['completed']);
+    assert.deepEqual(ownerAllowedTransitions('disputed'), []);
     assert.equal(customerCanCancel({ bookingStatus: 'completed' }), false);
     assert.equal(customerCanCancel({ bookingStatus: 'confirmed' }), true);
     seedRecords([paymentRecord({ bookingId: 'NX-70004', bookingStatus: 'completed', remainingAmount: 0 })]);
@@ -1131,6 +1134,10 @@ section('H. Access boundaries — actor matrix, tenant reads, status machine');
   await test('owner completion settles the remaining balance on the record', () => {
     resetState();
     seedRecords([paymentRecord({ bookingId: 'NX-70005' })]);
+    const checkedIn = ownerUpdateBookingStatus(AUTHORIZED, 'public-site', 'beauty_skin_spa', 'NX-70005', 'checked_in');
+    assert.equal(checkedIn.ok, true);
+    const inProgress = ownerUpdateBookingStatus(AUTHORIZED, 'public-site', 'beauty_skin_spa', 'NX-70005', 'in_progress');
+    assert.equal(inProgress.ok, true);
     const result = ownerUpdateBookingStatus(AUTHORIZED, 'public-site', 'beauty_skin_spa', 'NX-70005', 'completed');
     assert.equal(result.ok, true);
     assert.equal(result.record.bookingStatus, 'completed');

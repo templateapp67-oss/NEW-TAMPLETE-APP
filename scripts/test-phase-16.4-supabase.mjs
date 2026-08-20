@@ -121,6 +121,11 @@ globalThis.fetch = async (input, init = {}) => {
       full_name: 'Asha Customer', phone: '+919999999999',
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
+  if (url.includes('/rest/v1/payments')) {
+    return new Response(JSON.stringify([]), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+  }
   if (url.includes('/rest/v1/salon_customers')) {
     return new Response(JSON.stringify({
       email: 'relationship@example.test',
@@ -263,7 +268,7 @@ try {
   assert.doesNotMatch(view.getByTestId('supabase-booking-error').textContent, /internal database detail/i);
 
   await act(async () => { fireEvent.click(view.getByTestId('supabase-booking-retry')); });
-  await waitFor(() => assert.ok(view.getByTestId('supabase-booking-persisted')));
+  await waitFor(() => assert.ok(view.getByTestId('payment-flow')));
   assert.equal(createCalls, 2);
   assert.ok(bookingReadBodies.length >= 1, 'confirmation must reload through the customer-own RPC');
   assert.equal(bookingReadBodies.at(-1).p_salon_id, SALON_ID);
@@ -274,17 +279,10 @@ try {
   assert.equal(createBodies[1].p_staff_id, STAFF_ID);
   assert.equal(createBodies[1].p_appointment_start, '2031-08-20T05:30:00.000Z');
   assert.equal(typeof createBodies[1].p_idempotency_key, 'string');
-  assert.match(view.getByTestId('supabase-booking-persisted').textContent, /LIVE-1640/);
-  assert.match(view.getByTestId('supabase-booking-persisted').textContent, /Database Balayage/);
-  assert.match(view.getByTestId('supabase-booking-persisted').textContent, /Hair Colour/);
-  assert.match(view.getByTestId('booking-confirmation-customer').textContent, /Asha Customer/);
-  assert.match(view.getByTestId('booking-confirmation-customer-mobile').textContent, /9999999999/);
-  assert.match(view.getByTestId('booking-confirmation-customer-email').textContent, /asha@example\.test/);
-  assert.equal(view.getByTestId('booking-confirmation').dataset.state, 'booking_created');
-  assert.equal(view.getByTestId('booking-confirmation').dataset.bookingSource, 'supabase');
-  assert.equal(view.getByTestId('booking-confirmation').dataset.confirmed, 'false');
-  assert.equal(view.getByTestId('booking-confirmation-payment-status').textContent.includes('TEST / MOCK'), true);
-  assert.equal(view.queryByTestId('booking-confirmation-demo-booking'), null);
+  assert.equal(view.getByTestId('payment-flow').dataset.step, 'option');
+  assert.match(view.getByTestId('payment-flow').textContent, /Database Balayage/);
+  assert.match(view.getByTestId('payment-option-secure-note').textContent, /Razorpay Test Mode/);
+  assert.match(view.getByTestId('payment-due-now').textContent, /₹312\.5/);
   assert.equal(new URLSearchParams(window.location.search).get('booking'), BOOKING_ID);
   assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
 
@@ -295,10 +293,9 @@ try {
   const refreshed = render(React.createElement(SiteBookingHost, {
     themeId: 'hair_studio_color_bar', data,
   }));
-  await waitFor(() => assert.ok(refreshed.getByTestId('supabase-booking-persisted')));
-  assert.match(refreshed.getByTestId('supabase-booking-persisted').textContent, /LIVE-1640/);
-  assert.match(refreshed.getByTestId('supabase-booking-persisted').textContent, /Database Balayage/);
-  assert.equal(refreshed.getByTestId('booking-confirmation').dataset.bookingSource, 'supabase');
+  await waitFor(() => assert.ok(refreshed.getByTestId('payment-flow')));
+  assert.match(refreshed.getByTestId('payment-flow').textContent, /Database Balayage/);
+  await waitFor(() => assert.match(refreshed.getByTestId('payment-option-secure-note').textContent, /Razorpay Test Mode/));
   assert.equal(window.localStorage.getItem(PAYMENT_STORE_KEY), null);
 
   // A valid-looking UUID owned by somebody else is hidden by the scoped query

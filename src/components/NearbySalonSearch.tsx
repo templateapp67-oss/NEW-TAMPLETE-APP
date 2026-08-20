@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { MapPin, Crosshair, Loader2, AlertCircle, Search } from 'lucide-react';
+import { MapPin, Crosshair, Loader2, AlertCircle, Search, ArrowRight } from 'lucide-react';
 import {
   getBrowserLocation,
   geocodeAddress,
@@ -208,9 +208,19 @@ export default function NearbySalonSearch() {
                     </p>
                   )}
                 </div>
-                <span className="shrink-0 rounded-lg bg-[#ffd9e1]/50 px-2.5 py-1 text-xs font-bold text-[#ac0053]">
-                  {formatDistanceKm(salon.distanceKm)} away
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <span className="rounded-lg bg-[#ffd9e1]/50 px-2.5 py-1 text-xs font-bold text-[#ac0053]">
+                    {formatDistanceKm(salon.distanceKm)} away
+                  </span>
+                  {salon.slug && (
+                    <a
+                      href={`/${encodeURIComponent(salon.slug)}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#ac0053] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ac0053]"
+                    >
+                      Open website <ArrowRight className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
