@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { SalonData } from '../types';
 import TemplateRenderer from '../components/TemplateRenderer';
+import { isSupabaseConfigured, requireSupabase } from '../lib/supabaseClient';
+import { resolveOwnerSalonId, ownerSalonMessage } from '../lib/ownerSalon';
 import { ArrowLeft, ArrowRight, Globe, CheckCircle2, Link2, AlertCircle, Monitor, Smartphone, Circle, Check } from 'lucide-react';
 
 interface Props {
@@ -25,6 +27,7 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
   const [slug, setSlug] = useState<string>(data.websiteSlug || slugify(data.salonName) || 'royal-hair-studio');
   const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop');
   const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data.websiteSlug) {
@@ -57,16 +60,36 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
 
   const allRequiredDone = checks.every(c => c.done);
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     setPublishing(true);
-    setData(prev => ({ ...prev, publishState: 'publishing', publishedUrl: fullUrl, websiteSlug: slug }));
-    if (onSave) onSave();
-    setTimeout(() => {
-      setData(prev => ({ ...prev, publishState: 'published', publishedUrl: fullUrl, lastCompletedStep: 14 }));
-      if (onSave) onSave();
+    setPublishError(null);
+    try {
+      if (!isSupabaseConfigured) throw new Error('Publishing requires a configured database.');
+      const owner = await resolveOwnerSalonId();
+      if (owner.status !== 'resolved') throw new Error(ownerSalonMessage(owner));
+      const client = requireSupabase();
+      // This is the existing salon publication contract. Do not report success
+      // until the row is persisted and read back from the database.
+      const { error } = await client.from('salon_public_websites').update({
+        slug,
+        is_published: true,
+        published_at: new Date().toISOString(),
+      }).eq('salon_id', owner.salonId);
+      if (error) throw error;
+      const { data: persisted, error: readError } = await client.from('salon_public_websites')
+        .select('slug,is_published').eq('salon_id', owner.salonId).single();
+      if (readError) throw readError;
+      if (!persisted?.is_published || persisted.slug !== slug) throw new Error('The database did not confirm publication.');
+      setData(prev => ({ ...prev, publishState: 'published', publishedUrl: fullUrl, websiteSlug: slug, lastCompletedStep: 14 }));
+      onSave?.();
+      onNext();
+    } catch (error) {
+      console.error('Website publication failed:', error);
+      setPublishError(error instanceof Error ? error.message : 'Website publication failed. Please try again.');
+      setData(prev => ({ ...prev, publishState: 'draft' }));
+    } finally {
       setPublishing(false);
-      onNext(); // go to Step 15
-    }, 1200);
+    }
   };
 
   const previewData: SalonData = {
@@ -177,6 +200,12 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
                 </div>
               ))}
             </div>
+
+            {publishError && (
+              <div role="alert" className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 flex gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" /> {publishError}
+              </div>
+            )}
 
             {!allRequiredDone && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 flex gap-2">

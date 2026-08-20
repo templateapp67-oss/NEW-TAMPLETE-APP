@@ -125,9 +125,14 @@ async function resolveCustomerSite(userId: string): Promise<Resolution> {
       },
       openingHours: mapHours(hoursResult.data || []),
       services: catalog.services,
-      packages: [],
-      offers: [],
-      team: [],
+      // These are the existing website configuration payload fields. Keep the
+      // database as the authority; empty values mean the owner has not
+      // configured that section, not that demo content should be invented.
+      packages: Array.isArray(config.packages) ? config.packages as SalonData['packages'] : [],
+      offers: Array.isArray(config.offers) ? config.offers as SalonData['offers'] : [],
+      team: Array.isArray(config.team) ? config.team as SalonData['team'] : [],
+      gallery: Array.isArray(config.gallery) ? config.gallery as SalonData['gallery'] : [],
+      socialVideos: Array.isArray(config.videos) ? config.videos as SalonData['socialVideos'] : [],
       websiteSlug: website.slug || salon.slug,
       publishState: 'published',
       publishedUrl: `/${website.slug || salon.slug}`,
