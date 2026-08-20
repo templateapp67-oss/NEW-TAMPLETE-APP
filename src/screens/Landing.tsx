@@ -81,6 +81,7 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { resolveOwnerSalonId } from '../lib/ownerSalon';
 import { videoGalleryChrome } from '../lib/siteVideoGalleryI18n';
 import { useSiteLocale } from '../components/SiteHeader';
+import { salonLiveHost, salonLiveUrl } from '../lib/salonSubdomain';
 
 interface Props {
   data: SalonData;
@@ -294,8 +295,8 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
   const [paymentsSearch, setPaymentsSearch] = useState('');
   const [selectedPaymentId, setSelectedPaymentId] = useState<string>('a1');
 
-  const liveSlug = data.websiteSlug || 'royal-hair-studio';
-  const liveUrl = `nexora.site/${liveSlug}`;
+  const liveUrl = salonLiveHost(data);
+  const liveWebsiteUrl = salonLiveUrl(data);
 
   const [polishingField, setPolishingField] = useState<'tagline' | 'about' | 'bio' | null>(null);
   const [polishingStatus, setPolishingStatus] = useState<string>('');
@@ -1157,13 +1158,15 @@ export default function Landing({ data, setData, onNext, goToStep, onOpenStaffMa
           </div>
 
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setShowLiveSiteModal(true)}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-1.5 border border-[#ac0053]/20 rounded-xl text-xs font-bold text-[#ac0053] hover:bg-[#ffd9e1]/20 transition-all shadow-3xs"
+            <a
+              href={liveWebsiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 px-4 py-1.5 border border-[#ac0053]/20 rounded-xl text-xs font-bold text-[#ac0053] hover:bg-[#ffd9e1]/20 hover:underline transition-all shadow-3xs cursor-pointer"
             >
-              <ExternalLink className="w-3.5 h-3.5" />
+              <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
               View Live Website
-            </button>
+            </a>
 
             <div className="relative">
               <button 

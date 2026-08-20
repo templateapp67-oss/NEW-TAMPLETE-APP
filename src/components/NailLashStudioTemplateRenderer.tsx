@@ -4,6 +4,7 @@ import type { SalonData } from '../types';
 import { getPublicStaffData } from '../types';
 import { NAIL_LASH_STUDIO_THEME } from '../lib/themeServices';
 import SiteHeader, { useSiteLocale, useThemeAppearance } from './SiteHeader';
+import SalonLiveLink from './SalonLiveLink';
 import OwnerAvatar from './OwnerAvatar';
 import { BundlePrice } from './PromotionalPricing';
 import { FinalBookingCta, SectionStatePanel, structureCopyFrom } from './SiteSectionStates';
@@ -234,7 +235,11 @@ export default function NailLashStudioTemplateRenderer({ data, mode }: Props) {
       {mode !== 'mobile' ? (
         <div className="h-10 flex items-center gap-2 px-4 shrink-0" style={{ backgroundColor: sand, borderBottom: `1px solid ${line}` }}>
           <div className="flex gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#ff8073]" /><span className="w-2.5 h-2.5 rounded-full bg-[#ffd166]" /><span className="w-2.5 h-2.5 rounded-full bg-[#65cf98]" /></div>
-          <div className="mx-auto rounded-lg border px-5 py-1 text-[10px] font-mono tracking-wide" style={{ borderColor: line, color: muted, backgroundColor: t.card }}>{data.salonName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'nailandlash'}.nexora.site</div>
+          <SalonLiveLink
+            data={data}
+            className="mx-auto max-w-[70%] rounded-lg border px-5 py-1 text-[10px] font-mono tracking-wide"
+            style={{ borderColor: line, color: muted, backgroundColor: t.card }}
+          />
         </div>
       ) : <div className="h-6 w-full flex justify-center items-start shrink-0" style={{ backgroundColor: t.footerBg }}><div className="w-24 h-4 rounded-b-xl" style={{ backgroundColor: '#09070b' }} /></div>}
 
