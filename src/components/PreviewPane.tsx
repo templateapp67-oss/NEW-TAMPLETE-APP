@@ -274,7 +274,7 @@ export default function PreviewPane({ data, step, activeStaffId }: { data: Salon
                 <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
               </div>
               <div className="mx-auto bg-white px-4 py-1 rounded text-[10px] text-gray-500 border border-gray-200 font-mono tracking-wide">
-                {data.salonName.toLowerCase().replace(/\s+/g, '') || 'yoursalon'}.nexora.site
+                {data.salonName.toLowerCase().replace(/\s+/g, '') || 'yoursalon'}.new-tamplete-app.vercel.app
               </div>
             </div>
           ) : (

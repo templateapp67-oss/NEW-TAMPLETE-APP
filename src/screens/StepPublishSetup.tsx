@@ -40,7 +40,7 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
     setData(prev => ({ ...prev, websiteSlug: slug }));
   }, [slug, setData]);
 
-  const previewUrl = `nexora.site/${slug}`;
+  const previewUrl = `new-tamplete-app.vercel.app/${slug}`;
   const fullUrl = `https://${previewUrl}`;
 
   // Checklist logic
@@ -132,7 +132,7 @@ export default function StepPublishSetup({ data, setData, onNext, onPrev, onSave
               </label>
               <div className="relative flex items-center">
                 <span className="absolute left-3.5 text-gray-400 font-semibold text-sm">
-                  nexora.site/
+                  new-tamplete-app.vercel.app/
                 </span>
                 <input
                   className="w-full pl-[92px] pr-10 py-3 rounded-xl border border-gray-200 focus:border-[#ac0053] focus:ring-2 focus:ring-[#ffd9e1] bg-white text-gray-900 font-mono text-sm outline-none transition-all font-semibold"

@@ -33,7 +33,7 @@ app.use((req, res, next) => {
 // Host-aware tenant context for wildcard deployments. The SPA resolves the
 // tenant data under Supabase RLS; this header lets server/API consumers use the
 // same normalized host without trusting a query parameter.
-const platformDomain = (process.env.PLATFORM_DOMAIN || process.env.VITE_PLATFORM_DOMAIN || 'nexora.site').toLowerCase();
+const platformDomain = (process.env.PLATFORM_DOMAIN || process.env.VITE_PLATFORM_DOMAIN || 'new-tamplete-app.vercel.app').toLowerCase();
 const reservedHosts = new Set(['www', 'app', 'api', 'admin', 'dashboard', 'mail', 'assets']);
 app.use((req, res, next) => {
   const host = String(req.headers.host || '').split(':')[0].toLowerCase().replace(/\.$/, '');

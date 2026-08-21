@@ -242,7 +242,7 @@ export default function App() {
     } else if (screenId >= 18 && screenId <= 25) {
       // Ensure published state for dashboard
       if (data.publishState !== 'published') {
-        setData(prev => ({ ...prev, publishState: 'published', publishedUrl: prev.publishedUrl || `https://nexora.site/${prev.websiteSlug || 'royal-hair-studio'}`, websiteSlug: prev.websiteSlug || 'royal-hair-studio' }));
+        setData(prev => ({ ...prev, publishState: 'published', publishedUrl: prev.publishedUrl || `https://new-tamplete-app.vercel.app/${prev.websiteSlug || 'royal-hair-studio'}`, websiteSlug: prev.websiteSlug || 'royal-hair-studio' }));
       }
       setActiveModule('dashboard');
       const tabIndex = screenId - 18;
@@ -283,7 +283,7 @@ export default function App() {
         <main className="flex-1 flex overflow-hidden">
           {/* Force Landing into dashboard mode by ensuring published and passing forcedActiveTab */}
           <Landing
-            data={{ ...data, publishState: 'published', publishedUrl: data.publishedUrl || `https://nexora.site/${data.websiteSlug || 'royal-hair-studio'}` }}
+            data={{ ...data, publishState: 'published', publishedUrl: data.publishedUrl || `https://new-tamplete-app.vercel.app/${data.websiteSlug || 'royal-hair-studio'}` }}
             setData={setData}
             onNext={nextStep}
             goToStep={goToStep}

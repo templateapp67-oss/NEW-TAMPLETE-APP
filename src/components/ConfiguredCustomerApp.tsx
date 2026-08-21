@@ -144,7 +144,7 @@ async function loadPublishedSite(
 }
 
 /**
- * Resolve a `*.nexora.site` hostname to the matching published salon.
+ * Resolve a `*.new-tamplete-app.vercel.app` hostname to the matching published salon.
  *
  * The subdomain identifier is the salon name with every non-alphanumeric
  * character removed (the same rule `src/lib/salonSubdomain.ts` uses when it
@@ -212,7 +212,7 @@ async function resolveCustomerSite(
 ): Promise<Resolution> {
   const client = requireSupabase();
 
-  // A `*.nexora.site` host is explicit salon intent and takes precedence: the
+  // A `*.new-tamplete-app.vercel.app` host is explicit salon intent and takes precedence: the
   // subdomain identifies the tenant, regardless of any path on the URL.
   if (routeSubdomain) return resolveSubdomainSite(routeSubdomain);
 
@@ -253,7 +253,7 @@ async function resolveCustomerSite(
 }
 
 /**
- * Published `*.nexora.site` subdomains and legacy path slugs both resolve the
+ * Published `*.new-tamplete-app.vercel.app` subdomains and legacy path slugs both resolve the
  * real public salon for any visitor. On the builder root, authenticated
  * customers resolve their tenant from salon_customers while anonymous
  * visitors and owners retain the existing app.

@@ -1,9 +1,9 @@
 import { ownerSalonMessage, resolveOwnerSalonId } from './ownerSalon';
 import { requireSupabase } from './supabaseClient';
+import { PLATFORM_DOMAIN } from './platformDomain';
 
 export const RESERVED_SUBDOMAINS = new Set(['app', 'api', 'admin', 'www', 'dashboard', 'mail', 'assets']);
 export const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,28})[a-z0-9]$/;
-export const PLATFORM_DOMAIN = import.meta.env.VITE_PLATFORM_DOMAIN || 'nexora.site';
 
 export type TenantDomain = {
   salon_id: string; subdomain: string; custom_domain: string | null; brand_name: string;

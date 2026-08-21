@@ -2414,7 +2414,7 @@ apply → acceptance A–T → TypeScript types**.
   explicit database approval.
 - Owner UI: **Branding & White-label → Domain & Branding** checks/claims an
   address and saves/publishes the tenant-specific configuration. Configure
-  wildcard DNS and `VITE_PLATFORM_DOMAIN` (default `nexora.site`) before use.
+  wildcard DNS and `VITE_PLATFORM_DOMAIN` (default `new-tamplete-app.vercel.app`) before use.
 - Public resolution first checks an exact published `tenant_domains` subdomain,
   then preserves the legacy name-derived host fallback. Unknown/unpublished
   hosts stay fail-closed on the existing Site Not Found surface.

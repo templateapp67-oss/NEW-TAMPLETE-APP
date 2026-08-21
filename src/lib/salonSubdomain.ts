@@ -1,4 +1,5 @@
 import type { SalonData } from '../types';
+import { PLATFORM_DOMAIN } from './platformDomain';
 
 /**
  * Returns the existing salon-name based subdomain shown in website previews.
@@ -10,7 +11,7 @@ export function salonSubdomain(data: Pick<SalonData, 'salonName'>): string {
 }
 
 export function salonLiveHost(data: Pick<SalonData, 'salonName'>): string {
-  return `${salonSubdomain(data)}.nexora.site`;
+  return `${salonSubdomain(data)}.${PLATFORM_DOMAIN}`;
 }
 
 export function salonLiveUrl(data: Pick<SalonData, 'salonName'>): string {

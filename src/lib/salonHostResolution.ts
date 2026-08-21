@@ -1,9 +1,10 @@
 import { salonSubdomain } from './salonSubdomain';
+import { PLATFORM_DOMAIN as configuredPlatformDomain } from './platformDomain';
 
 /**
  * White-label hostname resolution (platform-level, one-time configuration).
  *
- * `*.nexora.site` routes to the SAME production application. This module turns
+ * `*.new-tamplete-app.vercel.app` routes to the SAME production application. This module turns
  * an incoming browser hostname into the salon subdomain identifier so the
  * application can resolve the correct tenant. It intentionally REUSES PR #61's
  * centralized `salonSubdomain` normalization so generation (dashboard links)
@@ -11,11 +12,11 @@ import { salonSubdomain } from './salonSubdomain';
  */
 
 /** The single platform domain that owns every salon subdomain. */
-export const PLATFORM_DOMAIN = import.meta.env.VITE_PLATFORM_DOMAIN || 'nexora.site';
+export const PLATFORM_DOMAIN = configuredPlatformDomain;
 
 /**
  * Normalize a salon name to its subdomain identifier using the exact same
- * rule the dashboard uses to build `https://<subdomain>.nexora.site`.
+ * rule the dashboard uses to build `https://<subdomain>.new-tamplete-app.vercel.app`.
  * Kept as a thin wrapper so resolution shares one source of truth with
  * `src/lib/salonSubdomain.ts` rather than reimplementing it.
  */
@@ -38,8 +39,8 @@ export function subdomainLikePattern(subdomain: string): string {
 /**
  * Extract the salon subdomain from a request hostname.
  *
- * - `royalhairbeautystudio.nexora.site` → `royalhairbeautystudio`
- * - `nexora.site`, `www.nexora.site` → `null` (platform root, not a salon)
+ * - `royalhairbeautystudio.new-tamplete-app.vercel.app` → `royalhairbeautystudio`
+ * - `new-tamplete-app.vercel.app`, `www.new-tamplete-app.vercel.app` → `null` (platform root, not a salon)
  * - any other host (`*.vercel.app`, localhost, preview hosts) → `null`
  *
  * `hostname` is injectable for tests; in the browser it defaults to
