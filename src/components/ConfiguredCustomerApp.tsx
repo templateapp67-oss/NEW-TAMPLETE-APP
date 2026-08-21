@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
+import type { TenantDomain } from '../lib/tenantDomains';
 import App from '../App';
 import type { SalonData, SalonOpeningHours } from '../types';
 import { bookingTemplateVisualTheme, readSupabaseBookingCatalogWithClient } from '../lib/supabaseBooking';
@@ -14,7 +15,7 @@ import TemplateRenderer from './TemplateRenderer';
 type Resolution =
   | { status: 'loading' }
   | { status: 'app' }
-  | { status: 'site'; data: SalonData }
+  | { status: 'site'; data: SalonData; tenant?: TenantDomain }
   | { status: 'error'; message: string }
   | { status: 'notfound' };
 
@@ -161,6 +162,15 @@ async function loadPublishedSite(
 async function resolveSubdomainSite(subdomain: string): Promise<Resolution> {
   const client = requireSupabase();
 
+  // Explicit tenant claims take precedence over the legacy name-derived host.
+  // The public RLS policy deliberately exposes only published tenants.
+  const tenantResult = await (client as any).from('tenant_domains').select('*')
+    .eq('subdomain', subdomain).eq('is_published', true).maybeSingle();
+  if (!tenantResult.error && tenantResult.data) {
+    const site = await loadPublishedSite(tenantResult.data.salon_id);
+    return site.status === 'site' ? { ...site, tenant: tenantResult.data as TenantDomain } : site;
+  }
+
   const candidateResult = await client
     .from('salons')
     .select('id,name,slug')
@@ -288,9 +298,32 @@ export default function ConfiguredCustomerApp() {
   if (resolution.status === 'error') {
     return <div data-testid="configured-customer-site-error" className="min-h-screen grid place-items-center p-6 text-center">{resolution.message}</div>;
   }
-  return (
-    <div data-testid="configured-customer-site" className="min-h-screen bg-white">
-      <TemplateRenderer data={resolution.data} mode="desktop" />
-    </div>
-  );
+  return <TenantSite tenant={resolution.tenant} data={resolution.data} />;
+}
+
+function TenantSite({ tenant, data }: { tenant?: TenantDomain; data: SalonData }) {
+  useEffect(() => {
+    if (!tenant) return;
+    const root = document.documentElement;
+    root.style.setProperty('--primary', tenant.primary_color);
+    root.style.setProperty('--secondary', tenant.secondary_color);
+    document.title = tenant.brand_name;
+    const setMeta = (property: string, value: string) => {
+      let node = document.head.querySelector(`meta[property="${property}"]`) as HTMLMetaElement | null;
+      if (!node) { node = document.createElement('meta'); node.setAttribute('property', property); document.head.appendChild(node); }
+      node.content = value;
+    };
+    setMeta('og:title', tenant.brand_name); setMeta('og:site_name', tenant.brand_name);
+    if (tenant.logo_url) setMeta('og:image', tenant.logo_url);
+    if (tenant.favicon_url) {
+      let icon = document.head.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+      if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.appendChild(icon); }
+      icon.href = tenant.favicon_url;
+    }
+    return () => { root.style.removeProperty('--primary'); root.style.removeProperty('--secondary'); };
+  }, [tenant]);
+  const brandedData = tenant ? { ...data, salonName: tenant.brand_name, logoUrl: tenant.logo_url || data.logoUrl, brandColor: tenant.primary_color } : data;
+  return <div data-testid="configured-customer-site" className="min-h-screen bg-white" style={tenant ? { '--primary': tenant.primary_color, '--secondary': tenant.secondary_color } as CSSProperties : undefined}>
+    <TemplateRenderer data={brandedData} mode="desktop" />
+  </div>;
 }

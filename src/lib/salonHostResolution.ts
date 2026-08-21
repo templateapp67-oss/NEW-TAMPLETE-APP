@@ -11,7 +11,7 @@ import { salonSubdomain } from './salonSubdomain';
  */
 
 /** The single platform domain that owns every salon subdomain. */
-export const PLATFORM_DOMAIN = 'nexora.site';
+export const PLATFORM_DOMAIN = import.meta.env.VITE_PLATFORM_DOMAIN || 'nexora.site';
 
 /**
  * Normalize a salon name to its subdomain identifier using the exact same

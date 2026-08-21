@@ -30,6 +30,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// Host-aware tenant context for wildcard deployments. The SPA resolves the
+// tenant data under Supabase RLS; this header lets server/API consumers use the
+// same normalized host without trusting a query parameter.
+const platformDomain = (process.env.PLATFORM_DOMAIN || process.env.VITE_PLATFORM_DOMAIN || 'nexora.site').toLowerCase();
+const reservedHosts = new Set(['www', 'app', 'api', 'admin', 'dashboard', 'mail', 'assets']);
+app.use((req, res, next) => {
+  const host = String(req.headers.host || '').split(':')[0].toLowerCase().replace(/\.$/, '');
+  const suffix = `.${platformDomain}`;
+  const label = host.endsWith(suffix) ? host.slice(0, -suffix.length) : '';
+  if (label && !label.includes('.') && /^[a-z0-9](?:[a-z0-9-]{1,28})[a-z0-9]$/.test(label) && !reservedHosts.has(label)) {
+    req.headers['x-tenant-subdomain'] = label;
+    res.setHeader('X-Tenant-Subdomain', label);
+  }
+  next();
+});
+
 // Health check endpoint for verification
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', screens: 25, timestamp: new Date().toISOString() });
