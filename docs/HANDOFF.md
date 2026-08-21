@@ -2403,3 +2403,18 @@ Expected output:
 
 In short: **live Supabase introspection → M02 regenerate → approved M01–M24
 apply → acceptance A–T → TypeScript types**.
+
+## White-label domains (M28 draft)
+
+- `supabase/migrations/20260821000101_m28_tenant_domains_branding.sql` adds a
+  `tenant_domains` row per `salons` tenant: unique validated subdomain/custom
+  domain, brand identity, theme colors, publication flag, and domain status.
+  It is deliberately excluded from the M01–M27 synthetic PGlite replay because
+  it targets the live `salons` ownership model; do not apply it without the same
+  explicit database approval.
+- Owner UI: **Branding & White-label → Domain & Branding** checks/claims an
+  address and saves/publishes the tenant-specific configuration. Configure
+  wildcard DNS and `VITE_PLATFORM_DOMAIN` (default `new-tamplete-app.vercel.app`) before use.
+- Public resolution first checks an exact published `tenant_domains` subdomain,
+  then preserves the legacy name-derived host fallback. Unknown/unpublished
+  hosts stay fail-closed on the existing Site Not Found surface.

@@ -15,6 +15,7 @@ import type { SalonData } from '../types';
 import type { AppLocale } from './locale';
 import type { SiteHeaderThemeId } from './siteNavigation';
 import { salonDisplayName } from './siteBooking';
+import { PLATFORM_DOMAIN } from './platformDomain';
 
 export const SEO_ROBOTS = 'index, follow';
 export const SEO_OG_TYPE = 'website';
@@ -247,14 +248,14 @@ export function buildCanonicalUrl(data: SalonData): string {
   const slug = (data.websiteSlug || '').trim();
   if (slug) {
     const clean = slugify(slug);
-    return `https://${clean}.nexora.site`;
+    return `https://${clean}.${PLATFORM_DOMAIN}`;
   }
   const name = (data.salonName || '').trim();
   if (name) {
     const clean = slugify(name);
-    return `https://${clean}.nexora.site`;
+    return `https://${clean}.${PLATFORM_DOMAIN}`;
   }
-  return 'https://nexora.site';
+  return `https://${PLATFORM_DOMAIN}`;
 }
 
 /** OG Image from actual salon media — never invented. */

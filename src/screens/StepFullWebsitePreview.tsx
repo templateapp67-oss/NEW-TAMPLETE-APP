@@ -181,7 +181,7 @@ export default function StepFullWebsitePreview({ data, onNext, onPrev }: Props) 
           <ArrowLeft className="w-4 h-4" /> Back to Review
         </button>
         <span className="hidden md:block text-xs font-semibold text-gray-400">
-          royalhairstudio.nexora.site
+          royalhairstudio.new-tamplete-app.vercel.app
         </span>
         <button
           onClick={onNext}

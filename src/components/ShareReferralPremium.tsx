@@ -75,7 +75,7 @@ export default function ShareReferralPremium({ salonName, liveUrl, onNotify }: P
     }
   };
 
-  const referralLink = `https://${liveUrl || 'nexora.site/lumina'}?ref=${REFERRAL_CODE.toLowerCase()}`;
+  const referralLink = `https://${liveUrl || 'new-tamplete-app.vercel.app/lumina'}?ref=${REFERRAL_CODE.toLowerCase()}`;
   const invitesSent = 24;
   const friendsBooked = 9;
   const creditsEarned = 1250;

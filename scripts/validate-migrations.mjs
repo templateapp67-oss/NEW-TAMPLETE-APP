@@ -15,11 +15,12 @@ import {
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const migrationsDir = join(root, 'supabase', 'migrations');
-// This harness replays the historical draft M01-M27 model only. Live-schema
-// reconciliation migrations are validated against the canonical staging
-// database and must not be fed into this intentionally synthetic PGlite model.
+// This harness replays the historical draft M01-M27 model only. Later
+// live-schema reconciliation migrations (including M28 tenant domains) are
+// validated against the canonical staging database and must not be fed into
+// this intentionally synthetic PGlite model.
 const migrationFiles = (await readdir(migrationsDir))
-  .filter((name) => /^\d+_m\d+_.+\.sql$/i.test(name))
+  .filter((name) => /^\d+_m(?:0[1-9]|1\d|2[0-7])_.+\.sql$/i.test(name))
   .sort();
 
 assert.equal(migrationFiles.length, 27, 'expected exactly M01-M27');

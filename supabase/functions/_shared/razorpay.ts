@@ -2,7 +2,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 
 const DEFAULT_TRUSTED_ORIGINS = [
-  'https://nexora.site',
+  'https://new-tamplete-app.vercel.app',
   'https://nexora-main-website.vercel.app',
   'https://shop-onwer-pink-nexora-aap.vercel.app',
   'https://pink-growth-partner.vercel.app',
